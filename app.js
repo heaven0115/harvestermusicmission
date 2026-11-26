@@ -2026,7 +2026,7 @@
 
     var fy = P.y + P.h - 58;
     drawSpaced(ctx, '세리토스장로교회', P.x + 74, fy, 17, 2.4, hexA(th.accent, 0.9), '600', CARD_SANS, 'left', 0.4);
-    drawSpaced(ctx, '하베스터 뮤직 유효석 목사', P.x + P.w - 74, fy, 17, 1.6, hexA(th.accent, 0.9), '600', CARD_SANS, 'right', 0.4);
+    drawSpaced(ctx, '하베스터 뮤직 유효석 목사', P.x + P.w - 74, fy, 17, 2.4, hexA(th.accent, 0.9), '600', CARD_SANS, 'right', 0.4);
     ctx.restore();
   }
 
