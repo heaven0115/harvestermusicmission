@@ -16,6 +16,7 @@
     calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M3.5 9.6h17M8 3.6v3M16 3.6v3"/><path d="M7.6 13h2.2M13.9 13h2.2M7.6 16.6h2.2M13.9 16.6h2.2"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.4A1.9 1.9 0 0 1 5.9 3.5H11v15.4H5.9A1.9 1.9 0 0 0 4 20.8z"/><path d="M20 5.4a1.9 1.9 0 0 0-1.9-1.9H13v15.4h5.1a1.9 1.9 0 0 1 1.9 1.9z"/></svg>',
     chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9.6M9.3 19V4.8M14.7 19v-6.4M20 19V7.4"/></svg>',
+    archive: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.6" y="4.4" width="16.8" height="4.6" rx="1.4"/><path d="M5.2 9v9.2a1.6 1.6 0 0 0 1.6 1.6h10.4a1.6 1.6 0 0 0 1.6-1.6V9"/><path d="M10 13.2h4"/></svg>',
     gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.6v2M12 18.4v2M4.6 12h2M17.4 12h2M6.8 6.8l1.4 1.4M15.8 15.8l1.4 1.4M17.2 6.8l-1.4 1.4M8.2 15.8l-1.4 1.4"/></svg>',
     chevL: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>',
     chevR: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>',
@@ -75,7 +76,7 @@
   }
 
   function loadUi() {
-    var def = { tab: 'library', view: 'list', selectedId: null, weekStart: weekStartISO(todayISO()), search: '', filter: '전체 상태', section: 'analysis', scheduleView: 'list', calMonth: '', calDay: '' };
+    var def = { tab: 'library', view: 'list', selectedId: null, weekStart: weekStartISO(todayISO()), search: '', filter: '전체 상태', section: 'analysis', scheduleView: 'list', calMonth: '', calDay: '', arcYear: '전체', arcService: '전체', arcQ: '', arcId: null };
     try {
       var raw = localStorage.getItem(UI_KEY);
       if (!raw) return def;
@@ -216,15 +217,16 @@
   }
 
   /* ---------------- shell ---------------- */
-  var TAB_TITLES = { board: '주간 보드', schedule: '일정', library: '설교 서재', progress: '진행률', review: '연결 및 검토' };
-  var TAB_ICONS = { board: ICON.grid, schedule: ICON.calendar, library: ICON.book, progress: ICON.chart, review: ICON.gear };
+  var TAB_TITLES = { board: '주간 보드', schedule: '일정', library: '설교 서재', archive: '과거 설교', progress: '진행률', review: '연결 및 검토' };
+  var TAB_ICONS = { board: ICON.grid, schedule: ICON.calendar, library: ICON.book, archive: ICON.archive, progress: ICON.chart, review: ICON.gear };
 
   function buildNav() {
     var nav = document.getElementById('nav');
     Array.prototype.forEach.call(nav.querySelectorAll('.nav-item'), function (btn) {
       var tab = btn.getAttribute('data-tab');
       btn.innerHTML = TAB_ICONS[tab] + '<span class="label">' + TAB_TITLES[tab] + '</span>' +
-        (tab === 'library' ? '<span class="badge" id="libBadge">0</span>' : '');
+        (tab === 'library' ? '<span class="badge" id="libBadge">0</span>' : '') +
+        (tab === 'archive' ? '<span class="badge" id="arcBadge">–</span>' : '');
       btn.addEventListener('click', function () {
         ui.tab = tab;
         if (tab === 'library' && ui.view === 'detail' && !sermonById(ui.selectedId)) ui.view = 'list';
@@ -776,6 +778,193 @@
       '<div class="section-card"><h2>휴지통</h2><p class="hint">삭제한 설교는 여기에서 복원하거나 완전히 지웁니다.</p>' + trashHTML + '</div>';
   }
 
+  /* ---------------- 과거 설교 아카이브 ---------------- */
+  var ARC = { index: null, loading: false, error: '', bodies: {}, selected: null, searching: false };
+
+  function arcTotal() { return ARC.index ? ARC.index.count || ARC.index.items.length : 0; }
+  function arcYearKey(it) { return it.year ? String(it.year) : 'unknown'; }
+  function arcDateLabel(it) {
+    if (!it.date) return '';
+    var p = String(it.date).split('-');
+    return (+p[1]) + '.' + (+p[2]);
+  }
+  function arcHeading(it) { return it.title || it.scripture || '설교 원고'; }
+
+  function loadArchiveIndex() {
+    if (ARC.index || ARC.loading) return;
+    ARC.loading = true;
+    fetch('archive/index.json').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) {
+      ARC.index = j;
+      ARC.loading = false;
+      var b = document.getElementById('arcBadge');
+      if (b) b.textContent = String(j.count);
+      if (ui.tab === 'archive') render();
+    })['catch'](function (e) {
+      ARC.loading = false;
+      ARC.error = (e && e.message) ? e.message : '알 수 없는 오류';
+      if (ui.tab === 'archive') render();
+    });
+  }
+
+  function loadArcBodies(keys, cb) {
+    var todo = keys.filter(function (k) { return !ARC.bodies[k]; });
+    if (!todo.length) { if (cb) cb(); return; }
+    var left = todo.length;
+    todo.forEach(function (k) {
+      fetch('archive/' + k + '.json').then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      }).then(function (j) {
+        ARC.bodies[k] = j.bodies || {};
+      })['catch'](function () {
+        ARC.bodies[k] = {};
+      }).then(function () {
+        left -= 1;
+        if (left === 0 && cb) cb();
+      });
+    });
+  }
+
+  function arcMatchesBody(it, q) {
+    var key = arcYearKey(it);
+    var bodies = ARC.bodies[key];
+    if (!bodies) return false;
+    var body = bodies[it.id];
+    if (!body) return false;
+    return body.toLowerCase().indexOf(q) !== -1;
+  }
+
+  function arcFilterItems() {
+    var items = (ARC.index && ARC.index.items) || [];
+    var q = (ui.arcQ || '').trim().toLowerCase();
+    return items.filter(function (it) {
+      if (ui.arcYear && ui.arcYear !== '전체') {
+        if (ui.arcYear === '연도미상') { if (it.year) return false; }
+        else if (String(it.year) !== ui.arcYear) return false;
+      }
+      if (ui.arcService && ui.arcService !== '전체' && it.service !== ui.arcService) return false;
+      if (!q) return true;
+      var hay = [it.title, it.scripture, it.date, it.service].join(' ').toLowerCase();
+      if (hay.indexOf(q) !== -1) return true;
+      return arcMatchesBody(it, q);
+    });
+  }
+
+  function arcCountText(n, searching) {
+    return (searching ? '찾은 설교 ' : '설교 ') + n + '편' + (ui.arcQ ? ' · 본문까지 검색' : '');
+  }
+
+  function arcToolbarHTML() {
+    var years = ['전체'].concat((ARC.index.years || []).map(function (y) { return y.label; }));
+    var yOpts = years.map(function (y) {
+      var n = y === '전체' ? arcTotal() : ((ARC.index.years.filter(function (x) { return x.label === y; })[0] || {}).count || 0);
+      return '<option value="' + esc(y) + '"' + (ui.arcYear === y ? ' selected' : '') + '>' + esc(y) + ' (' + n + ')</option>';
+    }).join('');
+    var svc = ['전체'].concat((ARC.index.services || []).map(function (s) { return s.label; }));
+    var sOpts = svc.map(function (s) {
+      var n = s === '전체' ? arcTotal() : ((ARC.index.services.filter(function (x) { return x.label === s; })[0] || {}).count || 0);
+      return '<option value="' + esc(s) + '"' + (ui.arcService === s ? ' selected' : '') + '>' + esc(s) + ' (' + n + ')</option>';
+    }).join('');
+    return '<div class="arc-toolbar">' +
+      '<div class="arc-filters">' +
+      '<label class="arc-field"><span>연도</span><select id="arcYear">' + yOpts + '</select></label>' +
+      '<label class="arc-field"><span>예배</span><select id="arcService">' + sOpts + '</select></label>' +
+      '<label class="search arc-search">' + ICON.search +
+      '<input type="search" id="arcSearch" placeholder="제목 · 본문 · 날짜 검색" value="' + esc(ui.arcQ || '') + '"></label>' +
+      '</div>' +
+      '<p class="arc-count" id="arcCount">' + arcCountText(arcFilterItems().length, false) + '</p>' +
+      '</div>';
+  }
+
+  function arcListHTML() {
+    var items = arcFilterItems();
+    var q = (ui.arcQ || '').trim();
+    var html = '';
+    if (!items.length) {
+      html = '<div class="empty"><strong>조건에 맞는 과거 설교가 없습니다</strong>연도나 예배 구분을 바꾸거나 다른 낱말로 검색해 보세요.</div>';
+    } else {
+      html = '<div class="arc-list">' + items.map(function (it) {
+        return '<button type="button" class="arc-row" data-arc="' + esc(it.id) + '">' +
+          '<span class="arc-date"><b>' + esc(arcDateLabel(it) || '연도') + '</b><i>' + esc(it.date ? weekdayOf(it.date) : '미상') + '</i></span>' +
+          '<span class="arc-main">' +
+          '<span class="arc-title">' + esc(arcHeading(it)) + '</span>' +
+          '<span class="arc-meta">' +
+          '<em class="arc-chip">' + esc(it.service) + '</em>' +
+          (it.scripture ? '<span class="arc-ref">' + esc(it.scripture) + '</span>' : '') +
+          (it.year ? '<span>' + esc(String(it.year)) + '년</span>' : '<span>연도 미상</span>') +
+          '</span></span>' +
+          ICON.arrow + '</button>';
+      }).join('') + '</div>';
+    }
+    return html;
+  }
+
+  function arcReaderHTML(it) {
+    var key = arcYearKey(it);
+    var body = (ARC.bodies[key] || {})[it.id] || '';
+    var paras = body ? body.split('\n') : [];
+    var bodyHTML = paras.map(function (line) {
+      return line ? '<p>' + esc(line) + '</p>' : '';
+    }).join('');
+    var when = it.date ? ((+it.date.split('-')[0]) + '. ' + (+it.date.split('-')[1]) + '. ' + (+it.date.split('-')[2]) + ' (' + weekdayOf(it.date) + ')') : (it.year ? it.year + '년' : '연도 미상');
+    var svcLine = (it.service && it.service !== '기타') ? ' · ' + it.service + '예배' : '';
+    return '<div class="arc-reader' + (ARC.big ? ' arc-big' : '') + '">' +
+      '<div class="arc-actions">' +
+      '<button type="button" class="btn-line arc-back" id="arcBack">' + ICON.chevL + '목록으로</button>' +
+      '<span class="arc-actions-right">' +
+      '<button type="button" class="btn-line" id="arcBig">큰 글씨 (18pt)</button>' +
+      '<button type="button" class="btn-line" id="arcCopy">내용 복사</button>' +
+      '<button type="button" class="btn-solid" id="arcPrint">인쇄 / PDF 저장</button>' +
+      '</span></div>' +
+      '<article class="arc-doc">' +
+      '<p class="arc-kicker">' + esc(when) + esc(svcLine) + '</p>' +
+      '<h1 class="arc-doc-title">' + esc(arcHeading(it)) + '</h1>' +
+      (it.scripture ? '<p class="arc-doc-ref">본문 · ' + esc(it.scripture) + '</p>' : '') +
+      '<div class="arc-body">' + (bodyHTML || '<p class="arc-note">본문을 불러오는 중입니다…</p>') + '</div>' +
+      '</article></div>';
+  }
+
+  function archiveHTML() {
+    if (!ARC.index) {
+      if (ARC.error) {
+        return '<div class="empty"><strong>과거 설교 목록을 불러오지 못했습니다</strong>' +
+          esc(ARC.error) + ' · 잠시 뒤 새로고침해 주세요.</div>';
+      }
+      return '<div class="section-card arc-loading"><h2>과거 설교를 불러오는 중입니다…</h2>' +
+        '<p class="hint">2020년부터 2026년까지의 설교 원고를 연도별로 나누어 두었습니다. 목록만 먼저 읽고, 설교를 열 때 그 해 원고를 받아옵니다.</p></div>';
+    }
+    var it = ARC.selected ? ARC.index.items.filter(function (x) { return x.id === ARC.selected; })[0] : null;
+    if (ARC.selected && !it) { ARC.selected = null; }
+    if (it) return arcReaderHTML(it);
+    var list = arcListHTML();
+    return arcToolbarHTML() + list;
+  }
+
+  function openArcItem(id) {
+    var it = ARC.index.items.filter(function (x) { return x.id === id; })[0];
+    if (!it) return;
+    ARC.selected = id;
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    var key = arcYearKey(it);
+    if (!ARC.bodies[key]) {
+      loadArcBodies([key], function () { if (ARC.selected === id) render(); });
+    }
+  }
+
+  function printArchiveDoc() {
+    var it = ARC.index.items.filter(function (x) { return x.id === ARC.selected; })[0];
+    if (!it) return;
+    document.body.classList.add('arc-print');
+    setTimeout(function () {
+      try { window.print(); } catch (e) {}
+      setTimeout(function () { document.body.classList.remove('arc-print'); }, 900);
+    }, 60);
+  }
+
   /* ---------------- render ---------------- */
   function render() {
     syncNav();
@@ -786,7 +975,8 @@
       var s = sermonById(ui.selectedId);
       if (ui.view === 'detail' && s && !s.deleted) body = toolbarHTML() + detailHTML(s);
       else { ui.view = 'list'; body = toolbarHTML() + listHTML(); }
-    } else if (ui.tab === 'progress') body = toolbarHTML() + progressHTML();
+    } else if (ui.tab === 'archive') { body = archiveHTML(); if (!ARC.index) loadArchiveIndex(); }
+    else if (ui.tab === 'progress') body = toolbarHTML() + progressHTML();
     else body = reviewHTML();
 
     document.getElementById('view').innerHTML = heroHTML() + '<div class="content">' + body + '</div>';
@@ -829,6 +1019,61 @@
     if ($('genStudy')) $('genStudy').addEventListener('click', openStudyDoc);
     if ($('genPrayer')) $('genPrayer').addEventListener('click', openPrayerDoc);
     if ($('genCard')) $('genCard').addEventListener('click', openCardModal);
+    var arcYearSel = $('arcYear');
+    if (arcYearSel) arcYearSel.addEventListener('change', function () {
+      ui.arcYear = arcYearSel.value; saveUi(); render();
+    });
+    var arcSvcSel = $('arcService');
+    if (arcSvcSel) arcSvcSel.addEventListener('change', function () {
+      ui.arcService = arcSvcSel.value; saveUi(); render();
+    });
+    var arcQ = $('arcSearch');
+    if (arcQ) {
+      var arcTimer = null;
+      arcQ.addEventListener('input', function () {
+        ui.arcQ = arcQ.value; saveUi();
+        clearTimeout(arcTimer);
+        arcTimer = setTimeout(function () {
+          var q = (ui.arcQ || '').trim().toLowerCase();
+          if (q.length >= 2) {
+            var keys = [];
+            if (ui.arcYear && ui.arcYear !== '전체' && ui.arcYear !== '연도미상') keys = [ui.arcYear];
+            else {
+              keys = (ARC.index.years || []).map(function (y) { return y.label === '연도미상' ? 'unknown' : y.label; });
+              if (ui.arcYear === '연도미상') keys = ['unknown'];
+            }
+            loadArcBodies(keys, function () { if (ui.tab === 'archive' && !ARC.selected) render(); });
+          }
+          if (ui.tab === 'archive' && !ARC.selected) {
+            var row = document.getElementById('view');
+            var cur = row.querySelector('.arc-list, .empty');
+            if (cur) cur.outerHTML = arcListHTML();
+            var cnt = document.getElementById('arcCount');
+            if (cnt) cnt.textContent = arcCountText(arcFilterItems().length, true);
+          }
+        }, 220);
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-arc]'), function (el) {
+      el.addEventListener('click', function () { openArcItem(el.getAttribute('data-arc')); });
+    });
+    if ($('arcBack')) $('arcBack').addEventListener('click', function () { ARC.selected = null; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    if ($('arcBig')) $('arcBig').addEventListener('click', function () {
+      ARC.big = !ARC.big;
+      this.classList.toggle('on', ARC.big);
+      this.textContent = ARC.big ? '기본 글씨' : '큰 글씨 (18pt)';
+      var r = document.querySelector('.arc-reader');
+      if (r) r.classList.toggle('arc-big', ARC.big);
+    });
+    if ($('arcCopy')) $('arcCopy').addEventListener('click', function () {
+      var it = ARC.index.items.filter(function (x) { return x.id === ARC.selected; })[0];
+      if (!it) return;
+      var body = (ARC.bodies[arcYearKey(it)] || {})[it.id] || '';
+      var head = [it.title || it.scripture, it.date, it.service + '예배', it.scripture].filter(Boolean).join(' · ');
+      copyText(head + '\n\n' + body, '설교 원고');
+    });
+    if ($('arcPrint')) $('arcPrint').addEventListener('click', printArchiveDoc);
+
 
     var t = $('fTitle'), p = $('fPassage'), d = $('fDate');
     if (t) t.addEventListener('input', function () { var s = sermonById(ui.selectedId); if (!s) return; s.title = t.value; saveDb(); });
@@ -2234,6 +2479,7 @@
   /* ---------------- boot ---------------- */
   function boot() {
     buildNav();
+    loadArchiveIndex();
     document.getElementById('menuBtn').addEventListener('click', openDrawer);
     document.getElementById('overlay').addEventListener('click', closeDrawer);
     document.getElementById('exportBtn').addEventListener('click', exportJson);
