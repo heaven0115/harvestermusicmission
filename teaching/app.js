@@ -2239,6 +2239,59 @@ function pdfLinesFromItems(items) {
   });
 }
 
+function isPageNumberLine(line) {
+  return /^[\s\-–—·|]*\d{1,4}\s*(\/\s*\d{1,4})?[\s\-–—·|]*$/.test(String(line || ''));
+}
+
+function headerSignature(line) {
+  return String(line || '').replace(/\d+/g, '#').replace(/\s+/g, ' ').trim();
+}
+
+/* 머리말·바닥글(페이지 번호가 붙은 반복 제목)을 걷어 냅니다. */
+function stripRunningHeaders(pages) {
+  if (!pages.length) return pages;
+
+  const edgeIndexes = function (lines) {
+    const out = [];
+    for (let i = 0; i < Math.min(2, lines.length); i++) out.push(i);
+    for (let i = Math.max(0, lines.length - 3); i < lines.length; i++) {
+      if (out.indexOf(i) < 0) out.push(i);
+    }
+    return out;
+  };
+
+  const counts = {};
+  if (pages.length >= 3) {
+    pages.forEach(function (lines) {
+      const seen = {};
+      edgeIndexes(lines).forEach(function (i) {
+        const sig = headerSignature(lines[i]);
+        if (!sig || sig.length < 2 || seen[sig]) return;
+        seen[sig] = true;
+        counts[sig] = (counts[sig] || 0) + 1;
+      });
+    });
+  }
+  const threshold = Math.max(3, Math.ceil(pages.length * 0.6));
+  const running = {};
+  Object.keys(counts).forEach(function (sig) {
+    if (counts[sig] >= threshold) running[sig] = true;
+  });
+
+  return pages.map(function (lines) {
+    const edges = edgeIndexes(lines);
+    return lines.filter(function (line, i) {
+      const trimmed = String(line || '').trim();
+      if (!trimmed) return true;
+      const atEdge = edges.indexOf(i) >= 0;
+      if (!atEdge) return true;
+      if (isPageNumberLine(trimmed)) return false;
+      if (running[headerSignature(trimmed)]) return false;
+      return true;
+    });
+  });
+}
+
 async function extractPdfText(file) {
   const lib = await ensurePdfLib();
   const data = new Uint8Array(await file.arrayBuffer());
@@ -2263,17 +2316,21 @@ async function extractPdfText(file) {
     throw new Error('PDF를 여는 중 문제가 생겼습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.');
   }
 
-  const pageTexts = [];
+  const pageLines = [];
   const total = doc.numPages;
   for (let p = 1; p <= total; p++) {
     const page = await doc.getPage(p);
     const content = await page.getTextContent();
-    pageTexts.push(pdfLinesFromItems(content.items).join('\n'));
+    pageLines.push(pdfLinesFromItems(content.items));
     page.cleanup();
   }
   try { await task.destroy(); } catch (e) { /* 이미 정리됨 */ }
 
-  return { text: tidyText(pageTexts.join('\n\n')), pages: total };
+  const text = stripRunningHeaders(pageLines)
+    .map(function (lines) { return lines.join('\n'); })
+    .join('\n\n');
+
+  return { text: tidyText(text), pages: total };
 }
 
 function htmlBlocksToText(html) {
