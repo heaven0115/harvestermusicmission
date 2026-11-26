@@ -934,7 +934,7 @@
       return line ? '<p>' + esc(line) + '</p>' : '';
     }).join('');
     var when = it.date ? ((+it.date.split('-')[0]) + '. ' + (+it.date.split('-')[1]) + '. ' + (+it.date.split('-')[2]) + ' (' + weekdayOf(it.date) + ')') : (it.year ? it.year + '년' : '연도 미상');
-    var svcLine = (it.service && it.service !== '기타') ? ' · ' + it.service + '예배' : '';
+    var svcLine = (it.service && it.service !== '기타') ? ' · ' + (/예배$/.test(it.service) ? it.service : it.service + '예배') : '';
     return '<div class="arc-reader' + (ARC.big ? ' arc-big' : '') + '">' +
       '<div class="arc-actions">' +
       '<button type="button" class="btn-line arc-back" id="arcBack">' + ICON.chevL + '목록으로</button>' +
@@ -2201,7 +2201,7 @@
 
   function arcRefSplit(text) {
     var m = String(text).match(/[\(（]\s*(\d+\s*(?:-\s*\d+)?(?:\s*[,·]\s*\d+\s*(?:-\s*\d+)?)*)\s*절\s*[\)）]\s*$/);
-    if (m) return { text: String(text).slice(0, m.index).trim(), ref: m[1].replace(/\s+/g, '') };
+    if (m) return { text: String(text).slice(0, m.index).trim(), ref: m[1].replace(/\s+/g, '') + '절' };
     return { text: String(text).trim(), ref: '' };
   }
 
@@ -2255,7 +2255,7 @@
       m = t.match(/^([①②③④⑤⑥])\s*(\S.{2,})$/);
       if (m) { out.push({ i: i, kind: 'circ', ord: m[1], text: m[2].trim() }); return; }
       m = t.match(/^(\d{1,3}(?:-\d{1,3})?)\s*절\s+(?!(?:말씀|은|는|을|를|이|가|에|의|도|과|와|에서|부터|까지|입니다|이다))(.{3,60})$/);
-      if (m && !ARC_SENT_END.test(m[2])) { out.push({ i: i, kind: 'vsum', ref: m[1], text: m[2].trim() }); return; }
+      if (m && !ARC_SENT_END.test(m[2])) { out.push({ i: i, kind: 'vsum', ref: m[1] + '절', text: m[2].trim() }); return; }
       /* 소제목처럼 놓인 명사구 (문장이 아닌 짧은 줄) */
       if (/^(제목|본문|설교 ?제목|설교 ?본문)/.test(t)) return;
       if (t.length >= 6 && t.length <= 40 && !ARC_SENT_END.test(t) && !/[?？:：]$/.test(t) &&
@@ -2381,6 +2381,7 @@
       if (!apply) {
         for (var j = body.length - 1; j >= 0; j--) {
           var t = body[j];
+          if (t.indexOf(' | ') > -1) continue;
           if (/(적용|결단|실천|믿으십시오|붙드십시오|하십시오|됩시다|나누십시오|간구하십시오|구하십시오|기억하십시오)/.test(t) && t.length >= 20 && t.length <= 190) { apply = t; break; }
         }
       }
@@ -2388,6 +2389,7 @@
         for (var k2 = body.length - 1; k2 >= 0; k2--) {
           var t2 = arcDeIntro(body[k2]);
           if (arcFragmentStart(t2) || /^\d{1,3}[.)]?\s/.test(t2)) continue;
+          if (t2.indexOf(' | ') > -1) continue;
           if (t2.length >= 30 && t2.length <= 190) { apply = t2; break; }
         }
       }
@@ -2395,7 +2397,7 @@
         var longest = '';
         body.forEach(function (t3) {
           var tt = arcDeIntro(t3);
-          if (arcFragmentStart(tt)) return;
+          if (arcFragmentStart(tt) || tt.indexOf(' | ') > -1 || /^\d{1,3}[.)]?\s/.test(tt)) return;
           if (tt.length >= 30 && tt.length <= 190 && tt.length > longest.length) longest = tt;
         });
         apply = longest;
@@ -2448,11 +2450,12 @@
 
   function arcHebrew(lines) {
     var rows = [], seen = {};
-    lines.forEach(function (t) {
+    var STOP = { '해당하는': 1, '은': 1, '는': 1, '이': 1, '가': 1, '것': 1, '말': 1, '단어': 1, '표현': 1, '기본형': 1 };
+    lines.forEach(function (t, idx) {
       if (rows.length >= 8) return;
       var word = '', tr = '', heb = '', mean = '';
-      var m = t.match(/['‘’]?([가-힣]{1,10})['’]?(?:은|는|이|가)?\s*히브리어\s*([가-힣A-Za-z·, ]{1,16}?)\s*[\(（]\s*([^)）]{0,26})\s*[\)）]/);
-      if (m) { word = m[1].trim(); tr = m[2].trim(); heb = ARC_HEB.test(m[3]) ? m[3].trim() : ''; }
+      var m = t.match(/['‘’"“]([가-힣]{1,10})['’"”]\s*(?:은|는|이|가)?\s*(?:에?\s*해당하는\s*)?히브리어\s*([가-힣A-Za-z·, ]{1,16}?)\s*[\(（]\s*([^)）]{0,26})\s*[\)）]/);
+      if (m && !STOP[m[1]]) { word = m[1].trim(); tr = m[2].trim(); heb = ARC_HEB.test(m[3]) ? m[3].trim() : ''; }
       if (!word) {
         var g = t.match(/히브리어\s*([\u0590-\u05FF][^\(\n]{0,14})\s*[\(（]\s*([^)）]{0,30})[\)）]/);
         if (g) { heb = g[1].trim(); tr = g[2].trim(); word = ''; }
@@ -2462,11 +2465,12 @@
       if (mm) mean = mm[1].trim();
       if (!mean) {
         var rest = t.replace(/^.*[\)）]\s*(입니다|이다|입니다\.)?\s*/, '');
-        rest = rest.replace(/^[.。]\s*/, '');
+        rest = rest.replace(/^[.。]\s*/, '').replace(/^(은|는|이|가|을|를|의|에|로|으로)[,\s]+/, '');
         if (rest.length >= 6) mean = firstSentence(rest, 46);
       }
+      if (!mean && lines[idx + 1] && lines[idx + 1].length >= 8) mean = lines[idx + 1];
       if (!mean) mean = '';
-      var key = (word || tr) + '|' + heb;
+      var key = word || tr;
       if (seen[key]) return;
       seen[key] = 1;
       rows.push({
@@ -2626,8 +2630,13 @@
     /* 대지 바로 다음 줄에 '본문: 시편 25편 1-3절'처럼 적힌 경우 본문 범위를 붙인다 */
     cands.forEach(function (c) {
       if (c.ref || !lines[c.i + 1]) return;
-      var mm = lines[c.i + 1].match(/^본문\s*[:：]\s*[^\d]{0,8}(\d+(?:\s*[-–]\s*\d+)?)/);
-      if (mm) c.ref = mm[1].replace(/\s+/g, '');
+      var nx = lines[c.i + 1];
+      var mm = nx.match(/^본문\s*[:：].*?(\d+)\s*[-–]\s*(\d+)\s*절/);
+      if (mm) c.ref = mm[1] + '-' + mm[2] + '절';
+      else {
+        mm = nx.match(/^본문\s*[:：].*?(\d+)\s*절/);
+        if (mm) c.ref = mm[1] + '절';
+      }
     });
     if (p6 && marks.length) {
       for (var k = 0; k < marks.length; k++) {
