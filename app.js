@@ -12,6 +12,7 @@
 
   var ICON = {
     grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>',
+    list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.6 6.6h11M8.6 12h11M8.6 17.4h11"/><path d="M4.4 6.6h.01M4.4 12h.01M4.4 17.4h.01"/></svg>',
     calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M3.5 9.6h17M8 3.6v3M16 3.6v3"/><path d="M7.6 13h2.2M13.9 13h2.2M7.6 16.6h2.2M13.9 16.6h2.2"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.4A1.9 1.9 0 0 1 5.9 3.5H11v15.4H5.9A1.9 1.9 0 0 0 4 20.8z"/><path d="M20 5.4a1.9 1.9 0 0 0-1.9-1.9H13v15.4h5.1a1.9 1.9 0 0 1 1.9 1.9z"/></svg>',
     chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V9.6M9.3 19V4.8M14.7 19v-6.4M20 19V7.4"/></svg>',
@@ -50,13 +51,16 @@
   }
 
   function loadUi() {
-    var def = { tab: 'library', view: 'list', selectedId: null, weekStart: weekStartISO(todayISO()), search: '', filter: '전체 상태', section: 'analysis' };
+    var def = { tab: 'library', view: 'list', selectedId: null, weekStart: weekStartISO(todayISO()), search: '', filter: '전체 상태', section: 'analysis', scheduleView: 'list', calMonth: '', calDay: '' };
     try {
       var raw = localStorage.getItem(UI_KEY);
       if (!raw) return def;
       var p = JSON.parse(raw);
       for (var k in def) if (p[k] === undefined) p[k] = def[k];
       if (p.weekStart) p.weekStart = weekStartISO(p.weekStart);
+      if (p.scheduleView !== 'calendar' && p.scheduleView !== 'list') p.scheduleView = 'list';
+      if (typeof p.calMonth !== 'string') p.calMonth = '';
+      if (typeof p.calDay !== 'string') p.calDay = '';
       return p;
     } catch (e) { return def; }
   }
@@ -407,6 +411,13 @@
       '</div></div>';
   }
   function scheduleHTML() {
+    if (ui.scheduleView === 'calendar') {
+      var m = calMonthStr();
+      var n = (db.entries || []).filter(function (e) { return String(e.date).slice(0, 7) === m; }).length;
+      return '<div class="schedule-bar">' +
+        '<div class="schedule-note">' + (n ? '이 달에 내가 추가한 일정 <strong>' + n + '</strong>개' : '날짜를 누르면 그날 일정이 아래에 펼쳐집니다') + '</div>' +
+        schedToggleHTML(true) + '</div>' + calendarHTML(m);
+    }
     var start = parseISO(ui.weekStart);
     var today = todayISO();
     var end = weekEndISO(ui.weekStart);
@@ -415,6 +426,7 @@
     var mine = (db.entries || []).filter(function (e) { return e.date >= ui.weekStart && e.date <= end; });
     var bar = '<div class="schedule-bar">' +
       '<div class="schedule-note">' + (mine.length ? '이 주에 내가 추가한 일정 <strong>' + mine.length + '</strong>개' : '요일별 고정 사역에 내 일정을 더할 수 있습니다') + '</div>' +
+      schedToggleHTML(false) +
       '<button type="button" class="btn-add" id="entryAddTop">' + ICON.plus + '일정 추가</button>' +
       '</div>';
     return bar + '<div class="days">' + days.map(function (d) {
@@ -442,6 +454,120 @@
         '<button type="button" class="add-line" data-entry-add="' + iso + '">' + ICON.plus + '<span>이 날에 일정 추가</span></button>' +
         '</div></div>';
     }).join('') + '</div>';
+  }
+  function schedToggleHTML(isCal) {
+    return '<div class="seg" role="group" aria-label="일정 보기 방식">' +
+      '<button type="button" data-sched-view="list" class="' + (isCal ? '' : 'on') + '" aria-pressed="' + (isCal ? 'false' : 'true') + '">' + ICON.list + '목록</button>' +
+      '<button type="button" data-sched-view="calendar" class="' + (isCal ? 'on' : '') + '" aria-pressed="' + (isCal ? 'true' : 'false') + '">' + ICON.calendar + '달력</button>' +
+      '</div>';
+  }
+
+  /* ---------------- schedule · month calendar ---------------- */
+  var CAL_DOW = ['월', '화', '수', '목', '금', '토', '주일'];
+  function calMonthStr() {
+    var m = ui.calMonth || '';
+    if (!/^\d{4}-\d{2}$/.test(m)) m = todayISO().slice(0, 7);
+    return m;
+  }
+  function monthLabelOf(m) { var p = m.split('-'); return (+p[0]) + '년 ' + (+p[1]) + '월'; }
+  function monthDayLabel(iso) { var d = parseISO(iso); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + DAY_FULL[d.getDay()]; }
+  /* '시편 25편 1-22절' → '시편 25:1-22' 처럼 달력 칸에 짧게 적습니다. */
+  function shortPassage(p) {
+    var t = String(p || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (!t) return '본문 미정';
+    t = t.replace(/(\S+)\s*(\d+)편\s*([\d,\-–~]+)\s*절?/, '$1 $2:$3')
+         .replace(/(\S+)\s*(\d+)장\s*([\d,\-–~]+)\s*절?/, '$1 $2:$3')
+         .replace(/(\S+)\s*(\d+)편$/, '$1 $2')
+         .replace(/(\S+)\s*(\d+)장$/, '$1 $2');
+    return t;
+  }
+  function shiftMonth(n) {
+    var p = calMonthStr().split('-');
+    var d = new Date(+p[0], (+p[1]) - 1 + n, 1);
+    ui.calMonth = d.getFullYear() + '-' + pad(d.getMonth() + 1);
+    if (ui.calDay && ui.calDay.slice(0, 7) !== ui.calMonth) ui.calDay = '';
+    saveUi(); render();
+  }
+  function selectCalDay(iso) {
+    ui.calDay = (ui.calDay === iso) ? '' : iso;
+    saveUi(); render();
+  }
+  function calendarHTML(m) {
+    var p = m.split('-'), y = +p[0], mo = (+p[1]) - 1;
+    var first = new Date(y, mo, 1);
+    var daysIn = new Date(y, mo + 1, 0).getDate();
+    var lead = weekOffset(first.getDay());
+    var total = Math.ceil((lead + daysIn) / 7) * 7;
+    var today = todayISO();
+    var sMap = {};
+    liveSermons().forEach(function (s) { (sMap[s.date] = sMap[s.date] || []).push(s); });
+    var cells = '';
+    for (var i = 0; i < total; i++) {
+      var d = addDays(first, i - lead), iso = fmt(d);
+      var inMonth = d.getMonth() === mo;
+      var items = [];
+      (sMap[iso] || []).forEach(function (s) { items.push({ type: 'sermon', s: s, rank: timeRank('새벽') }); });
+      entriesOn(iso).forEach(function (e) { items.push({ type: 'entry', e: e, rank: timeRank(e.time) }); });
+      items.sort(function (a, b) { return a.rank - b.rank; });
+      var shown = items.slice(0, 3), more = items.length - shown.length;
+      var body = shown.map(function (it) {
+        if (it.type === 'sermon') {
+          var s = it.s;
+          return '<button type="button" class="cal-sermon" data-open="' + esc(s.id) + '" title="' + esc((s.passage || '본문 미정') + (s.title ? ' · ' + s.title : '')) + '">' +
+            '<i></i><span>' + esc(shortPassage(s.passage)) + '</span></button>';
+        }
+        var e = it.e;
+        return '<button type="button" class="cal-chip k-' + esc(e.kind || 'custom') + (e.done ? ' done' : '') + '" data-entry-edit="' + esc(e.id) + '" title="' + esc((e.time ? e.time + ' · ' : '') + e.title + (e.note ? ' — ' + e.note : '')) + '">' +
+          '<i></i><span>' + esc((e.time ? e.time + ' ' : '') + e.title) + '</span></button>';
+      }).join('');
+      if (more > 0) body += '<span class="cal-more">+' + more + '</span>';
+      if (!body) body = '<span class="cal-blank" aria-hidden="true"></span>';
+      var mins = (db.dayPlan[String(d.getDay())] || []).map(function (x) {
+        return '<span class="cal-mini k-' + esc(x.kind || 'custom') + '" title="' + esc(x.label + (x.detail ? ' — ' + x.detail : '')) + '"><i></i><em>' + esc(x.label) + '</em></span>';
+      }).join('');
+      cells += '<div class="cal-cell' + (inMonth ? '' : ' out') + (iso === today ? ' today' : '') + (ui.calDay === iso ? ' sel' : '') + '" data-cal-cell="' + iso + '">' +
+        '<div class="cal-top"><button type="button" class="cal-num' + (iso === today ? ' today' : '') + '" data-cal-day="' + iso + '" aria-label="' + esc(monthDayLabel(iso)) + ' 일정 보기">' + d.getDate() + '</button>' +
+        '<button type="button" class="cal-add" data-entry-add="' + iso + '" aria-label="' + esc(monthDayLabel(iso)) + '에 일정 추가">' + ICON.plus + '</button></div>' +
+        '<div class="cal-items">' + body + '</div>' +
+        (mins ? '<div class="cal-mins">' + mins + '</div>' : '') +
+        '</div>';
+    }
+    var head = '<div class="cal-head">' +
+      '<button type="button" class="cal-nav" id="calPrev" aria-label="이전 달">' + ICON.chevL + '</button>' +
+      '<span class="cal-title">' + monthLabelOf(m) + '</span>' +
+      '<button type="button" class="cal-nav" id="calNext" aria-label="다음 달">' + ICON.chevR + '</button>' +
+      '<button type="button" class="pill' + (m === today.slice(0, 7) ? ' on' : '') + '" id="calThisMonth">이번 달</button>' +
+      '<button type="button" class="btn-add" id="calAddTop">' + ICON.plus + '일정 추가</button>' +
+      '</div>';
+    var dow = CAL_DOW.map(function (w, i) {
+      return '<span' + (i === 5 ? ' class="sat"' : i === 6 ? ' class="sun"' : '') + '>' + w + '</span>';
+    }).join('');
+    var daily = (db.daily || []).map(function (x) { return '<span>' + esc(x.time) + ' ' + esc(x.label) + '</span>'; }).join('');
+    var foot = '<div class="cal-note"><b>매일 고정</b>' + daily + '<span>— 달력 칸에서는 생략했습니다</span></div>';
+    return head + '<div class="cal"><div class="cal-dow">' + dow + '</div><div class="cal-grid">' + cells + '</div></div>' + foot + calDayHTML();
+  }
+  function calDayHTML() {
+    var iso = ui.calDay;
+    if (!iso) return '';
+    var d = parseISO(iso), today = todayISO();
+    var rows = '';
+    liveSermons().filter(function (s) { return s.date === iso; }).forEach(function (s) {
+      rows += '<div class="day-item"><div class="t">새벽</div><div class="c"><div class="l"><span class="kind worship">예배</span>새벽예배 · ' + esc(s.passage || '본문 미정') +
+        '<button type="button" class="go" data-open="' + esc(s.id) + '">원고 열기 →</button></div>' +
+        '<div class="d">' + esc(s.title || '제목 없는 설교') + '</div></div></div>';
+    });
+    (db.dayPlan[String(d.getDay())] || []).forEach(function (x) {
+      rows += '<div class="day-item"><div class="t">' + esc(x.time || '—') + '</div><div class="c"><div class="l"><span class="kind ' + esc(x.kind || 'custom') + '">' + kindLabel(x.kind) + '</span>' + esc(x.label) + '</div>' +
+        (x.detail ? '<div class="d">' + esc(x.detail) + '</div>' : '') + '</div></div>';
+    });
+    entriesOn(iso).forEach(function (e) { rows += entryRowHTML(e); });
+    if (!rows) rows = '<p class="day-empty">아직 일정이 없습니다.</p>';
+    return '<div class="cal-day">' +
+      '<div class="cal-day-head"><h3>' + esc(monthDayLabel(iso)) + '</h3>' +
+      (iso === today ? '<span class="cal-today-tag">오늘</span>' : '') +
+      '<button type="button" class="cal-day-add" data-entry-add="' + iso + '">' + ICON.plus + '이 날에 일정 추가</button>' +
+      '<button type="button" class="cal-day-close" id="calDayClose">접기</button></div>' +
+      '<div class="day-items">' + rows + '</div></div>';
   }
   function kindLabel(k) {
     return { worship: '예배', shorts: '쇼츠', blog: '블로그', pdf: '강단 PDF', docx: '설교원고', review: '검토', study: '성경공부', rest: '쉼', report: '보고', podcast: '팟캐스트', custom: '기타' }[k] || '일정';
@@ -486,6 +612,7 @@
         rec.note = ((nEl && nEl.value) || '').trim();
         if (!cur) { db.entries = db.entries || []; db.entries.push(rec); }
         saveDb(true);
+        if (ui.tab === 'schedule' && ui.scheduleView === 'calendar') { ui.calMonth = dv.slice(0, 7); ui.calDay = dv; }
         if (dv < ui.weekStart || dv > weekEndISO(ui.weekStart)) ui.weekStart = weekStartISO(dv);
         render();
         toast(cur ? '일정을 저장했습니다' : '일정을 추가했습니다');
@@ -614,7 +741,7 @@
     syncNav();
     var body;
     if (ui.tab === 'board') body = toolbarHTML() + boardHTML();
-    else if (ui.tab === 'schedule') body = toolbarHTML() + scheduleHTML();
+    else if (ui.tab === 'schedule') body = (ui.scheduleView === 'calendar' ? '' : toolbarHTML()) + scheduleHTML();
     else if (ui.tab === 'library') {
       var s = sermonById(ui.selectedId);
       if (ui.view === 'detail' && s && !s.deleted) body = toolbarHTML() + detailHTML(s);
@@ -720,6 +847,35 @@
       var today = todayISO();
       openEntryModal(null, (today >= ui.weekStart && today <= weekEndISO(ui.weekStart)) ? today : ui.weekStart);
     });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-sched-view]'), function (b) {
+      b.addEventListener('click', function () {
+        var v = b.getAttribute('data-sched-view');
+        if (v === ui.scheduleView) return;
+        ui.scheduleView = v;
+        if (v === 'calendar') ui.calMonth = (ui.calDay || todayISO()).slice(0, 7);
+        saveUi(); render();
+      });
+    });
+    if ($('calPrev')) $('calPrev').addEventListener('click', function () { shiftMonth(-1); });
+    if ($('calNext')) $('calNext').addEventListener('click', function () { shiftMonth(1); });
+    if ($('calThisMonth')) $('calThisMonth').addEventListener('click', function () {
+      ui.calMonth = todayISO().slice(0, 7); ui.calDay = todayISO(); saveUi(); render();
+    });
+    if ($('calAddTop')) $('calAddTop').addEventListener('click', function () {
+      var m = calMonthStr(), today = todayISO();
+      var base = (ui.calDay && ui.calDay.slice(0, 7) === m) ? ui.calDay : (today.slice(0, 7) === m ? today : m + '-01');
+      openEntryModal(null, base);
+    });
+    if ($('calDayClose')) $('calDayClose').addEventListener('click', function () { ui.calDay = ''; saveUi(); render(); });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cal-day]'), function (b) {
+      b.addEventListener('click', function () { selectCalDay(b.getAttribute('data-cal-day')); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-cal-cell]'), function (cell) {
+      cell.addEventListener('click', function (e) {
+        if (e.target && e.target.closest && e.target.closest('button,a')) return;
+        selectCalDay(cell.getAttribute('data-cal-cell'));
+      });
+    });
     Array.prototype.forEach.call(document.querySelectorAll('[data-entry-add]'), function (el) {
       el.addEventListener('click', function () { openEntryModal(null, el.getAttribute('data-entry-add')); });
     });
@@ -732,6 +888,9 @@
         if (!rec) return;
         rec.done = box.checked;
         saveDb();
+        if (ui.tab === 'schedule' && ui.scheduleView === 'calendar') {
+          render(); toast(box.checked ? '완료로 표시했습니다' : '완료 표시를 풀었습니다'); return;
+        }
         var row = box.closest('.day-item');
         if (row) row.classList.toggle('done', box.checked);
         toast(box.checked ? '완료로 표시했습니다' : '완료 표시를 풀었습니다');
