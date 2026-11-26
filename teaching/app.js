@@ -756,15 +756,56 @@ function repairJsonBrackets(str) {
   return out;
 }
 
+function normalizeMarkdownEscapesOutsideStrings(str) {
+  let out = '';
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === '\\') {
+      if (inStr) {
+        out += ch;
+        esc = true;
+      } else {
+        const next = str[i + 1];
+        if (next === '[' || next === ']' || next === '{' || next === '}' || next === '_' || next === '*') {
+          continue; // 마크다운 백슬래시 제거
+        }
+        out += ch;
+      }
+      continue;
+    }
+    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    out += ch;
+  }
+  return out;
+}
+
+function fixMissingArrayBrackets(str) {
+  // 예: "expressions_good": "a", "b", "c", "expressions_avoid": "x", "y" }
+  return str.replace(
+    /("[^"\\]+"\s*:\s*)((?:"(?:\\.|[^"\\])*"\s*,\s*)+"(?:\\.|[^"\\])*")(?=\s*,\s*"[^"\\]+"\s*:|\s*})/g,
+    '$1[$2]'
+  );
+}
+
 function tryParseJsonCandidate(raw) {
   if (!raw) return null;
   const base = String(raw).replace(/^\uFEFF/, '');
-  const escapedSafe = escapeControlInJsonStrings(base)
+  const mdFixed = normalizeMarkdownEscapesOutsideStrings(base)
+    .replace(/:\s*,/g, ': null,')
+    .replace(/:\s*}/g, ': null}')
+    .replace(/,\s*([}\]])/g, '$1');
+  const escapedSafe = escapeControlInJsonStrings(mdFixed)
     .replace(/,\s*([}\]])/g, '$1')
     .replace(/\bTrue\b/g, 'true')
     .replace(/\bFalse\b/g, 'false')
     .replace(/\bNone\b/g, 'null');
-  const smartFixed = escapeControlInJsonStrings(base.replace(/[\u201C\u201D]/g, '"'))
+  const smartBase = normalizeMarkdownEscapesOutsideStrings(base.replace(/[\u201C\u201D]/g, '"'))
+    .replace(/:\s*,/g, ': null,')
+    .replace(/:\s*}/g, ': null}');
+  const smartFixed = fixMissingArrayBrackets(escapeControlInJsonStrings(smartBase))
     .replace(/,\s*([}\]])/g, '$1')
     .replace(/\bTrue\b/g, 'true')
     .replace(/\bFalse\b/g, 'false')
