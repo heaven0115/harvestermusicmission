@@ -22,5 +22,16 @@
     <iframe src="./index.html?pv=tablet" width="768" height="820"></iframe>
   </figure>
 </div>
+<script>
+  Array.prototype.forEach.call(document.querySelectorAll('iframe'), function (f) {
+    f.addEventListener('load', function () {
+      try {
+        var d = f.contentDocument;
+        var el = d.querySelector('.gen-bar');
+        if (el) setTimeout(function () { el.scrollIntoView({ block: 'start' }); }, 400);
+      } catch (e) {}
+    });
+  });
+</script>
 </body>
 </html>
