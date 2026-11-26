@@ -1705,7 +1705,7 @@
 
   function pptxFileName(m) {
     var pass = String(m.passage || '본문').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
-    return String(m.date || '') + '_' + pass + '_설교PPT.pptx';
+    return String(m.fileStamp || m.date || '') + '_' + pass + '_설교PPT.pptx';
   }
 
   /* ---- PPT (모델 → 8장 덱) ---- */
@@ -2215,7 +2215,26 @@
   }
 
   function arcDeIntro(t) {
-    return String(t || '').replace(/^사랑하는 ?성도 ?여러분[!.,]?\s*/, '').replace(/^(자,|그런데|그러면|그래서)\s+/, function (m) { return m; }).trim();
+    return String(t || '').replace(/^사랑하는 ?성도 ?여러분[!.,]?\s*/, '').trim();
+  }
+  function arcFragmentStart(t) {
+    return /^(라고|하고|하며|하여|그리하여|합니다|입니다|때문입니다)[\s,.]/.test(t) || /^[”"’']/.test(t);
+  }
+  function arcPickCore(lines, points) {
+    var used = (points || []).map(function (p) { return stripEnd(p.text); });
+    var cands = [];
+    lines.forEach(function (t) {
+      if (!t || t.length < 30 || t.length > 230) return;
+      if (ARC_NOISE_RE.test(t) || !ARC_SENT_END.test(t) || !ARC_FAITH.test(t)) return;
+      if (arcFragmentStart(t) || used.indexOf(stripEnd(t)) > -1) return;
+      cands.push(t);
+    });
+    if (!cands.length) return '';
+    var tail = cands.slice(Math.floor(cands.length * 0.55));
+    var pick = tail.length ? tail : cands;
+    var best = pick[0];
+    pick.forEach(function (t) { if (t.length >= best.length) best = t; });
+    return cut(stripEnd(best), 180);
   }
 
   function arcCands(lines, range) {
@@ -2320,6 +2339,7 @@
       if (/^(\d|[①-⑥]|·|•|-|제목|본문)/.test(t)) return;
       if (!ARC_SENT_END.test(t) || /\?$/.test(t)) return;
       if (/(찬송하시면서|예배를 ?드리겠습니다|페이지에 ?있습니다)/.test(t)) return;
+      if (arcFragmentStart(t)) return;
       out.push({ i: i, kind: 'sent', text: cut(arcDeIntro(t), 64) });
     });
     return out;
@@ -2366,14 +2386,19 @@
       }
       if (!apply) {
         for (var k2 = body.length - 1; k2 >= 0; k2--) {
-          var t2 = body[k2];
+          var t2 = arcDeIntro(body[k2]);
+          if (arcFragmentStart(t2) || /^\d{1,3}\s/.test(t2)) continue;
           if (t2.length >= 30 && t2.length <= 190) { apply = t2; break; }
         }
       }
       if (!apply) {
-        for (var k3 = 0; k3 < body.length; k3++) {
-          if (body[k3].length >= 20) { apply = body[k3]; break; }
-        }
+        var longest = '';
+        body.forEach(function (t3) {
+          var tt = arcDeIntro(t3);
+          if (arcFragmentStart(tt)) return;
+          if (tt.length >= 30 && tt.length <= 190 && tt.length > longest.length) longest = tt;
+        });
+        apply = longest;
       }
       if (!apply) apply = '말씀을 붙들고 이번 주 삶의 자리에서 순종으로 살아갑니다.';
       pts.push({
@@ -2526,7 +2551,9 @@
     out.push('사랑하고 자비하신 하나님 아버지, 오늘 ' + stripEnd(m.passage || '본문') + '의 말씀으로 우리를 찾아와 주심을 감사합니다.');
     if (m.core) out.push('주님, 오늘 주신 말씀은 이것입니다. “' + cut(stripEnd(m.core), 120) + '” 이 말씀이 우리의 삶에서 살아지게 하여 주시옵소서.');
     (m.points || []).slice(0, 3).forEach(function (p) {
-      out.push('주님, “' + cut(stripEnd(p.text), 90) + '” 이 말씀을 붙들고 이번 주를 살아가게 하여 주시옵소서.');
+      var t = stripEnd(p.text);
+      if (m.core && t === stripEnd(m.core)) return;
+      out.push('주님, “' + cut(t, 90) + '” 이 말씀을 붙들고 이번 주를 살아가게 하여 주시옵소서.');
     });
     out.push('말씀을 듣기만 하고 잊지 않게 하시고, 들은 대로 순종하는 걸음을 놓치지 않게 하여 주시옵소서.');
     out.push('우리 구주 예수 그리스도의 이름으로 기도드립니다. 아멘.');
@@ -2645,6 +2672,7 @@
     }
     var core = meta.core || '';
     if (!core) core = meta.theme ? firstSentence(meta.theme, 180) : '';
+    if (!core) core = arcPickCore(lines, points);
     if (!core) core = points.length ? stripEnd(points[0].text) : '';
     if (!core) core = keyLines[0] || theme;
 
@@ -2675,6 +2703,7 @@
       passage: passage,
       passageShort: passage,
       date: it.date || '',
+      fileStamp: it.date || (it.year ? String(it.year) : '연도미상'),
       when: it.date ? (dateLabel(it.date) + ' ' + weekdayOf(it.date)) : (it.year ? it.year + '년' : '연도 미상'),
       serviceText: arcServiceText(it),
       series: '',
@@ -3105,7 +3134,7 @@
 
   function cardFileName(s) {
     var pass = String(s.passage || '본문').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
-    return String(s.date) + '_' + pass + '_말씀묵상카드.png';
+    return String(s.fileStamp || s.date || '') + '_' + pass + '_말씀묵상카드.png';
   }
   function saveCardPng(canvas, s, btn) {
     var old = btn ? btn.innerHTML : '';
