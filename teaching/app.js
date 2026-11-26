@@ -686,21 +686,134 @@ function itemKey(name) {
 }
 
 /* ---------- 응답 파싱 ---------- */
+function escapeControlInJsonStrings(str) {
+  let out = '';
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (esc) {
+      out += ch;
+      esc = false;
+      continue;
+    }
+    if (ch === '\\') {
+      out += ch;
+      if (inStr) esc = true;
+      continue;
+    }
+    if (ch === '"') {
+      inStr = !inStr;
+      out += ch;
+      continue;
+    }
+    if (inStr) {
+      if (ch === '\n') { out += '\\n'; continue; }
+      if (ch === '\r') { out += '\\r'; continue; }
+      if (ch === '\t') { out += '\\t'; continue; }
+      const code = ch.charCodeAt(0);
+      if (code < 0x20) { out += ' '; continue; }
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function repairJsonBrackets(str) {
+  const stack = [];
+  let inStr = false;
+  let esc = false;
+  let out = '';
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === '\\') { out += ch; if (inStr) esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (!inStr) {
+      if (ch === '{' || ch === '[') {
+        stack.push(ch === '{' ? '}' : ']');
+        out += ch;
+        continue;
+      }
+      if (ch === '}' || ch === ']') {
+        if (stack.length && stack[stack.length - 1] !== ch) {
+          while (stack.length && stack[stack.length - 1] !== ch) {
+            out += stack.pop();
+          }
+        }
+        if (stack.length && stack[stack.length - 1] === ch) {
+          stack.pop();
+          out += ch;
+        }
+        continue;
+      }
+    }
+    out += ch;
+  }
+  if (inStr) out += '"';
+  out = out.replace(/,\s*$/, '');
+  while (stack.length) out += stack.pop();
+  return out;
+}
+
+function tryParseJsonCandidate(raw) {
+  if (!raw) return null;
+  const base = String(raw).replace(/^\uFEFF/, '');
+  const escapedSafe = escapeControlInJsonStrings(base)
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+    .replace(/\bNone\b/g, 'null');
+  const smartFixed = escapeControlInJsonStrings(base.replace(/[\u201C\u201D]/g, '"'))
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/\bTrue\b/g, 'true')
+    .replace(/\bFalse\b/g, 'false')
+    .replace(/\bNone\b/g, 'null');
+  const candidates = [
+    base,
+    escapedSafe,
+    repairJsonBrackets(escapedSafe),
+    smartFixed,
+    repairJsonBrackets(smartFixed)
+  ];
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      const obj = JSON.parse(candidates[i]);
+      if (obj && typeof obj === 'object') return obj;
+    } catch (e) { /* 다음 시도 */ }
+  }
+  return null;
+}
+
 function extractJson(text) {
   if (!text) return null;
-  let t = String(text).trim();
-  const fence = t.match(/```(?:json|JSON)?\s*([\s\S]*?)```/);
-  if (fence && fence[1]) t = fence[1].trim();
-  const first = t.indexOf('{');
-  const last = t.lastIndexOf('}');
-  if (first >= 0 && last > first) t = t.slice(first, last + 1);
-  const attempts = [
-    t,
-    t.replace(/,\s*([}\]])/g, '$1'),
-    t.replace(/\bTrue\b/g, 'true').replace(/\bFalse\b/g, 'false').replace(/\bNone\b/g, 'null').replace(/,\s*([}\]])/g, '$1')
-  ];
-  for (let i = 0; i < attempts.length; i++) {
-    try { return JSON.parse(attempts[i]); } catch (e) { /* 다음 시도 */ }
+  const src = String(text).trim();
+  const candidates = [];
+
+  // 1) 모든 코드블록(닫힌 것 + 닫히지 않은 마지막 블록 포함)
+  const fenceRegex = /```(?:json|JSON)?\s*([\s\S]*?)```/g;
+  let m;
+  while ((m = fenceRegex.exec(src)) !== null) {
+    if (m[1]) candidates.push(m[1].trim());
+  }
+  const openFence = src.match(/```(?:json|JSON)?\s*([\s\S]*)$/);
+  if (openFence && openFence[1]) candidates.push(openFence[1].trim());
+
+  // 2) 전체에서 첫 { ~ 마지막 } (또는 끝까지)
+  const first = src.indexOf('{');
+  const last = src.lastIndexOf('}');
+  if (first >= 0 && last > first) candidates.push(src.slice(first, last + 1));
+  if (first >= 0) candidates.push(src.slice(first));
+  candidates.push(src);
+
+  // 뒤쪽 후보(실제 응답 쪽)부터 시도하되, 점수/코칭 키가 있는 객체를 우선
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    const f = c.indexOf('{');
+    const l = c.lastIndexOf('}');
+    const sliced = (f >= 0 && l > f) ? c.slice(f, l + 1) : c;
+    const parsed = tryParseJsonCandidate(sliced) || tryParseJsonCandidate(c);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
   }
   return null;
 }

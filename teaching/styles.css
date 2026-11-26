@@ -770,10 +770,12 @@ mark.hl sup {
 @media (max-width: 560px) {
   html { font-size: 18px; }
   main { padding: 1.2rem .9rem 2.5rem; }
-  .topbar-inner { padding: .8rem .9rem .5rem; }
-  .brand-text h1 { font-size: 1.25rem; }
-  .brand-text p { font-size: .74rem; }
-  .brand-mark { width: 2.5rem; height: 2.5rem; font-size: 1.35rem; }
+  .topbar-inner { padding: .75rem .9rem .5rem; gap: .6rem; }
+  .brand { gap: .6rem; }
+  .brand-text h1 { font-size: 1.2rem; }
+  .brand-text p { font-size: .74rem; line-height: 1.3; }
+  .brand-mark { width: 2.35rem; height: 2.35rem; font-size: 1.25rem; }
+  .save-indicator { display: none; }
   .tabs { padding: 0 .5rem; }
   .tab { padding: .55rem .65rem; font-size: .9rem; }
   .card { padding: 1.1rem 1rem; }
