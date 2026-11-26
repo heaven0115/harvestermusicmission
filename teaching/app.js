@@ -132,9 +132,9 @@ function cleanLiteralNewlines(input) {
 
     const next = after.slice(0, 1);
     if (LIT_WORD_CHAR.test(prev) && LIT_WORD_CHAR.test(next)) {
-      const frag = before.match(/[^\s]+$/);
-      // "아\\n닙니다"처럼 한두 글자 조각으로 끊긴 경우만 붙입니다.
-      if (frag && frag[0].length <= 2) return '';
+      // "않습니\\n다."처럼 뒤에 한 글자 토막만 남은 경우는 끊긴 단어로 보고 붙입니다.
+      const nextWord = (after.match(/^[0-9A-Za-z가-힣]+/) || [''])[0];
+      if (nextWord.length <= 1) return '';
     }
     return ' ';
   });
