@@ -915,6 +915,17 @@
     return html;
   }
 
+  function arcGenBarHTML() {
+    return '<div class="arc-gen"><div class="gen-bar">' +
+      '<div class="gen-head"><strong>자료 자동 생성</strong><span>이 원고를 읽어 PPT·교재·기도문·말씀카드까지 만들어 드립니다</span></div>' +
+      '<div class="gen-actions">' +
+      '<button type="button" class="gen-btn" id="arcGenPpt"><span class="ico">📊</span><span class="tx"><strong>PPT 만들기 (.pptx)</strong><small>표지부터 기도·찬송까지</small></span></button>' +
+      '<button type="button" class="gen-btn" id="arcGenStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 복사</small></span></button>' +
+      '<button type="button" class="gen-btn" id="arcGenPrayer"><span class="ico">🙏</span><span class="tx"><strong>기도문 만들기</strong><small>예배 · 소그룹용</small></span></button>' +
+      '<button type="button" class="gen-btn" id="arcGenCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>정사각 1080 · PNG 저장</small></span></button>' +
+      '</div></div></div>';
+  }
+
   function arcReaderHTML(it) {
     var key = arcYearKey(it);
     var body = (ARC.bodies[key] || {})[it.id] || '';
@@ -936,6 +947,7 @@
       '<p class="arc-kicker">' + esc(when) + esc(svcLine) + '</p>' +
       '<h1 class="arc-doc-title">' + esc(arcHeading(it)) + '</h1>' +
       (it.scripture ? '<p class="arc-doc-ref">본문 · ' + esc(it.scripture) + '</p>' : '') +
+      arcGenBarHTML() +
       '<div class="arc-body">' + (bodyHTML || '<p class="arc-note">본문을 불러오는 중입니다…</p>') + '</div>' +
       '</article></div>';
   }
@@ -1091,6 +1103,10 @@
       copyText(head + '\n\n' + body, '설교 원고');
     });
     if ($('arcPrint')) $('arcPrint').addEventListener('click', printArchiveDoc);
+    if ($('arcGenPpt')) $('arcGenPpt').addEventListener('click', function () { generateArcPptx(this); });
+    if ($('arcGenStudy')) $('arcGenStudy').addEventListener('click', openArcStudy);
+    if ($('arcGenPrayer')) $('arcGenPrayer').addEventListener('click', openArcPrayer);
+    if ($('arcGenCard')) $('arcGenCard').addEventListener('click', openArcCard);
 
 
     var t = $('fTitle'), p = $('fPassage'), d = $('fDate');
@@ -1625,12 +1641,75 @@
     if (msg) toast(msg);
   }
 
-  /* ---- PPT ---- */
-  function pptxFileName(s) {
-    var pass = String(s.passage || '본문').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
-    return String(s.date) + '_' + pass + '_설교PPT.pptx';
+  /* ================= 자료 생성 공통 모델 ================= */
+  function stripEnd(t) {
+    return String(t == null ? '' : t).replace(/\s+/g, ' ').trim().replace(/[\s.。!?]+$/, '');
   }
-  function buildDeck(s) {
+  function firstSentence(t, max) {
+    var x = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+    if (!x) return '';
+    var m = x.match(/^(.{8,}?[.!?])(\s|$)/);
+    var s = m ? m[1] : x;
+    return max ? cut(s, max) : s;
+  }
+  function quoteShort(t, max) {
+    var x = String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+    var q = x.match(/[“"']([^”"']{6,90})[”"']/);
+    if (q) return cut(q[1], max || 80);
+    return cut(x, max || 80);
+  }
+  function versesByNums(list, nums, max) {
+    var out = [];
+    (list || []).forEach(function (v) {
+      if (!nums || !nums.length || nums.indexOf(+v.n) > -1) out.push({ n: v.n, t: v.t });
+    });
+    return max ? out.slice(0, max) : out;
+  }
+
+  function sermonModel(s) {
+    var preset = presetOf(s);
+    var rows = Object.keys(preset).filter(function (k) {
+      return !/^(\d+\.|설교 제목|2\. 본문 전체 인용)/.test(k);
+    }).map(function (k) { return { k: k, v: preset[k] }; });
+    var pts = pointsOf(s).map(function (p) {
+      return { ord: p.ord, ref: p.ref, text: p.text, apply: p.apply, verses: verseLines(s, p.ref, 2), paras: [] };
+    });
+    return {
+      filled: false,
+      kind: 'sermon',
+      id: s.id,
+      title: s.title || '제목 없는 설교',
+      passage: s.passageFull || s.passage || '본문 미정',
+      passageShort: s.passage || '',
+      date: s.date || '',
+      when: s.date ? (dateLabel(s.date) + ' ' + weekdayOf(s.date)) : '',
+      serviceText: '새벽예배',
+      series: s.series || '',
+      central: s.central || '',
+      centralText: centralVerses(s),
+      theme: preset['중심 주제'] || s.theme || '',
+      core: preset['신학적 핵심'] || s.message || '',
+      motifs: preset['주요 모티프'] || '',
+      verses: verseLines(s, '', 0),
+      summaryRows: rows,
+      contexts: contextRows(s),
+      hebrew: hebrewRows(s),
+      keyLines: [],
+      points: pts,
+      questions: questionsOf(s),
+      practice: practiceOf(s),
+      prayer: prayerBody(s),
+      hymns: hymnList(s)
+    };
+  }
+
+  function pptxFileName(m) {
+    var pass = String(m.passage || '본문').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    return String(m.date || '') + '_' + pass + '_설교PPT.pptx';
+  }
+
+  /* ---- PPT (모델 → 8장 덱) ---- */
+  function deckOf(m) {
     var PptxGenJS = window.PptxGenJS;
     if (!PptxGenJS) return null;
     var C = {
@@ -1641,28 +1720,25 @@
     var F = 'Apple SD Gothic Neo';
     var W = 13.333, H = 7.5, M = 0.95, CW = W - M * 2;
 
-    var preset = presetOf(s);
-    var points = pointsOf(s);
-    var questions = questionsOf(s);
-    var heb = hebrewRows(s);
-    var pray = prayerBody(s);
-    var hymns = hymnList(s);
-    var verses = centralVerses(s);
-    var theme = preset['중심 주제'] || s.theme || '';
-    var core = preset['신학적 핵심'] || s.message || '';
-    var motifs = preset['주요 모티프'] || '';
-    var dateStr = dateLabel(s.date) + ' ' + weekdayOf(s.date);
+    var points = (m.points || []).slice(0, 3);
+    if (!points.length && m.verses && m.verses.length) {
+      points = [];
+    }
+    var total = 5 + (points.length || 1);
+    var theme = m.theme || m.core || '';
+    var core = m.core || m.theme || '';
+    var dateStr = m.when || '';
 
     var pptx = new PptxGenJS();
     pptx.layout = 'LAYOUT_WIDE';
     pptx.author = '효석패턴6';
     pptx.company = '세리토스장로교회';
-    pptx.subject = s.passage || '';
-    pptx.title = s.title || '설교 PPT';
+    pptx.subject = m.passage || '';
+    pptx.title = m.title || '설교 PPT';
 
     function foot(sl, n) {
-      sl.addText('세리토스장로교회 · 효석패턴6', { x: M, y: H - 0.52, w: 5.4, h: 0.3, fontFace: F, fontSize: 10, color: C.muted });
-      sl.addText(n + ' / 8', { x: W - M - 1.1, y: H - 0.52, w: 1.1, h: 0.3, fontFace: F, fontSize: 10, color: C.muted, align: 'right' });
+      sl.addText('세리토스장로교회 · 설교 자료', { x: M, y: H - 0.52, w: 5.4, h: 0.3, fontFace: F, fontSize: 10, color: C.muted });
+      sl.addText(n + ' / ' + total, { x: W - M - 1.1, y: H - 0.52, w: 1.1, h: 0.3, fontFace: F, fontSize: 10, color: C.muted, align: 'right' });
     }
     function kicker(sl, txt) {
       sl.addText(txt, { x: M, y: 0.6, w: CW, h: 0.34, fontFace: F, fontSize: 12.5, bold: true, color: C.forest, charSpacing: 1.2 });
@@ -1675,45 +1751,45 @@
     var sl = pptx.addSlide();
     sl.background = { color: C.forest };
     sl.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: W, h: 0.16, fill: { color: C.gold }, line: { color: C.gold, width: 0 } });
-    sl.addText((s.series ? s.series + '  ·  ' : '') + dateStr + '  ·  새벽예배',
+    sl.addText((m.series ? m.series + '  ·  ' : '') + (dateStr ? dateStr + '  ·  ' : '') + (m.serviceText || '예배'),
       { x: M, y: 1.02, w: CW, h: 0.4, fontFace: F, fontSize: 15, color: C.soft, charSpacing: 1, valign: 'middle' });
-    sl.addText(s.title || '제목 없는 설교',
+    sl.addText(m.title || '제목 없는 설교',
       { x: M, y: 1.52, w: CW, h: 2.3, fontFace: F, fontSize: 40, bold: true, color: C.cream, lineSpacingMultiple: 1.12, valign: 'middle', fit: 'shrink' });
     sl.addShape(pptx.ShapeType.rect, { x: M, y: 4.12, w: 1.7, h: 0.055, fill: { color: C.gold }, line: { color: C.gold, width: 0 } });
     sl.addText([
       { text: '본문   ', options: { color: C.dim, fontSize: 16 } },
-      { text: (s.passageFull || s.passage || '본문 미정'), options: { color: C.cream, fontSize: 20, bold: true } }
+      { text: (m.passage || '본문 미정'), options: { color: C.cream, fontSize: 20, bold: true } }
     ], { x: M, y: 4.4, w: CW, h: 0.58, fontFace: F, valign: 'middle' });
-    sl.addText(cut(theme, 160),
+    sl.addText(cut(theme, 170),
       { x: M, y: 5.12, w: CW - 1.2, h: 1.0, fontFace: F, fontSize: 14, color: C.soft, lineSpacingMultiple: 1.35, valign: 'top', fit: 'shrink' });
-    sl.addText('세리토스장로교회  ·  효석패턴6 설교', { x: M, y: H - 0.7, w: 6.4, h: 0.3, fontFace: F, fontSize: 11, color: C.dim });
+    sl.addText('세리토스장로교회  ·  말씀 자료', { x: M, y: H - 0.7, w: 6.4, h: 0.3, fontFace: F, fontSize: 11, color: C.dim });
 
-    /* 2. 중심 구절 · 모티프 */
-    var vtxt = verses.length ? verses.join('\n') : (s.central || '');
+    /* 2. 중심 구절 · 핵심 */
+    var vtxt = (m.centralText && m.centralText.length) ? m.centralText.join('\n') : (m.central || theme || m.passage || '');
     sl = pptx.addSlide();
     sl.background = { color: C.cream };
-    kicker(sl, '중심 구절  ·  ' + (s.central || s.passage || ''));
+    kicker(sl, '중심 구절  ·  ' + (m.central || m.passage || ''));
     sl.addText(vtxt, { x: M, y: 1.12, w: CW, h: 2.6, fontFace: F, fontSize: 22, color: C.ink, lineSpacingMultiple: 1.4, valign: 'top', fit: 'shrink' });
     sl.addShape(pptx.ShapeType.rect, { x: M, y: 3.92, w: CW, h: 1.66, fill: { color: C.sage }, line: { color: C.sageLine, width: 1 } });
     sl.addText('신학적 핵심', { x: M + 0.34, y: 4.06, w: 4, h: 0.3, fontFace: F, fontSize: 11.5, bold: true, color: C.forest });
     sl.addText(cut(core, 230), { x: M + 0.34, y: 4.38, w: CW - 0.68, h: 1.05, fontFace: F, fontSize: 15, color: C.ink, lineSpacingMultiple: 1.35, valign: 'top', fit: 'shrink' });
-    if (motifs) {
+    if (m.motifs) {
       sl.addText([
         { text: '주요 모티프   ', options: { color: C.forest, bold: true, fontSize: 11.5 } },
-        { text: cut(motifs, 180), options: { color: C.muted, fontSize: 12.5 } }
+        { text: cut(m.motifs, 180), options: { color: C.muted, fontSize: 12.5 } }
       ], { x: M, y: 5.76, w: CW, h: 0.95, fontFace: F, valign: 'top', lineSpacingMultiple: 1.4 });
     }
     foot(sl, 2);
 
-    /* 3. 핵심 원어 */
+    /* 3. 핵심 원어 (없으면 핵심 문장) */
     sl = pptx.addSlide();
     sl.background = { color: C.cream };
-    kicker(sl, '핵심 원어  ·  ' + (s.passage || ''));
-    heading(sl, '말씀을 여는 히브리어', 0.98, 26);
-    var rows = heb.slice(0, 8);
-    var colW = (CW - 0.7) / 2;
-    if (rows.length) {
-      rows.forEach(function (r, i) {
+    var heb = (m.hebrew || []).slice(0, 8);
+    if (heb.length) {
+      kicker(sl, '핵심 원어  ·  ' + (m.passage || ''));
+      heading(sl, '말씀을 여는 원어', 0.98, 26);
+      var colW = (CW - 0.7) / 2;
+      heb.forEach(function (r, i) {
         var cx = M + (i < 4 ? 0 : colW + 0.7);
         var cy = 2.12 + (i % 4) * 1.16;
         sl.addText([
@@ -1724,19 +1800,30 @@
         sl.addShape(pptx.ShapeType.line, { x: cx, y: cy + 0.84, w: colW, h: 0, line: { color: C.sageLine, width: 0.75 } });
       });
     } else {
-      sl.addText('핵심 원어 구성이 아직 비어 있습니다.', { x: M, y: 2.2, w: CW, h: 0.5, fontFace: F, fontSize: 15, color: C.muted });
+      kicker(sl, '말씀을 여는 문장  ·  ' + (m.passage || ''));
+      heading(sl, '본문의 핵심 문장', 0.98, 26);
+      var kl = (m.keyLines && m.keyLines.length ? m.keyLines : (m.verses || []).filter(function (v) { return v.t.length > 24; }).map(function (v) { return v.t; })).slice(0, 3);
+      if (!kl.length) kl = [m.central || core || m.title || ''];
+      kl.forEach(function (t, i) {
+        var qy = 2.12 + i * 1.5;
+        sl.addShape(pptx.ShapeType.rect, { x: M, y: qy + 0.02, w: 0.07, h: 1.2, fill: { color: C.gold }, line: { color: C.gold, width: 0 } });
+        sl.addText('“' + cut(stripEnd(t), 118) + '”',
+          { x: M + 0.34, y: qy, w: CW - 0.34, h: 1.24, fontFace: F, fontSize: 17, color: C.ink, lineSpacingMultiple: 1.42, valign: 'middle', fit: 'shrink' });
+      });
     }
     foot(sl, 3);
 
     /* 4-6. 대지 */
-    points.slice(0, 3).forEach(function (p, i) {
+    var made = 0;
+    points.forEach(function (p, i) {
+      made += 1;
       sl = pptx.addSlide();
       sl.background = { color: C.cream };
       sl.addShape(pptx.ShapeType.rect, { x: M, y: 0.72, w: 0.1, h: 0.44, fill: { color: C.forest }, line: { color: C.forest, width: 0 } });
       sl.addText(p.ord + ' 대지' + (p.ref ? '  ·  ' + p.ref : ''),
         { x: M + 0.3, y: 0.66, w: CW - 0.3, h: 0.46, fontFace: F, fontSize: 13, bold: true, color: C.forest, valign: 'middle', charSpacing: 0.8 });
       sl.addText(p.text || '', { x: M, y: 1.32, w: CW, h: 2.1, fontFace: F, fontSize: 30, bold: true, color: C.ink, lineSpacingMultiple: 1.22, valign: 'middle', fit: 'shrink' });
-      var vv = verseLines(s, p.ref, 2);
+      var vv = p.verses && p.verses.length ? p.verses : versesByNums(m.verses, expandNums(p.ref || ''), 2);
       if (vv.length) {
         sl.addText(vv.map(function (v) { return v.n + '  ' + v.t; }).join('\n'),
           { x: M, y: 3.55, w: CW, h: 1.35, fontFace: F, fontSize: 13, color: C.muted, lineSpacingMultiple: 1.45, valign: 'top', fit: 'shrink' });
@@ -1745,53 +1832,69 @@
         sl.addShape(pptx.ShapeType.rect, { x: M, y: 5.05, w: CW, h: 1.18, fill: { color: C.sage }, line: { color: C.sageLine, width: 1 } });
         sl.addText([
           { text: '삶의 적용    ', options: { fontSize: 11, bold: true, color: C.forest } },
-          { text: cut(p.apply, 120), options: { fontSize: 14.5, color: C.ink } }
+          { text: cut(p.sermonNoteForApply || p.applyShort || p.apply, 120), options: { fontSize: 14.5, color: C.ink } }
         ], { x: M + 0.3, y: 5.13, w: CW - 0.6, h: 1.02, fontFace: F, valign: 'middle', lineSpacingMultiple: 1.3, fit: 'shrink' });
       }
       foot(sl, 4 + i);
     });
+    if (!made) {
+      /* 대지가 없으면 본문 관찰 장면으로 대신한다 */
+      sl = pptx.addSlide();
+      sl.background = { color: C.cream };
+      kicker(sl, '본문 관찰  ·  ' + (m.passage || ''));
+      heading(sl, '말씀을 함께 읽습니다', 0.98, 26);
+      var vl = (m.verses || []).slice(0, 4);
+      sl.addText(vl.length ? vl.map(function (v) { return v.n + '  ' + cut(v.t, 90); }).join('\n\n') : (m.central || theme || ''),
+        { x: M, y: 2.0, w: CW, h: 4.0, fontFace: F, fontSize: 15, color: C.ink, lineSpacingMultiple: 1.6, valign: 'top', fit: 'shrink' });
+      foot(sl, 4);
+    }
 
-    /* 7. 소그룹 적용 질문 */
+    /* 소그룹 질문 */
     sl = pptx.addSlide();
     sl.background = { color: C.cream };
-    kicker(sl, '소그룹 나눔  ·  ' + (s.passage || ''));
-    heading(sl, questions.length ? '삶을 향한 세 가지 질문' : '이번 주 실천', 0.98, 26);
-    if (questions.length) {
-      questions.slice(0, 3).forEach(function (q, i) {
+    kicker(sl, '소그룹 나눔  ·  ' + (m.passage || ''));
+    heading(sl, (m.questions && m.questions.length) ? '삶을 향한 세 가지 질문' : '이번 주 실천', 0.98, 26);
+    if (m.questions && m.questions.length) {
+      m.questions.slice(0, 3).forEach(function (q, i) {
         var qy = 2.16 + i * 1.58;
         sl.addText('0' + (i + 1), { x: M, y: qy, w: 0.72, h: 0.5, fontFace: F, fontSize: 20, bold: true, color: C.gold });
         sl.addText(cut(q.q, 68), { x: M + 0.72, y: qy - 0.08, w: CW - 0.72, h: 0.66, fontFace: F, fontSize: 19, bold: true, color: C.ink, valign: 'middle', fit: 'shrink' });
         if (q.d) sl.addText(cut(q.d, 110), { x: M + 0.72, y: qy + 0.62, w: CW - 0.72, h: 0.62, fontFace: F, fontSize: 12.5, color: C.muted, lineSpacingMultiple: 1.35, valign: 'top', fit: 'shrink' });
       });
     } else {
-      var prac = practiceOf(s);
+      var prac = m.practice || [];
+      if (!prac.length) prac = points.map(function (p) { return cut(p.apply || p.text, 90); }).filter(Boolean);
       sl.addText(prac.length ? prac.map(function (t, i) { return (i + 1) + '.  ' + t; }).join('\n\n') : '이번 주 실천 과제가 아직 비어 있습니다.',
         { x: M, y: 2.1, w: CW, h: 3.6, fontFace: F, fontSize: 16, color: C.ink, lineSpacingMultiple: 1.5, valign: 'top', fit: 'shrink' });
     }
-    foot(sl, 7);
+    foot(sl, total - 1);
 
-    /* 8. 마무리 기도 · 찬송 */
+    /* 마무리 기도 · 찬송 */
     sl = pptx.addSlide();
     sl.background = { color: C.cream };
     kicker(sl, '마무리 기도  ·  찬송');
     heading(sl, '함께 기도하며 마무리합니다', 0.98, 24);
-    var pblk = pray.filter(function (b) { return b.length > 12; }).slice(0, 3).map(function (b) { return cut(b, 170); });
-    while (pblk.length > 1 && pblk.join('\n').length > 460) pblk.pop();
-    var ptext = pblk.join('\n');
-    sl.addText(ptext, { x: M, y: 1.6, w: 7.5, h: 3.5, fontFace: F, fontSize: 13.5, color: C.ink, lineSpacingMultiple: 1.5, valign: 'top', fit: 'shrink' });
+    var pray = (m.prayer || []).filter(function (b) { return String(b).length > 12; }).slice(0, 3).map(function (b) { return cut(b, 170); });
+    while (pray.length > 1 && pray.join('\n').length > 460) pray.pop();
+    sl.addText(pray.length ? pray.join('\n') : (m.prayer || []).join('\n'),
+      { x: M, y: 1.6, w: 7.5, h: 3.5, fontFace: F, fontSize: 13.5, color: C.ink, lineSpacingMultiple: 1.5, valign: 'top', fit: 'shrink' });
     sl.addText('우리 구주 예수 그리스도의 이름으로 기도드립니다. 아멘.',
       { x: M, y: 5.2, w: 7.5, h: 0.4, fontFace: F, fontSize: 12.5, bold: true, color: C.forest, valign: 'middle' });
+    var hymns = (m.hymns || []).slice(0, 3);
     sl.addShape(pptx.ShapeType.rect, { x: 8.9, y: 1.6, w: 3.45, h: 3.9, fill: { color: C.sage }, line: { color: C.sageLine, width: 1 } });
-    sl.addText('추천 찬송', { x: 9.12, y: 1.76, w: 3.0, h: 0.3, fontFace: F, fontSize: 11.5, bold: true, color: C.forest });
-    sl.addText(hymns.length ? hymns.map(function (h, i) {
+    sl.addText(hymns.length ? '추천 찬송' : '이번 주 실천', { x: 9.12, y: 1.76, w: 3.0, h: 0.3, fontFace: F, fontSize: 11.5, bold: true, color: C.forest });
+    var side = hymns.length ? hymns.map(function (h, i) {
       var tag = i === 0 ? '설교 전' : i === 1 ? '설교 후' : '묵상';
       return tag + '\n' + (h.no ? h.no + '장' : '') + (h.title ? '  ' + h.title : '');
-    }).join('\n\n') : '추천 찬송이 아직 없습니다.',
-      { x: 9.12, y: 2.12, w: 3.05, h: 3.2, fontFace: F, fontSize: 12, color: C.ink, lineSpacingMultiple: 1.45, valign: 'top', fit: 'shrink' });
-    foot(sl, 8);
+    }).join('\n\n') : ((m.practice || []).slice(0, 3).map(function (t, i) { return (i + 1) + '.  ' + cut(t, 40); }).join('\n\n') || '이번 주 말씀을 붙들고 살아갑니다.');
+    sl.addText(side, { x: 9.12, y: 2.12, w: 3.05, h: 3.2, fontFace: F, fontSize: 12, color: C.ink, lineSpacingMultiple: 1.45, valign: 'top', fit: 'shrink' });
+    foot(sl, total);
 
     return pptx;
   }
+
+  function buildDeck(s) { return deckOf(sermonModel(s)); }
+
   function generatePptx(btn) {
     var s = sermonById(ui.selectedId);
     if (!s) return;
@@ -1880,81 +1983,85 @@
     } else done(legacy());
   }
 
-  function docHeadHTML(s, kind, sub) {
+  function docHead(m, kind, sub) {
+    var wk = (m.date && /^\d{4}-\d{2}-\d{2}$/.test(m.date)) ? ' ' + weekdayOf(m.date) : '';
     return '<div class="doc-head">' +
-      '<p class="doc-kicker">효석패턴6 · ' + esc(kind) + '</p>' +
-      '<h1 class="doc-title">' + esc(s.title || '제목 없는 설교') + '</h1>' +
-      '<p class="doc-meta">' + esc(s.passageFull || s.passage || '본문 미정') + '  ·  ' + esc(s.date) + ' ' + esc(weekdayOf(s.date)) + '  ·  세리토스장로교회' + (sub ? '  ·  ' + esc(sub) : '') + '</p>' +
+      '<p class="doc-kicker">' + (m.kind === 'archive' ? '과거 설교 원고 · ' : '효석패턴6 · ') + esc(kind) + '</p>' +
+      '<h1 class="doc-title">' + esc(m.title || '설교 원고') + '</h1>' +
+      '<p class="doc-meta">' + esc(m.passage || '본문 미정') + '  ·  ' + esc(m.date || '연도 미상') + esc(wk) + '  ·  세리토스장로교회' + (sub ? '  ·  ' + esc(sub) : '') + '</p>' +
       '</div>';
   }
-  function studyHTML(s) {
-    var preset = presetOf(s), heb = hebrewRows(s), ctx = contextRows(s),
-      points = pointsOf(s), qs = questionsOf(s), prac = practiceOf(s), vs = verseLines(s, '', 0);
-    var html = '<article class="doc doc-study">' + docHeadHTML(s, '성경공부 교재', '소그룹 · 제자훈련용');
-    if (!vs.length && !Object.keys(preset).length && !ctx.length && !heb.length && !points.length) {
+
+  function studyDoc(m) {
+    var secs = [];
+    if (m.verses && m.verses.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 본문 읽기</h2>' +
+        m.verses.map(function (v) { return '<p class="doc-verse"><b>' + esc(v.n) + '</b><span>' + esc(v.t) + '</span></p>'; }).join('') +
+        '</section>');
+    }
+    if (m.summaryRows && m.summaryRows.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 본문 분석 요약</h2>' +
+        m.summaryRows.map(function (r) {
+          return '<div class="doc-row"><span class="k">' + esc(r.k) + '</span><span class="v">' + esc(r.v) + '</span></div>';
+        }).join('') + '</section>');
+    }
+    if (m.keyLines && m.keyLines.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 마음에 새길 핵심 문장</h2>' +
+        m.keyLines.slice(0, 4).map(function (t) { return '<p class="doc-quote">“' + esc(stripEnd(t)) + '”</p>'; }).join('') +
+        '</section>');
+    }
+    if (m.contexts && m.contexts.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 전후 맥락</h2>' +
+        m.contexts.map(function (c) {
+          return '<div class="doc-block"><h3>' + esc(c.h) + '</h3>' + (c.p ? '<p>' + esc(cut(c.p, 520)) + '</p>' : '') + '</div>';
+        }).join('') + '</section>');
+    }
+    if (m.hebrew && m.hebrew.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 핵심 원어</h2><table class="doc-table"><thead><tr><th>낱말</th><th>원어</th><th>뜻</th></tr></thead><tbody>' +
+        m.hebrew.map(function (r) {
+          return '<tr><td>' + esc(r.word) + '</td><td>' + esc(r.tr) + '</td><td>' + esc(r.mean) + '</td></tr>';
+        }).join('') + '</tbody></table></section>');
+    }
+    if (m.points && m.points.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 대지별 정리</h2>' +
+        m.points.map(function (p) {
+          var paras = (p.paras || []).slice(0, 2).map(function (t) { return '<p>' + esc(cut(t, 340)) + '</p>'; }).join('');
+          return '<div class="doc-block"><h3>' + esc(p.ord + ' 대지' + (p.ref ? ' · ' + p.ref : '')) + '</h3>' +
+            '<p class="doc-pt">' + esc(p.text) + '</p>' + paras +
+            (p.apply ? '<p class="doc-apply">삶의 적용 · ' + esc(cut(p.apply, 220)) + '</p>' : '') + '</div>';
+        }).join('') + '</section>');
+    }
+    if (m.questions && m.questions.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 소그룹 나눔 질문</h2>' +
+        m.questions.map(function (q, i) {
+          return '<p class="doc-q"><b>Q' + (i + 1) + '.</b> ' + esc(q.q) + '</p>' + (q.d ? '<p class="doc-note">' + esc(q.d) + '</p>' : '');
+        }).join('') + '</section>');
+    }
+    if (m.practice && m.practice.length) {
+      secs.push('<section class="doc-sec"><h2>__N. 이번 주 실천</h2><ul class="doc-list">' +
+        m.practice.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></section>');
+    }
+    var html = '<article class="doc doc-study">' + docHead(m, '성경공부 교재', '소그룹 · 제자훈련용');
+    if (!secs.length) {
       html += '<p class="doc-note">이 설교의 여덟 구성이 아직 비어 있습니다. 본문 분석과 소그룹 적용을 먼저 채우면 교재가 그 내용으로 만들어집니다.</p>';
     }
-
-    if (vs.length) {
-      html += '<section class="doc-sec"><h2>1. 본문 읽기</h2>' +
-        vs.map(function (v) { return '<p class="doc-verse"><b>' + esc(v.n) + '</b><span>' + esc(v.t) + '</span></p>'; }).join('') +
-        '</section>';
-    }
-    var keys = Object.keys(preset).filter(function (k) {
-      return !/^(\d+\.|설교 제목|2\. 본문 전체 인용)/.test(k);
-    });
-    if (keys.length) {
-      html += '<section class="doc-sec"><h2>2. 본문 분석 요약</h2>' +
-        keys.map(function (k) {
-          return '<div class="doc-row"><span class="k">' + esc(k) + '</span><span class="v">' + esc(preset[k]) + '</span></div>';
-        }).join('') + '</section>';
-    }
-    if (ctx.length) {
-      html += '<section class="doc-sec"><h2>3. 전후 맥락</h2>' +
-        ctx.map(function (c) {
-          return '<div class="doc-block"><h3>' + esc(c.h) + '</h3>' + (c.p ? '<p>' + esc(cut(c.p, 520)) + '</p>' : '') + '</div>';
-        }).join('') + '</section>';
-    }
-    if (heb.length) {
-      html += '<section class="doc-sec"><h2>4. 핵심 원어</h2><table class="doc-table"><thead><tr><th>단어</th><th>원어</th><th>뜻</th></tr></thead><tbody>' +
-        heb.map(function (r) {
-          return '<tr><td>' + esc(r.word) + '</td><td>' + esc(r.tr) + '</td><td>' + esc(r.mean) + '</td></tr>';
-        }).join('') + '</tbody></table></section>';
-    }
-    if (points.length) {
-      html += '<section class="doc-sec"><h2>5. 대지별 정리</h2>' +
-        points.map(function (p) {
-          return '<div class="doc-block"><h3>' + esc(p.ord + ' 대지 · ' + (p.ref || '')) + '</h3>' +
-            '<p class="doc-pt">' + esc(p.text) + '</p>' +
-            (p.apply ? '<p class="doc-note">삶의 적용 · ' + esc(p.apply) + '</p>' : '') + '</div>';
-        }).join('') + '</section>';
-    }
-    if (qs.length) {
-      html += '<section class="doc-sec"><h2>6. 소그룹 나눔 질문</h2>' +
-        qs.map(function (q, i) {
-          return '<p class="doc-q"><b>Q' + (i + 1) + '.</b> ' + esc(q.q) + '</p>' +
-            (q.d ? '<p class="doc-note">' + esc(q.d) + '</p>' : '');
-        }).join('') + '</section>';
-    }
-    if (prac.length) {
-      html += '<section class="doc-sec"><h2>7. 이번 주 실천</h2><ul class="doc-list">' +
-        prac.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></section>';
-    }
-    html += '<p class="doc-foot">본문 분석 · 전후 맥락 · 핵심 원어 · 소그룹 적용에서 자동으로 묶은 교재입니다. 필요에 따라 인쇄하거나 PDF로 저장해 나눠 주세요.</p>';
+    var n = 0;
+    html += secs.map(function (sec) { n += 1; return sec.replace('__N', String(n)); }).join('');
+    html += '<p class="doc-foot">' + (m.kind === 'archive'
+      ? '저장된 과거 설교 원고에서 본문 · 대지 · 핵심 문장 · 적용을 읽어 묶은 교재입니다. 원고의 문장을 그대로 살렸으니 필요에 따라 다듬어 인쇄하거나 PDF로 저장해 나눠 주세요.'
+      : '본문 분석 · 전후 맥락 · 핵심 원어 · 소그룹 적용에서 자동으로 묶은 교재입니다. 필요에 따라 인쇄하거나 PDF로 저장해 나눠 주세요.') + '</p>';
     return html + '</article>';
   }
-  function prayerHTML(s) {
-    var points = pointsOf(s), pray = prayerBody(s), hymns = hymnList(s);
-    var html = '<article class="doc doc-prayer">' + docHeadHTML(s, '기도문', '예배 마무리 · 소그룹 나눔');
-    if (!points.length && !pray.length) {
-      html += '<p class="doc-note">이 설교의 마무리 기도와 소그룹 적용이 아직 비어 있습니다. 일곱째·여덟째 구성을 채우면 기도문이 그 내용으로 만들어집니다.</p>';
-    }
+
+  function prayerDoc(m) {
+    var pts = m.points || [], pray = m.prayer || [], hymns = m.hymns || [];
+    var html = '<article class="doc doc-prayer">' + docHead(m, '기도문', '예배 마무리 · 소그룹 나눔');
     html += '<section class="doc-sec"><h2>1. 대지별 결단 기도</h2>';
-    if (points.length) {
-      points.forEach(function (p) {
+    if (pts.length) {
+      pts.forEach(function (p) {
         html += '<div class="doc-pray">' +
-          '<p class="ph">' + esc(p.ord + ' 대지 · ' + (p.ref || '') + ' — ' + p.text) + '</p>' +
-          '<p>' + esc(applyToPrayer(p.apply)) + '</p></div>';
+          '<p class="ph">' + esc(p.ord + ' 대지' + (p.ref ? ' · ' + p.ref : '') + ' — ' + p.text) + '</p>' +
+          '<p>' + esc(m.kind === 'archive' ? arcApplyPrayer(p) : applyToPrayer(p.apply)) + '</p></div>';
       });
     } else {
       html += '<p class="doc-note">대지별 적용이 아직 정리되지 않았습니다.</p>';
@@ -1965,6 +2072,9 @@
       html += pray.map(function (b) {
         return /^아멘\.?$/.test(b) ? '<p class="doc-amen">아멘.</p>' : '<p>' + esc(b) + '</p>';
       }).join('');
+    } else if (m.kind === 'archive') {
+      html += '<p class="doc-note">이 원고에는 마무리 기도가 없어 오늘 말씀으로 결단 기도를 지었습니다.</p>' +
+        arcComposePrayer(m).map(function (b) { return '<p>' + esc(b) + '</p>'; }).join('');
     } else {
       html += '<p class="doc-note">마무리 기도 구성이 아직 비어 있습니다.</p>';
     }
@@ -1973,15 +2083,31 @@
     if (hymns.length) {
       html += '<ul class="doc-list">' + hymns.map(function (h, i) {
         var tag = i === 0 ? '설교 전' : i === 1 ? '설교 후' : '묵상';
-        return '<li><b>' + esc(tag) + '</b> · 새찬송가 ' + esc(h.no) + '장 「' + esc(h.title) + '」</li>';
+        return '<li><b>' + esc(tag) + '</b> · ' + (/새찬송가/.test(h.label || '') ? '새찬송가 ' : '찬송가 ') + esc(h.no) + '장' + (h.title ? ' 「' + esc(h.title) + '」' : '') + '</li>';
       }).join('') + '</ul>';
+    } else if (m.kind === 'archive') {
+      html += '<p class="doc-note">원고에 찬송 표기가 없습니다. 예배 순서에 따라 찬송을 더하시면 됩니다.</p>';
     } else {
       html += '<p class="doc-note">추천 찬송이 아직 정리되지 않았습니다.</p>';
     }
     html += '</section>';
-    html += '<p class="doc-foot">마무리 기도 · 소그룹 적용에서 자동으로 묶은 기도문입니다. 예배 마무리나 소그룹 나눔 뒤 함께 읽도록 준비했습니다.</p>';
+    html += '<p class="doc-foot">' + (m.kind === 'archive'
+      ? '저장된 과거 설교 원고의 대지와 적용, 마무리 기도에서 묶은 기도문입니다. 예배 마무리나 소그룹 나눔 뒤 함께 읽도록 준비했습니다.'
+      : '마무리 기도 · 소그룹 적용에서 자동으로 묶은 기도문입니다. 예배 마무리나 소그룹 나눔 뒤 함께 읽도록 준비했습니다.') + '</p>';
     return html + '</article>';
   }
+
+  function arcApplyPrayer(p) {
+    var base = stripEnd(p.apply || '');
+    if (!base) {
+      return '주님, “' + cut(stripEnd(p.text), 80) + '” 이 말씀을 붙들고 오늘 하루를 살아가게 하여 주시옵소서.';
+    }
+    return '주님, “' + cut(base, 110) + '” 이 말씀대로 살아가기를 원합니다. 저희의 결단을 붙드시고 순종의 걸음을 놓치지 않게 하여 주시옵소서.';
+  }
+
+  function studyHTML(s) { return studyDoc(sermonModel(s)); }
+  function prayerHTML(s) { return prayerDoc(sermonModel(s)); }
+
   function openStudyDoc() {
     var s = sermonById(ui.selectedId);
     if (!s) return;
@@ -2005,6 +2131,653 @@
       copyLabel: '기도문'
     });
     markStatus('prayer', '기도문을 만들었습니다 · 상태를 완료로 바꿨습니다');
+  }
+
+  /* ================= 과거 설교 원고 읽기 어댑터 ================= */
+  var ARC_DASH_RE = /[\u2010-\u2015]/g;
+  var ARC_NOISE_RE = /^(사랑하는 성도 ?여러분[!.]?|아멘\.?|설교 ?원고|설교원고|말씀 ?원고|찬송가.*|찬송 ?\d+장.*)$/;
+  var ARC_LABEL_RE = /^(서론|도입|들어가며|마무리|결론|적용|정리|말씀의?\s*정리|내용분해|핵심 ?단어|절별 ?주해|본문 ?전체|설교의?\s*(세|두)\s*가지|설교 ?핵심 ?요약|설교에 ?어울리는|블로그|성경 ?본문 ?분석|강단 ?발화용|본문의?\s*(배경|구조|해석|개요|분석|문맥|전후|주요|문장|제목)|배경과?\s*문맥|본문 ?해석|원어|핵심 ?교훈|핵심 ?히브리어|관련 ?성경|주요 ?인물|신학적 ?의미|영적 ?교훈|오늘의?\s*말씀|말씀 ?나눔|나눔 ?질문|적용 ?질문)/;
+  var ARC_ORD_KO = ['첫째', '둘째', '셋째', '넷째', '다섯째', '여섯째'];
+  var ARC_ORD = { '첫째': 0, '둘째': 1, '셋째': 2, '넷째': 3, '다섯째': 4, '여섯째': 5 };
+  var ARC_SENT_END = /(니다|입니다|습니다|하십니다|됩니다|십시오|십니까|까요|까|다|요)[.?!]?$/;
+  var ARC_FAITH = /(하나님|예수|그리스도|말씀|믿음|성도|주님|은혜|복음|사랑|소망|순종|기도|영혼|십자가|부활|성령|교회|언약|구원|죄|회개|감사|신앙|목자|진리|지혜|복)/;
+  var ARC_HEB = /[\u0590-\u05FF]/;
+
+  function arcLines(body) {
+    return String(body || '').split('\n').map(function (t) {
+      return String(t).replace(ARC_DASH_RE, '-').replace(/\u00a0/g, ' ').replace(/[ \t]+/g, ' ').trim();
+    });
+  }
+
+  function arcServiceText(it) {
+    var v = String(it.service || '');
+    if (!v || v === '기타') return '예배';
+    if (/예배$/.test(v)) return v;
+    if (v === '늘푸른') return '늘푸른대학 예배';
+    return v + '예배';
+  }
+
+  function arcInlineVerses(line) {
+    var parts = String(line).split(/\s(?=(\d{1,3})\s+\S)/);
+    if (parts.length < 7) return null;
+    var out = [];
+    for (var i = 1; i + 1 < parts.length; i += 2) out.push({ n: parts[i], t: String(parts[i + 1]).trim() });
+    if (out.length < 3) return null;
+    var asc = 0;
+    for (var k = 1; k < out.length; k++) if (+out[k].n === +out[k - 1].n + 1) asc += 1;
+    return asc >= out.length - 2 ? out : null;
+  }
+
+  function arcFindVerses(lines) {
+    var best = { start: null, end: null, list: [] };
+    var n = lines.length, i = 0;
+    while (i < n) {
+      var m = lines[i].match(/^(\d{1,3})[.)]?\s+(\S.{14,})$/);
+      if (!m) {
+        var iv = arcInlineVerses(lines[i]);
+        if (iv && iv.length > best.list.length) best = { start: i, end: i + 1, list: iv };
+        i += 1;
+        continue;
+      }
+      var j = i, vs = [], last = -1;
+      while (j < n) {
+        var mm = lines[j].match(/^(\d{1,3})[.)]?\s+(\S.{14,})$/);
+        if (!mm || ARC_NOISE_RE.test(lines[j])) break;
+        var num = +mm[1];
+        if (vs.length && !(num === last + 1 || num === last)) break;
+        vs.push({ n: String(num), t: mm[2].trim() });
+        last = num;
+        j += 1;
+      }
+      if (vs.length < 4) {
+        var iv2 = arcInlineVerses(lines[i]);
+        if (iv2 && iv2.length > vs.length) vs = iv2;
+      }
+      if (vs.length >= 4 && vs.length > best.list.length) best = { start: i, end: j > i + 1 ? j : i + 1, list: vs };
+      i = Math.max(j, i + 1);
+    }
+    return best;
+  }
+
+  function arcRefSplit(text) {
+    var m = String(text).match(/[\(（]\s*(\d+\s*(?:-\s*\d+)?(?:\s*[,·]\s*\d+\s*(?:-\s*\d+)?)*)\s*절\s*[\)）]\s*$/);
+    if (m) return { text: String(text).slice(0, m.index).trim(), ref: m[1].replace(/\s+/g, '') };
+    return { text: String(text).trim(), ref: '' };
+  }
+
+  function arcRoman(lines) {
+    var out = [];
+    lines.forEach(function (t, i) {
+      var m = t.match(/^([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ])\.\s*(\S.*)$/);
+      if (m) out.push({ i: i, no: m[1], title: m[2].trim() });
+    });
+    return out;
+  }
+
+  function arcDeIntro(t) {
+    return String(t || '').replace(/^사랑하는 ?성도 ?여러분[!.,]?\s*/, '').replace(/^(자,|그런데|그러면|그래서)\s+/, function (m) { return m; }).trim();
+  }
+
+  function arcCands(lines, range) {
+    var out = [];
+    lines.forEach(function (t, i) {
+      if (!t || ARC_NOISE_RE.test(t) || t.length > 90) return;
+      if (range && range.start != null && range.start <= i && i < range.end) return;      var m = t.match(/^(첫째|둘째|셋째|넷째|다섯째|여섯째)\s*대지\s*[|·]\s*([^|·]+)[|·]\s*([^|·]+)[|·]\s*(.+)$/);
+      if (m) { out.push({ i: i, kind: 'ordtab', ord: m[1], ref: m[2].trim(), text: m[3].trim(), apply: m[4].trim() }); return; }
+      m = t.match(/^(첫째|둘째|셋째|넷째|다섯째|여섯째)\s*[,、.]\s*(\S.{2,})$/);
+      if (m) { var s1 = arcRefSplit(arcDeIntro(m[2])); out.push({ i: i, kind: 'ord', ord: m[1], text: s1.text, ref: s1.ref }); return; }
+      m = t.match(/^(\d{1,2})\.(?!\d)\s*(\S.{2,})$/);
+      if (m) {
+        var ttl = m[2].trim();
+        if (ARC_LABEL_RE.test(ttl) || /\?$/.test(ttl)) return;
+        out.push({ i: i, kind: 'num', n: +m[1], text: ttl });
+        return;
+      }
+      m = t.match(/^([①②③④⑤⑥])\s*(\S.{2,})$/);
+      if (m) { out.push({ i: i, kind: 'circ', ord: m[1], text: m[2].trim() }); return; }
+      m = t.match(/^(\d{1,3}(?:-\d{1,3})?)\s*절\s+(?!(?:말씀|은|는|을|를|이|가|에|의|도|과|와|에서|부터|까지|입니다|이다))(.{3,60})$/);
+      if (m && !ARC_SENT_END.test(m[2])) { out.push({ i: i, kind: 'vsum', ref: m[1], text: m[2].trim() }); return; }
+      /* 소제목처럼 놓인 명사구 (문장이 아닌 짧은 줄) */
+      if (/^(제목|본문|설교 ?제목|설교 ?본문)/.test(t)) return;
+      if (t.length >= 6 && t.length <= 40 && !ARC_SENT_END.test(t) && !/[?？:：]$/.test(t) &&
+        !/^(\d|[①-⑥]|·|•|-|\[)/.test(t) && ARC_FAITH.test(t) && lines[i + 1] && lines[i + 1].length >= 40) {
+        out.push({ i: i, kind: 'noun', text: t });
+      }
+    });
+    return out;
+  }
+
+  function arcAssertRatio(items) {
+    if (!items.length) return 0;
+    var ok = 0;
+    items.forEach(function (c) {
+      if (ARC_SENT_END.test(c.text) || c.text.length >= 12 || c.ref) ok += 1;
+    });
+    return ok / items.length;
+  }
+
+  function arcPickPoints(cands, nlines, prefer) {
+    var groups = {};
+    cands.forEach(function (c) { (groups[c.kind] = groups[c.kind] || []).push(c); });
+    var best = null;
+
+    function consider(kind, cs) {
+      if (cs.length < 2 || cs.length > 6) return;
+      var span = 0;
+      for (var k = 0; k < cs.length; k++) {
+        var end = (k + 1 < cs.length) ? cs[k + 1].i : nlines;
+        span += Math.min(end - cs[k].i, 80);
+      }
+      var avg = span / cs.length;
+      var base = { ordtab: 108, ord: 100, vsum: 96, circ: 88, num: 72, noun: 66 }[kind] || 60;
+      if (prefer && kind === prefer) base += 10;
+      var withRef = 0;
+      cs.forEach(function (c) { if (c.ref) withRef += 1; });
+      var score = base + 16 * Math.min(cs.length, 4) + avg * 0.35 + arcAssertRatio(cs) * 10 + (withRef / cs.length) * 34;
+      cs.forEach(function (c) {
+        if (c.text.length < 6) score -= 0.9;
+        if (/위해서$/.test(c.text)) score -= 4;
+      });
+      if (!best || score > best.score) best = { score: score, kind: kind, items: cs.slice() };
+    }
+
+    Object.keys(groups).forEach(function (kind) {
+      var cs = groups[kind];
+      if (kind === 'ord') {
+        var runs = [], cur = [];
+        cs.forEach(function (c) {
+          var prev = cur[cur.length - 1];
+          if (prev && ARC_ORD[prev.ord] != null && ARC_ORD[c.ord] === ARC_ORD[prev.ord] + 1) cur.push(c);
+          else { if (cur.length) runs.push(cur); cur = [c]; }
+        });
+        if (cur.length) runs.push(cur);
+        runs.forEach(function (r) { consider('ord', r); });
+        return;
+      }
+      if (kind === 'num') {
+        var runs2 = [], cur2 = [];
+        cs.forEach(function (c) {
+          if (c.n === 1) { if (cur2.length) runs2.push(cur2); cur2 = [c]; return; }
+          var prev2 = cur2[cur2.length - 1];
+          if (prev2 && c.n === prev2.n + 1) cur2.push(c);
+          else { if (cur2.length) runs2.push(cur2); cur2 = []; }
+        });
+        if (cur2.length) runs2.push(cur2);
+        runs2.forEach(function (r) { consider('num', r); });
+        return;
+      }
+      consider(kind, cs);
+    });
+    return best;
+  }
+
+  function arcSentCands(lines, range) {
+    var out = [];
+    lines.forEach(function (t, i) {
+      if (!t || t.length < 12 || t.length > 120) return;
+      if (range && range.start != null && range.start <= i && i < range.end) return;
+      if (ARC_NOISE_RE.test(t) || !ARC_FAITH.test(t)) return;
+      if (/^(\d|[①-⑥]|·|•|-|제목|본문)/.test(t)) return;
+      if (!ARC_SENT_END.test(t) || /\?$/.test(t)) return;
+      if (/(찬송하시면서|예배를 ?드리겠습니다|페이지에 ?있습니다)/.test(t)) return;
+      out.push({ i: i, kind: 'sent', text: cut(arcDeIntro(t), 64) });
+    });
+    return out;
+  }
+
+  function arcChunkPoints(lines) {
+    var rows = [];
+    lines.forEach(function (t, i) {
+      if (!t || t.length < 8 || ARC_NOISE_RE.test(t)) return;
+      rows.push({ i: i, t: t });
+    });
+    if (rows.length < 3) return [];
+    var groups = rows.length >= 9 ? 3 : 2;
+    var per = Math.ceil(rows.length / groups);
+    var out = [];
+    for (var g = 0; g < groups; g++) {
+      var slice = rows.slice(g * per, (g + 1) * per);
+      if (!slice.length) continue;
+      out.push({
+        ord: ARC_ORD_KO[out.length] || (out.length + 1) + '째',
+        ref: '',
+        text: cut(slice[0].t, 58),
+        apply: '',
+        verses: [],
+        paras: slice.map(function (r) { return r.t; })
+      });
+    }
+    return out;
+  }
+
+  function arcBuildPoints(pick, lines, nlines) {
+    var pts = [];
+    var items = pick.items;
+    items.forEach(function (c, k) {
+      var start = c.i + 1;
+      var end = (k + 1 < items.length) ? items[k + 1].i : (c.last ? c.last : nlines);
+      var body = lines.slice(start, end).filter(function (x) { return x && !ARC_NOISE_RE.test(x); });
+      var apply = c.apply || '';
+      if (!apply) {
+        for (var j = body.length - 1; j >= 0; j--) {
+          var t = body[j];
+          if (/(적용|결단|실천|믿으십시오|붙드십시오|하십시오|됩시다|나누십시오|간구하십시오|구하십시오|기억하십시오)/.test(t) && t.length >= 20 && t.length <= 190) { apply = t; break; }
+        }
+      }
+      if (!apply) {
+        for (var k2 = body.length - 1; k2 >= 0; k2--) {
+          var t2 = body[k2];
+          if (t2.length >= 30 && t2.length <= 190) { apply = t2; break; }
+        }
+      }
+      if (!apply) {
+        for (var k3 = 0; k3 < body.length; k3++) {
+          if (body[k3].length >= 20) { apply = body[k3]; break; }
+        }
+      }
+      if (!apply) apply = '말씀을 붙들고 이번 주 삶의 자리에서 순종으로 살아갑니다.';
+      pts.push({
+        ord: ARC_ORD_KO[k] || (k + 1) + '째',
+        ref: c.ref || '',
+        text: c.text,
+        apply: apply,
+        verses: [],
+        paras: body.slice(0, 4)
+      });
+    });
+    return pts;
+  }
+
+  function arcVersePoints(verses) {
+    var out = [];
+    var groups = verses.length >= 9 ? 3 : (verses.length >= 4 ? 2 : 1);
+    var per = Math.ceil(verses.length / groups);
+    for (var g = 0; g < groups; g++) {
+      var slice = verses.slice(g * per, Math.min((g + 1) * per, verses.length));
+      if (!slice.length) continue;
+      var first = slice[0], last = slice[slice.length - 1];
+      out.push({
+        ord: ARC_ORD_KO[out.length],
+        ref: first.n === last.n ? first.n + '절' : first.n + '-' + last.n + '절',
+        text: cut(first.t, 42),
+        apply: '',
+        verses: slice.slice(0, 2),
+        paras: slice.map(function (v) { return v.n + ' ' + v.t; })
+      });
+    }
+    return out;
+  }
+
+  function arcKeyLines(lines) {
+    var out = [];
+    lines.forEach(function (t) {
+      var re = /[“"]([^”"]{12,110})[”"]/g, q;
+      while ((q = re.exec(t))) {
+        var s = stripEnd(q[1]);
+        if (s.length < 16 || /[?？]$/.test(s) || /^(아멘|할렐루야)$/.test(s)) continue;
+        if (out.indexOf(s) < 0) out.push(s);
+      }
+    });
+    return out.slice(0, 4);
+  }
+
+  function arcHebrew(lines) {
+    var rows = [], seen = {};
+    lines.forEach(function (t) {
+      if (rows.length >= 8) return;
+      var word = '', tr = '', heb = '', mean = '';
+      var m = t.match(/['‘’]?([가-힣]{1,10})['’]?(?:은|는|이|가)?\s*히브리어\s*([가-힣A-Za-z·, ]{1,16}?)\s*[\(（]\s*([^)）]{0,26})\s*[\)）]/);
+      if (m) { word = m[1].trim(); tr = m[2].trim(); heb = ARC_HEB.test(m[3]) ? m[3].trim() : ''; }
+      if (!word) {
+        var g = t.match(/히브리어\s*([\u0590-\u05FF][^\(\n]{0,14})\s*[\(（]\s*([^)）]{0,30})[\)）]/);
+        if (g) { heb = g[1].trim(); tr = g[2].trim(); word = ''; }
+      }
+      if (!word && !heb) return;
+      var mm = t.match(/[“"]([^”"]{2,40})[”"]\s*를? ?뜻하는/);
+      if (mm) mean = mm[1].trim();
+      if (!mean) {
+        var rest = t.replace(/^.*[\)）]\s*(입니다|이다|입니다\.)?\s*/, '');
+        rest = rest.replace(/^[.。]\s*/, '');
+        if (rest.length >= 6) mean = firstSentence(rest, 46);
+      }
+      if (!mean) mean = '';
+      var key = (word || tr) + '|' + heb;
+      if (seen[key]) return;
+      seen[key] = 1;
+      rows.push({
+        word: word || tr,
+        tr: heb || tr,
+        mean: cut(mean, 46) || cut(t, 46)
+      });
+    });
+    return rows;
+  }
+
+  function arcHymns(lines) {
+    var out = [];
+    lines.forEach(function (t) {
+      if (out.length >= 3) return;
+      var m = t.match(/^\d*\.?\s*(새찬송가|찬송가)\s*(\d{1,3})장\s*[—\-–:]\s*(.+)$/);
+      if (m) { out.push({ no: m[2], title: stripEnd(m[3]), label: m[1] }); return; }
+      m = t.match(/(새찬송가|찬송가)\s*(\d{1,3})장\s*(?:구\s*찬송가는?\s*\d{1,3}장)?\s*[“"]?([^”"（）,]{2,26})?/);
+      if (m) {
+        var title = (m[3] || '').replace(/^(구|찬송하시면서|입니다|이요|입니다\.)/, '').trim();
+        if (/^구찬송|^\d/.test(title)) title = '';
+        var q = t.match(/[“"]([^”"]{2,26})[”"]/);
+        if (q) title = q[1];
+        out.push({ no: m[2], title: title, label: m[1] });
+      }
+    });
+    var uniq = [];
+    out.forEach(function (h) {
+      if (!uniq.some(function (u) { return u.no === h.no; })) uniq.push(h);
+    });
+    return uniq.slice(0, 3);
+  }
+
+  function arcPrayerBody(lines, marks) {
+    var start = -1, end = lines.length;
+    if (marks && marks.length) {
+      for (var k = 0; k < marks.length; k++) {
+        if (/기도/.test(marks[k].title)) {
+          start = marks[k].i + 1;
+          end = (k + 1 < marks.length) ? marks[k + 1].i : lines.length;
+          break;
+        }
+      }
+    }
+    if (start < 0) {
+      for (var i = 0; i < lines.length; i++) {
+        if (/^(Ⅳ\.|4\.)?\s*(마무리|마침|끝) ?기도/.test(lines[i]) || /^기도문?$/.test(lines[i])) {
+          start = i + 1;
+          for (var j = start; j < lines.length; j++) {
+            if (/^(새찬송가|찬송가|Ⅴ\.|Ⅵ\.|Ⅶ\.|Ⅷ\.|\d+\.\s*설교 핵심)/.test(lines[j])) { end = j; break; }
+          }
+          break;
+        }
+      }
+    }
+    if (start < 0) return [];
+    return lines.slice(start, end).filter(function (t) { return t && t.length > 6 && !/^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]\./.test(t); }).slice(0, 12);
+  }
+
+  function arcContexts(lines, marks) {
+    var out = [];
+    if (marks && marks.length) {
+      for (var k = 0; k < marks.length; k++) {
+        if (/본문 분석/.test(marks[k].title)) {
+          var end = (k + 1 < marks.length) ? marks[k + 1].i : lines.length;
+          var cur = null;
+          for (var i = marks[k].i + 1; i < end; i++) {
+            var t = lines[i];
+            var m = t.match(/^(\d)\)\s*(\S.*)$/);
+            if (m) { cur = { h: t, p: '' }; out.push(cur); continue; }
+            if (cur && !cur.p && t.length > 30) cur.p = t;
+          }
+          break;
+        }
+      }
+    }
+    return out.slice(0, 4);
+  }
+
+  function arcComposePrayer(m) {
+    var out = [];
+    out.push('사랑하고 자비하신 하나님 아버지, 오늘 ' + stripEnd(m.passage || '본문') + '의 말씀으로 우리를 찾아와 주심을 감사합니다.');
+    if (m.core) out.push('주님, 오늘 주신 말씀은 이것입니다. “' + cut(stripEnd(m.core), 120) + '” 이 말씀이 우리의 삶에서 살아지게 하여 주시옵소서.');
+    (m.points || []).slice(0, 3).forEach(function (p) {
+      out.push('주님, “' + cut(stripEnd(p.text), 90) + '” 이 말씀을 붙들고 이번 주를 살아가게 하여 주시옵소서.');
+    });
+    out.push('말씀을 듣기만 하고 잊지 않게 하시고, 들은 대로 순종하는 걸음을 놓치지 않게 하여 주시옵소서.');
+    out.push('우리 구주 예수 그리스도의 이름으로 기도드립니다. 아멘.');
+    return out;
+  }
+
+  function arcComposeQuestions(m) {
+    var out = [];
+    out.push({ q: '본문 말씀을 다시 읽습니다. 가장 오래 마음에 남는 구절은 어디이며, 그 이유는 무엇입니까?', d: '' });
+    var tmpl = [
+      ' — 이 진리를 나는 지금 어디에서 가장 절실히 필요로 합니까?',
+      ' — 이 말씀을 붙들지 못했던 순간은 언제였고, 오늘은 어떻게 달라질 수 있을까요?',
+      ' — 이 말씀을 함께 나눌 사람은 누구이며, 무엇을 전하고 싶습니까?'
+    ];
+    (m.points || []).slice(0, 3).forEach(function (p, i) {
+      out.push({ q: '“' + cut(stripEnd(p.text), 44) + '”' + (tmpl[i] || tmpl[0]), d: '' });
+    });
+    out.push({ q: '이번 주에 이 말씀을 붙들고 구체적으로 실천할 한 가지는 무엇입니까?', d: '' });
+    return out.slice(0, 4);
+  }
+
+  function arcComposePractice(m) {
+    var out = [];
+    (m.points || []).slice(0, 3).forEach(function (p) {
+      var t = p.apply ? cut(p.apply, 74) : '';
+      if (t) out.push(p.ord + ' 대지 · ' + t);
+      else out.push(p.ord + ' 대지 · “' + cut(stripEnd(p.text), 40) + '”를 하루 한 번 소리 내어 읽으며 기도하기');
+    });
+    if (!out.length) {
+      out.push('본문을 하루 한 번 소리 내어 읽고, 마음에 남는 구절을 적어 두기');
+      out.push('오늘 받은 은혜를 한 사람에게 나누기');
+    }
+    return out;
+  }
+
+  var ARC_BOOKS = '창세기|출애굽기|레위기|민수기|신명기|여호수아|사사기|사시기|룻기|사무엘상|사무엘하|열왕기상|열왕기하|역대상|역대하|에스라|느헤미야|에스더|욥기|시편|잠언|전도서|아가|이사야|예레미야|에스겔|다니엘서|다니엘|호세아|요엘|아모스|오바댜|요나|미가|나훔|하박국|스바냐|학개|스가랴|말라기|마태복음|마가복음|누가복음|요한복음|사도행전|로마서|고린도전서|고린도후서|갈라디아서|에베소서|빌립보서|골로새서|데살로니가전서|데살로니가후서|디모데 전서|디모데 후서|디모데전서|디모데후서|디도서|빌레몬서|히브리서|야고보서|베드로전서|베드로후서|요한1서|요한일서|요한2서|요한3서|유다서|요한계시록';
+
+  function arcSniffPassage(lines) {
+    var out = '';
+    for (var i = 0; i < Math.min(lines.length, 12); i++) {
+      var t = lines[i];
+      if (!t) continue;
+      var m = t.match(new RegExp('(' + ARC_BOOKS + ')\\s*(\\d{1,3})\\s*장\\s*(\\d{1,3})\\s*(?:[-–~,]\\s*(\\d{1,3}))?'));
+      if (m) { out = m[1].replace(/\s+/g, ' ') + ' ' + m[2] + '장 ' + m[3] + (m[4] ? '-' + m[4] : '') + '절'; return out; }
+      m = t.match(new RegExp('(' + ARC_BOOKS + ')\\s*(\\d{1,3})\\s*[:：]\\s*(\\d{1,3})\\s*(?:[-–~,]\\s*(\\d{1,3}))?'));
+      if (m) { out = m[1].replace(/\s+/g, ' ') + ' ' + m[2] + '장 ' + m[3] + (m[4] ? '-' + m[4] : '') + '절'; return out; }
+    }
+    return '';
+  }
+
+  function arcModel(it, body) {
+    var lines = arcLines(body);
+    var meta = { title: '', passage: '', central: '', theme: '', core: '' };
+    lines.forEach(function (t) {
+      var m;
+      if (!meta.title && (m = t.match(/^설교 제목\s*[:：]\s*(.+)$/))) meta.title = m[1].trim();
+      if (!meta.passage && (m = t.match(/^본문\s*[:：]\s*(.+)$/))) meta.passage = m[1].replace(/\s*[\(（][^)）]*[\)）]\s*$/, '').trim();
+      if (!meta.central && (m = t.match(/^중심 말씀\s*[:：]\s*(.+)$/))) meta.central = m[1].trim();
+      if (!meta.theme && (m = t.match(/^중심 ?주제\s*[:：]\s*(.+)$/))) meta.theme = m[1].trim();
+      if (!meta.core && (m = t.match(/^핵심 ?메시지\s*[:：]\s*(.+)$/))) meta.core = m[1].trim();
+    });
+
+    var vres = arcFindVerses(lines);
+    var verses = vres.list || [];
+    var marks = arcRoman(lines);
+    var p6 = /효석패턴6/.test(body) || marks.length >= 4;
+
+    var cands = arcCands(lines, { start: vres.start, end: vres.end });
+    /* 대지 바로 다음 줄에 '본문: 시편 25편 1-3절'처럼 적힌 경우 본문 범위를 붙인다 */
+    cands.forEach(function (c) {
+      if (c.ref || !lines[c.i + 1]) return;
+      var mm = lines[c.i + 1].match(/^본문\s*[:：]\s*[^\d]{0,8}(\d+(?:\s*[-–]\s*\d+)?)/);
+      if (mm) c.ref = mm[1].replace(/\s+/g, '');
+    });
+    if (p6 && marks.length) {
+      for (var k = 0; k < marks.length; k++) {
+        if (/강단/.test(marks[k].title) || /설교 원고/.test(marks[k].title)) {
+          var end = (k + 1 < marks.length) ? marks[k + 1].i : lines.length;
+          var sub = cands.filter(function (c) { return c.i >= marks[k].i && c.i < end; });
+          if (sub.length >= 2) cands = sub;
+          break;
+        }
+      }
+    }
+    var pick = arcPickPoints(cands, lines.length, p6 ? 'ord' : null);
+    if (!pick || pick.items.length < 2) {
+      var sc = arcSentCands(lines, { start: vres.start, end: vres.end });
+      var picked = [], lastI = -99;
+      sc.forEach(function (c) {
+        if (c.i - lastI < 4) return;
+        picked.push(c);
+        lastI = c.i;
+      });
+      if (picked.length >= 2) pick = { kind: 'sent', items: picked.slice(0, 3) };
+    }
+    var points = pick ? arcBuildPoints(pick, lines, lines.length) : [];
+    if (!points.length && verses.length) points = arcVersePoints(verses);
+    if (!points.length) points = arcChunkPoints(lines);
+
+    var keyLines = arcKeyLines(lines);
+    var hebrew = arcHebrew(lines);
+    var hymns = arcHymns(lines);
+    var prayer = arcPrayerBody(lines, marks);
+    var contexts = arcContexts(lines, marks);
+
+    var title = it.title || meta.title || '';
+    var passage = it.scripture || meta.passage || '';
+    if (!passage) passage = arcSniffPassage(lines);
+    if (!title) title = passage || '설교 원고';
+    if (!passage) passage = meta.passage || '';
+
+    var theme = meta.theme || '';
+    if (!theme) {
+      var body10 = lines.filter(function (t) { return t && t.length > 40 && !ARC_NOISE_RE.test(t) && !/^\d{1,3}\s/.test(t); });
+      theme = body10.length ? cut(arcDeIntro(body10[0]), 260) : '';
+    }
+    var core = meta.core || '';
+    if (!core) core = meta.theme ? firstSentence(meta.theme, 180) : '';
+    if (!core) core = points.length ? stripEnd(points[0].text) : '';
+    if (!core) core = keyLines[0] || theme;
+
+    var motifs = '';
+    if (p6) {
+      var mot = [];
+      cands.forEach(function (c) {
+        if (c.kind === 'ord' && c.text.length <= 26 && mot.length < 4) mot.push(c.text);
+      });
+      motifs = mot.join(' · ');
+    }
+
+    var nums = [];
+    String(meta.central || '').replace(/(\d+)\s*(?:-\s*(\d+))?\s*절/g, function (_, a, b) {
+      var from = +a, to = b ? +b : +a;
+      for (var i = from; i <= to && i < from + 30; i++) if (nums.indexOf(i) < 0) nums.push(i);
+      return ' ';
+    });
+    var centralText = versesByNums(verses, nums, 4).map(function (v) { return v.t; });
+    var total = centralText.reduce(function (a, b) { return a + b.length; }, 0);
+    while (centralText.length > 2 && total > 200) total -= centralText.pop().length;
+
+    var m = {
+      filled: true,
+      kind: 'archive',
+      id: it.id,
+      title: title,
+      passage: passage,
+      passageShort: passage,
+      date: it.date || '',
+      when: it.date ? (dateLabel(it.date) + ' ' + weekdayOf(it.date)) : (it.year ? it.year + '년' : '연도 미상'),
+      serviceText: arcServiceText(it),
+      series: '',
+      central: meta.central || '',
+      centralText: centralText,
+      theme: theme,
+      core: core,
+      motifs: motifs,
+      verses: verses,
+      summaryRows: [],
+      contexts: contexts,
+      hebrew: hebrew,
+      keyLines: keyLines.slice(0, 4),
+      points: points,
+      questions: [],
+      practice: [],
+      prayer: prayer,
+      hymns: hymns
+    };
+
+    var rows = [{ k: '본문', v: passage || '본문 미정' }];
+    if (meta.theme) rows.push({ k: '중심 주제', v: meta.theme });
+    if (core && core !== meta.theme) rows.push({ k: '핵심 메시지', v: cut(core, 220) });
+    if (points.length) rows.push({ k: '대지', v: points.map(function (p) { return p.ord + ' ' + cut(stripEnd(p.text), 48); }).join(' / ') });
+    if (motifs) rows.push({ k: '주요 모티프', v: motifs });
+    m.summaryRows = rows;
+
+    m.questions = arcComposeQuestions(m);
+    m.practice = arcComposePractice(m);
+    if (!m.prayer.length) m.prayer = arcComposePrayer(m);
+    return m;
+  }
+
+  function arcSelected() {
+    if (!ARC.index || !ARC.selected) return null;
+    return ARC.index.items.filter(function (x) { return x.id === ARC.selected; })[0] || null;
+  }
+  function arcBodyOf(it) {
+    return (ARC.bodies[arcYearKey(it)] || {})[it.id] || '';
+  }
+  function arcModelNow(btnMsg) {
+    var it = arcSelected();
+    if (!it) return null;
+    var body = arcBodyOf(it);
+    if (!body) {
+      toast('본문을 아직 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
+      var key = arcYearKey(it);
+      if (!ARC.bodies[key]) {
+        loadArcBodies([key], function () { if (ARC.selected === it.id) render(); });
+      }
+      return null;
+    }
+    try { return arcModel(it, body); }
+    catch (e) { toast((btnMsg || '자료를') + ' 만들지 못했습니다 — ' + (e && e.message ? e.message : e)); return null; }
+  }
+
+  function generateArcPptx(btn) {
+    if (!window.PptxGenJS) {
+      toast('PPT 라이브러리를 아직 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
+      return;
+    }
+    var m = arcModelNow('PPT를');
+    if (!m) return;
+    var old = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="ico">⏳</span><span class="tx"><strong>만드는 중…</strong><small>잠시만 기다려 주세요</small></span>'; }
+    var restore = function () { if (btn) { btn.disabled = false; btn.innerHTML = old; } };
+    var deck;
+    try { deck = deckOf(m); } catch (e) { restore(); toast('PPT를 만들지 못했습니다 — ' + (e && e.message ? e.message : e)); return; }
+    if (!deck) { restore(); toast('PPT 라이브러리를 불러오지 못했습니다.'); return; }
+    var name = pptxFileName(m);
+    deck.writeFile({ fileName: name }).then(function () {
+      restore();
+      toast('과거 설교 PPT를 내려받았습니다 · ' + name);
+    })['catch'](function (err) {
+      restore();
+      toast('PPT 저장에 실패했습니다 — ' + (err && err.message ? err.message : err));
+    });
+  }
+
+  function openArcStudy() {
+    var m = arcModelNow('교재를');
+    if (!m) return;
+    openDocModal({
+      title: '성경공부 교재 미리보기',
+      sub: (m.passage || '본문') + ' · 과거 설교 원고에서 만든 교재',
+      html: studyDoc(m),
+      copyLabel: '성경공부 교재'
+    });
+  }
+  function openArcPrayer() {
+    var m = arcModelNow('기도문을');
+    if (!m) return;
+    openDocModal({
+      title: '기도문 미리보기',
+      sub: (m.passage || '본문') + ' · 예배·소그룹용 기도문',
+      html: prayerDoc(m),
+      copyLabel: '기도문'
+    });
+  }
+  function openArcCard() {
+    var m = arcModelNow('말씀 묵상카드를');
+    if (!m) return;
+    openCardModalFor(m);
   }
 
   /* ---- 말씀 묵상카드 (Canvas 1080×1080 · 사역세트1 수채화 톤) ---- */
@@ -2130,34 +2903,32 @@
     });
     return out;
   }
-  function cardDataOf(s) {
-    var nums = [], verses = [];
-    String(s.central || '').split(',').forEach(function (p) {
-      var m = p.match(/(\d+(?:\s*-\s*\d+)?)\s*절/);
-      if (m) expandNums(m[1]).forEach(function (n) { if (nums.indexOf(n) < 0) nums.push(n); });
+  function cardData(m) {
+    var nums = [];
+    String(m.central || '').split(',').forEach(function (p) {
+      var mm = p.match(/(\d+(?:\s*-\s*\d+)?)\s*절/);
+      if (mm) expandNums(mm[1]).forEach(function (n) { if (nums.indexOf(n) < 0) nums.push(n); });
     });
-    var got = verseLines(s, nums.join(','), 2);
-    if (!got.length) got = verseLines(s, '', 2);
+    var got = versesByNums(m.verses, nums, 2);
+    if (!got.length) got = (m.verses || []).slice(0, 2);
     var total = 0;
     got.forEach(function (v) { total += v.t.length; });
     while (got.length > 1 && total > 150) total -= got.pop().t.length;
-    got.forEach(function (v) { verses.push({ n: v.n, t: v.t }); });
 
-    var msg = String(s.message || '').trim();
-    if (!msg) {
-      var prac = practiceOf(s);
-      msg = prac[0] || String(s.theme || '').trim();
-    }
-    var d = parseISO(s.date || todayISO());
+    var msg = String(m.core || '').trim();
+    if (!msg) msg = (m.practice && m.practice[0]) || String(m.theme || '');
+    var iso = /^\d{4}-\d{2}-\d{2}$/.test(String(m.date || '')) ? m.date : todayISO();
+    var d = parseISO(iso);
     var dateStr = d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. (' + WD[d.getDay()] + ')';
     return {
       kicker: dateStr + ' · 말씀 묵상',
-      passage: String(s.passageFull || s.passage || '본문 미정').replace(/\s+/g, ' ').trim(),
-      title: String(s.title || '제목 없는 설교').replace(/\s+/g, ' ').trim(),
-      verses: verses,
+      passage: String(m.passage || '본문 미정').replace(/\s+/g, ' ').trim(),
+      title: String(m.title || '제목 없는 설교').replace(/\s+/g, ' ').trim(),
+      verses: got,
       message: cardShortMessage(msg, 104)
     };
   }
+  function cardDataOf(s) { return cardData(sermonModel(s)); }
 
   function paintCardWash(ctx, th, seed) {
     var S = CARD_SIZE;
@@ -2367,11 +3138,8 @@
     }
   }
 
-  function openCardModal() {
-    var s = sermonById(ui.selectedId);
-    if (!s) return;
-    stashEditor(s);
-    var data = cardDataOf(s);
+  function openCardModalFor(m) {
+    var data = cardData(m);
     var state = {
       theme: 0,
       kicker: data.kicker,
@@ -2379,7 +3147,7 @@
       title: data.title,
       verse: data.verses.map(function (v) { return (v.n ? v.n + ' ' : '') + v.t; }).join('\n'),
       message: data.message,
-      seed: String(s.id) + '|' + String(s.date)
+      seed: String(m.id || '') + '|' + String(m.date || '')
     };
     var root = document.getElementById('modalRoot');
     var back = document.createElement('div');
@@ -2405,7 +3173,7 @@
       '<textarea data-card-verse rows="4" spellcheck="false"></textarea></label>' +
       '<label class="card-field"><span>묵상 한 줄</span>' +
       '<textarea data-card-message rows="3" spellcheck="false"></textarea></label>' +
-      '<p class="card-hint">설교 제목과 본문 주소는 위의 제목·본문 칸에서 그대로 가져옵니다. 구절은 줄마다 절 번호를 앞에 두면 그대로 표시됩니다.</p>' +
+      '<p class="card-hint">설교 제목과 본문 주소는 읽고 있는 설교의 제목·본문에서 그대로 가져옵니다. 구절은 줄마다 절 번호를 앞에 두면 그대로 표시됩니다.</p>' +
       '<button type="button" class="btn-solid card-save" data-card-save>PNG 이미지 저장 (1080×1080)</button>' +
       '</div></div></div>';
     root.appendChild(back);
@@ -2452,9 +3220,15 @@
     back.addEventListener('click', function (e) { if (e.target === back) close(); });
     back.querySelector('[data-card-close]').addEventListener('click', close);
     Array.prototype.forEach.call(back.querySelectorAll('[data-card-save]'), function (btn) {
-      btn.addEventListener('click', function () { saveCardPng(canvas, s, btn); });
+      btn.addEventListener('click', function () { saveCardPng(canvas, m, btn); });
     });
     return back;
+  }
+  function openCardModal() {
+    var s = sermonById(ui.selectedId);
+    if (!s) return;
+    stashEditor(s);
+    openCardModalFor(sermonModel(s));
   }
 
   /* ---------------- modal ---------------- */

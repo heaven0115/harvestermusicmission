@@ -990,6 +990,11 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 }
 .arc-doc-ref{font-size:13.5px;color:var(--muted);font-weight:600;padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:22px;}
 .arc-body p{font-size:15.5px;line-height:1.98;color:var(--ink-soft);margin-bottom:.82em;letter-spacing:-.01em;}
+.arc-gen{margin:2px 0 28px;}
+.arc-gen .gen-bar{margin:0;}
+.arc-gen .gen-head span{font-size:12px;}
+.doc-quote{font-size:15px;line-height:1.9;color:var(--ink);padding:12px 16px;border-left:3px solid var(--sage-line,#DDE8E1);background:#F8FBF9;border-radius:6px;margin-bottom:12px;letter-spacing:-.01em;}
+.doc-apply{font-size:14.5px;line-height:1.85;color:var(--forest, #1F5B3F);background:#F3F8F4;border:1px solid #DDE8E1;border-radius:8px;padding:10px 14px;margin-top:8px;}
 .arc-big .arc-body p{font-size:18pt;line-height:1.9;}
 .arc-note{color:var(--muted);font-size:13.5px;}
 
@@ -1020,6 +1025,7 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   body.arc-print .topbar,
   body.arc-print .hero,
   body.arc-print .arc-actions,
+  body.arc-print .arc-gen,
   body.arc-print .drawer-overlay,
   body.arc-print .toast{display:none!important;}
   body.arc-print .app{display:block;}
