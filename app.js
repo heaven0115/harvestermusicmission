@@ -1317,7 +1317,7 @@
     if (!t) return '';
     var m = t.match(/^(.*)기$/);
     if (m && m[1]) return '주님, 저희가 ' + m[1] + '게 하여 주시옵소서.';
-    return '주님, 저희가 ' + t + ' — 이 결단을 살아내게 하여 주시옵소서.';
+    return '주님, ' + t + '의 자리로 저희를 이끌어 주시옵소서.';
   }
 
   function markStatus(key, msg) {
@@ -1481,8 +1481,10 @@
     sl.background = { color: C.cream };
     kicker(sl, '마무리 기도  ·  찬송');
     heading(sl, '함께 기도하며 마무리합니다', 0.98, 24);
-    var ptext = pray.filter(function (b) { return b.length > 12; }).slice(0, 3).join('\n');
-    sl.addText(cut(ptext, 430), { x: M, y: 1.6, w: 7.5, h: 3.5, fontFace: F, fontSize: 13.5, color: C.ink, lineSpacingMultiple: 1.5, valign: 'top', fit: 'shrink' });
+    var pblk = pray.filter(function (b) { return b.length > 12; }).slice(0, 3).map(function (b) { return cut(b, 170); });
+    while (pblk.length > 1 && pblk.join('\n').length > 460) pblk.pop();
+    var ptext = pblk.join('\n');
+    sl.addText(ptext, { x: M, y: 1.6, w: 7.5, h: 3.5, fontFace: F, fontSize: 13.5, color: C.ink, lineSpacingMultiple: 1.5, valign: 'top', fit: 'shrink' });
     sl.addText('우리 구주 예수 그리스도의 이름으로 기도드립니다. 아멘.',
       { x: M, y: 5.2, w: 7.5, h: 0.4, fontFace: F, fontSize: 12.5, bold: true, color: C.forest, valign: 'middle' });
     sl.addShape(pptx.ShapeType.rect, { x: 8.9, y: 1.6, w: 3.45, h: 3.9, fill: { color: C.sage }, line: { color: C.sageLine, width: 1 } });
@@ -1567,7 +1569,7 @@
     return back;
   }
   function copyText(text, label) {
-    var done = function (ok) { toast(ok ? label + '을(를) 복사했습니다' : '복사하지 못했습니다 — 본문을 직접 선택해 주세요'); };
+    var done = function (ok) { toast(ok ? label + ' 내용을 복사했습니다' : '복사하지 못했습니다 — 본문을 직접 선택해 주세요'); };
     var legacy = function () {
       try {
         var ta = document.createElement('textarea');
@@ -1595,6 +1597,9 @@
     var preset = presetOf(s), heb = hebrewRows(s), ctx = contextRows(s),
       points = pointsOf(s), qs = questionsOf(s), prac = practiceOf(s), vs = verseLines(s, '', 0);
     var html = '<article class="doc doc-study">' + docHeadHTML(s, '성경공부 교재', '소그룹 · 제자훈련용');
+    if (!vs.length && !Object.keys(preset).length && !ctx.length && !heb.length && !points.length) {
+      html += '<p class="doc-note">이 설교의 여덟 구성이 아직 비어 있습니다. 본문 분석과 소그룹 적용을 먼저 채우면 교재가 그 내용으로 만들어집니다.</p>';
+    }
 
     if (vs.length) {
       html += '<section class="doc-sec"><h2>1. 본문 읽기</h2>' +
@@ -1647,6 +1652,9 @@
   function prayerHTML(s) {
     var points = pointsOf(s), pray = prayerBody(s), hymns = hymnList(s);
     var html = '<article class="doc doc-prayer">' + docHeadHTML(s, '기도문', '예배 마무리 · 소그룹 나눔');
+    if (!points.length && !pray.length) {
+      html += '<p class="doc-note">이 설교의 마무리 기도와 소그룹 적용이 아직 비어 있습니다. 일곱째·여덟째 구성을 채우면 기도문이 그 내용으로 만들어집니다.</p>';
+    }
     html += '<section class="doc-sec"><h2>1. 대지별 결단 기도</h2>';
     if (points.length) {
       points.forEach(function (p) {
