@@ -2227,7 +2227,8 @@ function printManuscriptFor(s, key) {
   window.addEventListener('afterprint', clear);
   setTimeout(function () {
     window.print();
-    setTimeout(clear, 800);
+    // 인쇄 중에는 print 전용 화면을 유지합니다(브라우저 미리보기가 그리는 동안 사라지지 않도록).
+    setTimeout(clear, 60000);
   }, 120);
 }
 
@@ -2713,6 +2714,7 @@ function setReportTab(name) {
   currentReportTab = name;
   $$('.rtab').forEach(function (b) { b.classList.toggle('is-active', b.dataset.rtab === name); });
   $$('.rpanel').forEach(function (p) { p.classList.toggle('is-active', p.id === 'rpanel-' + name); });
+  if (document.body) document.body.classList.toggle('is-perfect-tab', name === 'perfect');
 }
 
 function addExpression(kind, text, source) {

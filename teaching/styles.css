@@ -897,6 +897,8 @@ mark.hl sup {
   .rpanel { display: none !important; }
   #rpanel-coaching.is-active { display: block !important; }
   #rpanel-perfect.is-active { display: block !important; }
+  body.is-perfect-tab .report-head { display: none !important; }
+  body.is-perfect-tab .report-tabs { display: none !important; }
   .manuscript-card { border: 0; box-shadow: none; padding: 0; background: #fff; }
   .manuscript-card .ms-body { font-size: 18pt; line-height: 1.8; color: #000; }
   .manuscript-card .ms-title { font-size: 21pt; color: #000; }
