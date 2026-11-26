@@ -257,17 +257,12 @@ function emptyState() {
   };
 }
 
-let stateNeedsCleanWrite = false;
-
 function loadState() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.sermons)) {
-        if (raw.indexOf('\\\\n') !== -1 || raw.indexOf('\\\\r') !== -1) stateNeedsCleanWrite = true;
-        return cleanStateText(migrateState(parsed));
-      }
+      if (parsed && Array.isArray(parsed.sermons)) return cleanStateText(migrateState(parsed));
     }
   } catch (e) {
     console.warn('저장된 자료를 읽지 못했습니다.', e);
@@ -581,10 +576,6 @@ function sampleState() {
 
 /* 초기 상태 로드 (샘플 정의 이후 실행) */
 state = loadState();
-/* 리터럴 \n이 남아 있던 저장본은 한 번 정리해 다시 저장합니다. */
-if (stateNeedsCleanWrite) {
-  try { saveState(true); } catch (e) { /* 저장 공간이 없으면 그대로 둡니다. */ }
-}
 
 /* =========================================================
    2) 프롬프트 · 응답 파싱 · API
