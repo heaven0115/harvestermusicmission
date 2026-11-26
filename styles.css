@@ -548,6 +548,7 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 .cal-sermon:hover{background:#DCEBE1;}
 .cal-sermon i{width:5px;height:5px;flex:0 0 5px;border-radius:99px;background:var(--forest);}
 .cal-sermon span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.lbl-mini{display:none;}
 .cal-chip{background:#F3F6F4;color:var(--ink-soft);font-weight:600;}
 .cal-chip:hover{background:#EAF1EC;}
 .cal-chip i{width:5px;height:5px;flex:0 0 5px;border-radius:99px;background:#9BAFA3;}
@@ -702,8 +703,11 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .row-dots{display:flex;}
   .mini-bar{display:none;}
   .cal-title{font-size:17px;}
-  .cal-cell{min-height:92px;padding:6px;}
-  .cal-sermon,.cal-chip{font-size:11px;padding:3px 5px;}
+  .cal-cell{min-height:88px;padding:6px;gap:3px;}
+  .cal-sermon,.cal-chip{font-size:11px;padding:3px 5px;gap:4px;}
+  .cal-sermon .lbl-full,.cal-chip .lbl-full{display:none;}
+  .cal-sermon .lbl-mini,.cal-chip .lbl-mini{display:inline;}
+  .cal-mini em{display:none;}
   .cal-mini{font-size:10px;}
 }
 @media (max-width:760px){
@@ -786,6 +790,7 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .cal-sermon,.cal-chip{width:12px;height:8px;padding:0;background:transparent;border-radius:0;justify-content:center;}
   .cal-sermon:hover,.cal-chip:hover{background:transparent;}
   .cal-sermon span,.cal-chip span{display:none;}
+  .cal-sermon .lbl-mini,.cal-chip .lbl-mini{display:none;}
   .cal-sermon i,.cal-chip i{width:6px;height:6px;flex:0 0 6px;}
   .cal-chip.done i{opacity:.3;}
   .cal-more,.cal-mins{display:none;}

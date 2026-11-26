@@ -471,6 +471,13 @@
   }
   function monthLabelOf(m) { var p = m.split('-'); return (+p[0]) + '년 ' + (+p[1]) + '월'; }
   function monthDayLabel(iso) { var d = parseISO(iso); return (d.getMonth() + 1) + '월 ' + d.getDate() + '일 ' + DAY_FULL[d.getDay()]; }
+  /* 좁은 칸에서는 책 이름을 덜어 내고 '40:1-11'처럼만 적습니다. */
+  function passageNum(p) {
+    var t = shortPassage(p);
+    if (t === '본문 미정') return t;
+    var m = /^(.+?)\s+(\d.*)$/.exec(t);
+    return m ? m[2] : t;
+  }
   /* '시편 25편 1-22절' → '시편 25:1-22' 처럼 달력 칸에 짧게 적습니다. */
   function shortPassage(p) {
     var t = String(p || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
@@ -514,11 +521,11 @@
         if (it.type === 'sermon') {
           var s = it.s;
           return '<button type="button" class="cal-sermon" data-open="' + esc(s.id) + '" title="' + esc((s.passage || '본문 미정') + (s.title ? ' · ' + s.title : '')) + '">' +
-            '<i></i><span>' + esc(shortPassage(s.passage)) + '</span></button>';
+            '<i></i><span class="lbl-full">' + esc(shortPassage(s.passage)) + '</span><span class="lbl-mini">' + esc(passageNum(s.passage)) + '</span></button>';
         }
         var e = it.e;
         return '<button type="button" class="cal-chip k-' + esc(e.kind || 'custom') + (e.done ? ' done' : '') + '" data-entry-edit="' + esc(e.id) + '" title="' + esc((e.time ? e.time + ' · ' : '') + e.title + (e.note ? ' — ' + e.note : '')) + '">' +
-          '<i></i><span>' + esc((e.time ? e.time + ' ' : '') + e.title) + '</span></button>';
+          '<i></i><span class="lbl-full">' + esc((e.time ? e.time + ' ' : '') + e.title) + '</span><span class="lbl-mini">' + esc(e.time || '일정') + '</span></button>';
       }).join('');
       if (more > 0) body += '<span class="cal-more">+' + more + '</span>';
       if (!body) body = '<span class="cal-blank" aria-hidden="true"></span>';
