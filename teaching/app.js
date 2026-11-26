@@ -1375,7 +1375,8 @@ function showComment(kind, index) {
 function renderRewritePanel(s) {
   const a = s.analysis || {};
   const canApi = !!apiKeyFor(activeProvider());
-  const label = canApi ? ('AI로 실행 (' + apiModelFor(activeProvider()) + ')') : '프롬프트 복사';
+  const label = canApi ? ('AI로 실행 (' + apiModelFor(activeProvider()) + ')') : '다시 쓰기 프롬프트 복사';
+  const copyBtn = canApi ? '<button class="btn btn-outline" data-copy-rewrite="healthy">프롬프트만 복사</button>' : '';
   const fmtOptions = ['expository', 'onepoint', 'series', 'topical'].map(function (k) {
     return '<option value="' + k + '">' + FORMATS[k].label + '</option>';
   }).join('');
@@ -1386,7 +1387,7 @@ function renderRewritePanel(s) {
       '<p class="score-note">아쉬운 점을 고치고 좋은 문장은 살린 새 원고를 받아 봅니다. 무료 모드에서는 프롬프트를 복사해 AI에 붙여넣고 결과를 다시 붙여넣으세요.</p>' +
       '<div class="btn-row">' +
         '<button class="btn btn-primary" data-rewrite="healthy">' + label + '</button>' +
-        '<button class="btn btn-outline" data-copy-rewrite="healthy">프롬프트만 복사</button>' +
+        copyBtn +
       '</div>' +
       '<div class="status" id="rewrite-status"></div>' +
     '</div>' +
@@ -1395,8 +1396,8 @@ function renderRewritePanel(s) {
       '<h3>형식 바꿔 써보기 <span class="sub">대지 · 원포인트 · 연속 강해 · 주제</span></h3>' +
       '<div class="convert-row">' +
         '<select id="convert-format" aria-label="바꿀 설교 형식">' + fmtOptions + '</select>' +
-        '<button class="btn btn-primary" data-rewrite="format">' + label + '</button>' +
-        '<button class="btn btn-outline" data-copy-rewrite="format">프롬프트만 복사</button>' +
+        '<button class="btn btn-primary" data-rewrite="format">' + (canApi ? 'AI로 실행' : '형식 변환 프롬프트 복사') + '</button>' +
+        (canApi ? '<button class="btn btn-outline" data-copy-rewrite="format">프롬프트만 복사</button>' : '') +
       '</div>' +
       '<div class="status" id="convert-status"></div>' +
     '</div>' +
