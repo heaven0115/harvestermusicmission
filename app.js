@@ -8,6 +8,7 @@
   var STATUS_FIELDS = DEFAULT.statusFields;
   var STATUS_OPTIONS = DEFAULT.statusOptions;
   var WD = ['주일', '월', '화', '수', '목', '금', '토'];
+  var DAY_FULL = ['주일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
 
   var ICON = {
     grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>',
@@ -86,7 +87,11 @@
   /* ---------------- dates ---------------- */
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function fmt(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function todayISO() { return fmt(new Date()); }
+  function todayISO() {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    } catch (e) { return fmt(new Date()); }
+  }
   function parseISO(s) { var p = String(s).split('-'); return new Date(+p[0], (+p[1]) - 1, +p[2]); }
   function addDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
   function weekStartISO(iso) { var d = parseISO(iso); d.setDate(d.getDate() - d.getDay()); return fmt(d); }
@@ -369,7 +374,7 @@
       (db.dayPlan[String(d.getDay())] || []).forEach(function (x) { items.push({ time: x.time, label: x.label, detail: x.detail, kind: x.kind }); });
       items.sort(function (a, b) { return timeRank(a.time) - timeRank(b.time); });
       return '<div class="day' + (iso === today ? ' today' : '') + '">' +
-        '<div class="day-head"><div class="dw">' + WD[d.getDay()] + '요일</div>' +
+        '<div class="day-head"><div class="dw">' + DAY_FULL[d.getDay()] + '</div>' +
         '<div class="dd">' + d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '</div>' +
         (iso === today ? '<span class="today-tag">오늘</span>' : '') + '</div>' +
         '<div class="day-items">' + items.map(function (it) {
@@ -397,7 +402,7 @@
     var kpis = '<div class="kpis">' +
       kpi('이 주 전체 진행률', avg + '<small>%</small>', weekLabel(ui.weekStart)) +
       kpi('설교 편수', week.length + '<small>편</small>', '이 주에 준비하는 새벽예배 본문') +
-      kpi('완료한 항목', doneSlots + '<small>/ ' + totalSlots + '</small>', '원고 · 교재 · PPT · 기도문') +
+      kpi('완료한 항목', doneSlots + '<small> / ' + totalSlots + '</small>', '원고 · 교재 · PPT · 기도문') +
       kpi('검토한 구성', reviewDone + '<small>/ ' + (week.length * 8) + '</small>', '효석패턴6 여덟 구성') +
       '</div>';
 
@@ -427,8 +432,9 @@
     }).join('');
 
     var perSermon = week.map(function (s) {
+      var t = s.title || '제목 없는 설교';
       return '<div class="week-row"><div class="wl">' + esc(dateLabel(s.date)) + ' ' + weekdayOf(s.date) + ' · ' + esc(s.passage || '본문 미정') +
-        '<span>' + esc((s.title || '제목 없는 설교').slice(0, 26)) + '</span></div>' +
+        '<span>' + esc(t.length > 26 ? t.slice(0, 26) + '…' : t) + '</span></div>' +
         '<div class="bar"><i style="width:' + progress(s) + '%"></i></div><div class="wp">' + progress(s) + '%</div></div>';
     }).join('') || '<p class="board-col-empty">이 주에는 설교가 없습니다.</p>';
 

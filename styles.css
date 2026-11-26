@@ -325,18 +325,18 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 .sermon-row:last-child{border-bottom:0;}
 .sermon-row:hover{background:#FAFCFA;}
 .date-block{
-  width:62px;flex:0 0 62px;text-align:center;border-right:1px solid #EDF3EF;padding-right:14px;
+  width:72px;flex:0 0 72px;text-align:center;border-right:1px solid #EDF3EF;padding-right:12px;white-space:nowrap;
 }
-.date-block .d{font-size:19px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;}
+.date-block .d{font-size:18px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;}
 .date-block .w{font-size:12px;color:#8A968F;margin-top:2px;}
 .sermon-main{flex:1;min-width:0;}
 .sermon-main h3{font-size:16.5px;font-weight:700;letter-spacing:-.025em;color:#16202E;}
 .sermon-main .meta{margin-top:6px;font-size:13px;color:#7C8A83;display:flex;gap:9px;flex-wrap:wrap;align-items:center;}
 .sermon-main .meta .ref{color:var(--forest);font-weight:600;}
 .sermon-main .msg{margin-top:7px;font-size:13px;color:#8A968F;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;}
-.chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:290px;}
+.chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:344px;}
 .chip{
-  font-size:11.5px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;
+  font-size:11px;font-weight:700;padding:4px 7px;border-radius:6px;white-space:nowrap;
   letter-spacing:-.01em;
 }
 .chip.완료{background:var(--sage);color:var(--forest);}
@@ -503,7 +503,7 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .content{padding:22px 32px 56px;}
   .hero{padding:28px 32px 30px;}
   .search input{width:210px;}
-  .chips{max-width:220px;}
+  .chips{max-width:300px;}
 }
 @media (max-width:1080px){
   :root{--sidebar-w:264px;}
