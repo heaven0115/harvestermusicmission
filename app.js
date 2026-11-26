@@ -1310,6 +1310,8 @@
       if (m) expandNums(m[1]).forEach(function (n) { if (out.indexOf(n) < 0) out.push(n); });
     });
     var got = verseLines(s, out.join(','), 4);
+    var total = got.reduce(function (n, v) { return n + v.t.length; }, 0);
+    while (got.length > 2 && total > 170) total -= got.pop().t.length;
     return got.map(function (v) { return v.t; });
   }
   function applyToPrayer(app) {
@@ -1442,7 +1444,7 @@
       sl.addText(p.ord + ' 대지' + (p.ref ? '  ·  ' + p.ref : ''),
         { x: M + 0.3, y: 0.66, w: CW - 0.3, h: 0.46, fontFace: F, fontSize: 13, bold: true, color: C.forest, valign: 'middle', charSpacing: 0.8 });
       sl.addText(p.text || '', { x: M, y: 1.32, w: CW, h: 2.1, fontFace: F, fontSize: 30, bold: true, color: C.ink, lineSpacingMultiple: 1.22, valign: 'middle', fit: 'shrink' });
-      var vv = verseLines(s, p.ref, 3);
+      var vv = verseLines(s, p.ref, 2);
       if (vv.length) {
         sl.addText(vv.map(function (v) { return v.n + '  ' + v.t; }).join('\n'),
           { x: M, y: 3.55, w: CW, h: 1.35, fontFace: F, fontSize: 13, color: C.muted, lineSpacingMultiple: 1.45, valign: 'top', fit: 'shrink' });
