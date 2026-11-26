@@ -102,6 +102,74 @@ function uid(prefix) {
   return (prefix || 's') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+/* ---------- 리터럴 \n 정리 ----------
+   iOS에서 ChatGPT 응답을 복사하면 줄바꿈이 두 번 이스케이프되어,
+   JSON을 풀어도 문자열 안에 "\\n" 두 글자가 남는다.
+   문맥을 보아 실제 줄바꿈 또는 공백으로 되돌린다. */
+const LIT_SENTENCE_END = /[.?!…:;。？！]/;
+const LIT_CLOSERS = /[)"'”’」』\]]/;
+const LIT_WORD_CHAR = /[0-9A-Za-z가-힣]/;
+
+function cleanLiteralNewlines(input) {
+  if (input === null || input === undefined) return '';
+  const s = String(input);
+  if (s.indexOf('\\') === -1) return s;
+
+  return s.replace(/(?:\\+r\\+n|\\+n|\\+r)+/g, function (match, offset, whole) {
+    const before = whole.slice(0, offset).replace(/\s+$/, '');
+    const after = whole.slice(offset + match.length).replace(/^\s+/, '');
+    const breaks = (match.match(/n/gi) || []).length || 1;
+    if (breaks >= 2) return '\n\n';   // 문단 나눔은 그대로 살립니다.
+
+    if (!before || !after) return '\n';
+
+    let prev = before.slice(-1);
+    if (LIT_CLOSERS.test(prev)) {
+      const inner = before.slice(0, -1).replace(/\s+$/, '');
+      if (LIT_SENTENCE_END.test(inner.slice(-1))) return '\n';
+    }
+    if (LIT_SENTENCE_END.test(prev)) return '\n';
+
+    const next = after.slice(0, 1);
+    if (LIT_WORD_CHAR.test(prev) && LIT_WORD_CHAR.test(next)) {
+      const frag = before.match(/[^\s]+$/);
+      // "아\\n닙니다"처럼 한두 글자 조각으로 끊긴 경우만 붙입니다.
+      if (frag && frag[0].length <= 2) return '';
+    }
+    return ' ';
+  });
+}
+
+function cleanStringsDeep(value) {
+  if (typeof value === 'string') return cleanLiteralNewlines(value);
+  if (Array.isArray(value)) return value.map(cleanStringsDeep);
+  if (value && typeof value === 'object') {
+    const out = {};
+    Object.keys(value).forEach(function (k) { out[k] = cleanStringsDeep(value[k]); });
+    return out;
+  }
+  return value;
+}
+
+/* 저장된 자료(설교·표현)의 문자열을 한 번 정리합니다. */
+function cleanStateText(s) {
+  if (!s) return s;
+  (s.sermons || []).forEach(function (sermon) {
+    if (!sermon) return;
+    ['title', 'scripture', 'preacher', 'text'].forEach(function (k) {
+      if (typeof sermon[k] === 'string') sermon[k] = cleanLiteralNewlines(sermon[k]);
+    });
+    if (sermon.analysis) sermon.analysis = cleanStringsDeep(sermon.analysis);
+  });
+  (s.expressions || []).forEach(function (e) {
+    if (!e) return;
+    ['text', 'note', 'source'].forEach(function (k) {
+      if (typeof e[k] === 'string') e[k] = cleanLiteralNewlines(e[k]);
+    });
+  });
+  return s;
+}
+
 function todayISO() {
   const d = new Date();
   const p = function (n) { return String(n).padStart(2, '0'); };
@@ -189,12 +257,17 @@ function emptyState() {
   };
 }
 
+let stateNeedsCleanWrite = false;
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.sermons)) return migrateState(parsed);
+      if (parsed && Array.isArray(parsed.sermons)) {
+        if (raw.indexOf('\\\\n') !== -1 || raw.indexOf('\\\\r') !== -1) stateNeedsCleanWrite = true;
+        return cleanStateText(migrateState(parsed));
+      }
     }
   } catch (e) {
     console.warn('저장된 자료를 읽지 못했습니다.', e);
@@ -508,6 +581,10 @@ function sampleState() {
 
 /* 초기 상태 로드 (샘플 정의 이후 실행) */
 state = loadState();
+/* 리터럴 \n이 남아 있던 저장본은 한 번 정리해 다시 저장합니다. */
+if (stateNeedsCleanWrite) {
+  try { saveState(true); } catch (e) { /* 저장 공간이 없으면 그대로 둡니다. */ }
+}
 
 /* =========================================================
    2) 프롬프트 · 응답 파싱 · API
@@ -589,8 +666,9 @@ function buildAnalysisPrompt(input) {
       ? '  - 이 설교는 영어입니다. 본문의 핵심 문장 8~12개를 골라 원문과 한글 번역을 문장 단위로 대조해 verse_translations에 넣으십시오. 번역은 설교의 어조를 살린 자연스러운 한국어로 하십시오.'
       : '  - 한국어 설교이므로 verse_translations는 빈 배열([])로 두십시오.',
     '',
-    '[다시 쓰기]',
+    '[다시 쓰기 — 100점 기준]',
     '  - rewrite_healthy에는 이 설교를 "건강한 설교"로 다시 쓴 원고를 넣으십시오. 원문의 좋은 문장은 살리고, 아쉬운 점을 고친 완성된 설교 원고여야 합니다.',
+    '  - 이 원고는 열 가지 항목 모두 10점(총 100점)을 받을 수 있는 수준을 목표로 쓰십시오. 위에서 감점한 항목의 약점(정죄하는 표현, 본문에서 준비되지 않은 결론, 그리스도와 복음의 부재 등)이 실제로 사라지도록 고치고, 점수만 올리려고 분량을 늘리지 마십시오.',
     '  - 분량은 900~1600자(영어는 500~800단어)로, 서론-본론-결론이 있는 실제 설교 형태로 쓰십시오.',
     '',
     '[출력 형식]',
@@ -658,6 +736,87 @@ function buildRewritePrompt(sermon, mode) {
     weakLines || '  (없음)',
     '',
     '이제 다시 쓴 설교 원고만 출력하십시오.'
+  ].join('\n');
+}
+
+/* ---------- 100점 보완 원고 프롬프트 ---------- */
+function buildPerfectPrompt(sermon) {
+  const a = sermon.analysis || {};
+  const scores = a.scores || {};
+  const notes = a.notes || {};
+  const total = totalOf(a);
+
+  const scoreLines = ITEMS.map(function (it, i) {
+    const v = Number(scores[it.key] || 0);
+    const note = String(notes[it.key] || '').trim();
+    return '  ' + (i + 1) + '. ' + it.ko + ' — ' + v + '점 / 10' +
+      (v < 10 ? ' (감점 ' + round1(10 - v) + '점)' : ' (만점)') +
+      (note ? '\n     · 감점 이유: ' + note : '');
+  }).join('\n');
+
+  const weakLines = (a.weakPoints || []).map(function (w, i) {
+    return '  ' + (i + 1) + '. [' + (itemKo(w.item) || '지적') + '] 문제: ' + (w.issue || '') +
+      (w.quote ? ' / 지적된 문장: "' + w.quote + '"' : '') +
+      (w.method ? ' / 고칠 방향: ' + w.method : '') +
+      (w.rewrite ? ' / 참고 예시: ' + w.rewrite : '');
+  }).join('\n');
+
+  const goodLines = (a.goodPoints || []).map(function (g, i) {
+    return '  ' + (i + 1) + '. [' + (itemKo(g.item) || '좋은 점') + '] ' + (g.quote ? '"' + g.quote + '" — ' : '') + (g.reason || '');
+  }).join('\n');
+
+  return [
+    '당신은 30년 경력의 설교 코치이며, 설교 원고를 강단에서 바로 읽을 수 있게 고쳐 주는 편집자입니다.',
+    '아래 설교는 열 가지 항목으로 채점되어 현재 ' + total + '점(100점 만점)입니다. 이 설교를 다시 써서 열 가지 항목 모두 10점, 총 100점을 받을 수 있는 강단 설교 원고로 만들어 주십시오.',
+    '',
+    '[지켜야 할 것]',
+    '  - 원문의 좋은 문장, 설교자의 어조, 본문에서 얻은 통찰은 그대로 살리십시오. 새 설교를 쓰지 말고 이 설교를 고쳐 쓰십시오.',
+    '  - 점수를 올리려고 분량만 늘리지 마십시오. 감점된 항목의 약점이 실제로 사라져야 합니다.',
+    '  - 본문(성경)의 문맥을 벗어나지 말고, 그리스도와 복음을 설교의 중심에 두십시오.',
+    '  - 회중을 정죄하거나 겁주는 표현은 걷어 내고, 상처 입은 성도에게도 안전하게 들리는 문장으로 고치십시오.',
+    '  - 10점을 받을 수 없다고 판단되는 항목이 있으면, 무엇이 부족한지 how에 솔직히 적으십시오. 점수를 위해 과장하지 마십시오.',
+    '  - 원고는 서론-본론-결론이 있는 실제 설교 형태로, 1400~2200자(영어는 700~1100단어)로 쓰십시오.',
+    '  - 강단에서 소리 내어 읽기 좋은 문장으로 쓰고, 소제목·머리말·평가는 원고에 넣지 마십시오.',
+    '',
+    '[설교 정보]',
+    sermonInfoBlock(sermon),
+    '',
+    '[현재 점수 — 총 ' + total + '점 / 100점]',
+    scoreLines,
+    '',
+    '[지금 잘한 점 — 반드시 살릴 것]',
+    goodLines || '  (기록 없음)',
+    '',
+    '[감점된 지점 — 반드시 고칠 것]',
+    weakLines || '  (기록 없음)',
+    '',
+    a.summary ? '[코칭 총평]\n' + a.summary + '\n' : '',
+    '[설교 원문]',
+    '"""',
+    sermon.text,
+    '"""',
+    '',
+    '[출력 형식]',
+    '아래 JSON 객체 하나만 출력하십시오. 인사말·설명·코드블록 밖의 글은 쓰지 마십시오.',
+    '{',
+    '  "title": "고쳐 쓴 설교 제목",',
+    '  "text": "100점을 목표로 고쳐 쓴 설교 원고 전문(문단은 \\n\\n으로 구분)",',
+    '  "items": [',
+    '    { "item": "성경 문맥", "how": "이 항목을 10점 수준으로 어떻게 고쳤는지 1~2문장" },',
+    '    { "item": "강해 충실도", "how": "…" },',
+    '    { "item": "그리스도 중심", "how": "…" },',
+    '    { "item": "복음과 은혜", "how": "…" },',
+    '    { "item": "교리 건전성", "how": "…" },',
+    '    { "item": "논리 흐름", "how": "…" },',
+    '    { "item": "공감과 적용", "how": "…" },',
+    '    { "item": "정서 안전", "how": "…" },',
+    '    { "item": "권위와 소통", "how": "…" },',
+    '    { "item": "언어와 예화", "how": "…" }',
+    '  ],',
+    '  "summary": "이번 보완에서 가장 크게 달라진 점 2~4문장"',
+    '}',
+    '',
+    '이제 위 JSON만 출력하십시오.'
   ].join('\n');
 }
 
@@ -971,7 +1130,7 @@ function normalizeAnalysis(raw, input) {
   const allZero = ITEMS.every(function (it) { return !scores[it.key]; });
   if (allZero) throw new Error('응답에서 항목별 점수를 찾지 못했습니다. scores 항목이 있는지 확인해 주세요.');
 
-  return out;
+  return cleanStringsDeep(out);
 }
 
 function normalizeGood(raw) {
@@ -1007,6 +1166,168 @@ function normalizeWeak(raw) {
       practice: String(pick(p, ['practice', '연습', 'exercise', 'drill']) || '')
     };
   }).filter(function (p) { return p && (p.quote || p.issue); });
+}
+
+/* ---------- 100점 보완 원고 파싱 ---------- */
+function perfectOf(s) {
+  return (s && s.analysis && s.analysis.perfect) || null;
+}
+
+function perfectScoreSum(analysis) {
+  let sum = 0;
+  ITEMS.forEach(function (it) { sum += Number(((analysis || {}).scores || {})[it.key] || 0); });
+  return round1(sum);
+}
+
+function perfectGaps(analysis) {
+  return ITEMS.map(function (it) {
+    return { it: it, v: Number(((analysis || {}).scores || {})[it.key] || 0) };
+  }).filter(function (x) { return x.v < 10; })
+    .sort(function (x, y) { return x.v - y.v; });
+}
+
+function tidyPerfectText(text) {
+  return String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function normalizePerfectItems(raw) {
+  let list = pick(raw, ['items', 'supplements', 'changes', 'item_notes', '보완_내역', '보완내역', '보완 포인트']);
+  const rows = [];
+  const push = function (name, how) {
+    const key = itemKey(name);
+    const label = key ? itemKo(key) : String(name || '').trim();
+    const body = String(how === undefined || how === null ? '' : how).trim();
+    if (!label && !body) return;
+    rows.push({ item: key || null, name: label, how: body });
+  };
+
+  if (Array.isArray(list)) {
+    list.forEach(function (entry) {
+      if (entry === null || entry === undefined) return;
+      if (typeof entry === 'string') {
+        const m = entry.match(/^\s*([^:：—–]{2,20})\s*[:：—–]\s*([\s\S]+)$/);
+        if (m) push(m[1], m[2]);
+        return;
+      }
+      if (typeof entry !== 'object') return;
+      push(
+        pick(entry, ['item', 'name', '항목', '항목명', 'category', 'area']),
+        pick(entry, ['how', 'note', 'change', 'fix', 'detail', 'description', 'reason', 'text', '설명', '보완', '고친 내용'])
+      );
+    });
+  } else if (list && typeof list === 'object') {
+    Object.keys(list).forEach(function (name) {
+      const v = list[name];
+      if (typeof v === 'string' || typeof v === 'number') push(name, v);
+      else if (v && typeof v === 'object') push(name, pick(v, ['how', 'note', '설명', 'text']));
+    });
+  }
+  return rows;
+}
+
+function parsePerfectPlain(raw, sermon) {
+  let text = String(raw || '').replace(/\r\n?/g, '\n').trim();
+  text = text.replace(/^\s*```[a-zA-Z]*[^\n]*\n/, '').replace(/\n?```\s*$/, '').trim();
+
+  const out = { title: '', text: '', summary: '', items: [] };
+  const lines = text.split('\n');
+
+  // 앞쪽의 제목 줄을 분리합니다.
+  for (let i = 0; i < Math.min(4, lines.length); i++) {
+    const t = lines[i].trim();
+    if (!t) continue;
+    let m = t.match(/^(?:설교\s*)?제목\s*[:：]\s*(.+)$/);
+    if (m) {
+      out.title = m[1].trim();
+      lines.splice(i, 1);
+    } else if (/^#{1,3}\s*\S/.test(t) && t.replace(/^#+\s*/, '').length <= 60) {
+      out.title = t.replace(/^#+\s*/, '').trim();
+      lines.splice(i, 1);
+    }
+    break;
+  }
+
+  // 뒤쪽의 보완 내역 구역을 떼어 냅니다.
+  const noteStart = /^[\[【]?\s*(?:보완\s*내역|보완\s*포인트|항목별\s*보완(?:\s*설명)?|보완\s*설명|어떻게\s*고쳤|고친\s*내용)\s*[\]】]?\s*[:：]?\s*$/i;
+  let cut = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (noteStart.test(lines[i].trim())) { cut = i; break; }
+  }
+  let bodyLines = lines;
+  let noteLines = [];
+  if (cut >= 0) {
+    bodyLines = lines.slice(0, cut);
+    noteLines = lines.slice(cut + 1);
+  }
+
+  noteLines.forEach(function (line) {
+    const t = line.trim().replace(/^[-*•·]\s*/, '').replace(/^\d+[.)]\s*/, '').replace(/^\*\*|\*\*$/g, '');
+    if (!t) return;
+    const m = t.match(/^([^:：—–]{2,20})\s*[:：—–]\s*([\s\S]+)$/);
+    if (m) {
+      const key = itemKey(m[1]);
+      out.items.push({ item: key || null, name: key ? itemKo(key) : m[1].trim(), how: m[2].trim() });
+    }
+  });
+
+  out.text = tidyPerfectText(bodyLines.join('\n').replace(/^[-=_*\s]{3,}$/gm, ''));
+  if (!out.title) {
+    const firstLine = (bodyLines.find(function (l) { return l.trim(); }) || '').trim().replace(/^[#*"]+|[#*"]+$/g, '');
+    if (firstLine && firstLine.length <= 40 && !/[.!?。]$/.test(firstLine)) out.title = firstLine;
+  }
+  return out;
+}
+
+function normalizePerfect(raw, sermon) {
+  const a = (sermon && sermon.analysis) || {};
+  const out = {
+    title: '',
+    text: '',
+    items: [],
+    summary: '',
+    scoreBefore: perfectScoreSum(a),
+    createdAt: new Date().toISOString()
+  };
+
+  let obj = null;
+  if (raw && typeof raw === 'object') obj = raw;
+  else if (typeof raw === 'string') obj = extractJson(raw);
+
+  if (obj) {
+    let text = pick(obj, ['text', 'manuscript', 'sermon_text', 'content', 'body', 'rewritten', '원고', '설교원고', '설교_원고', '본문']);
+    if (text && typeof text === 'object') text = pick(text, ['text', '본문', 'content']);
+    if (typeof text === 'string') out.text = text.trim();
+    out.title = String(pick(obj, ['title', '제목', 'rewritten_title', 'new_title']) || '').trim();
+    out.summary = String(pick(obj, ['summary', '총평', 'overview', 'note', '보완 요약']) || '').trim();
+    out.items = normalizePerfectItems(obj);
+  }
+
+  if (!out.text) {
+    const plain = parsePerfectPlain(typeof raw === 'string' ? raw : '', sermon);
+    out.text = plain.text;
+    if (!out.title) out.title = plain.title;
+    if (!out.summary) out.summary = plain.summary;
+    if (!out.items.length) out.items = plain.items;
+  }
+
+  out.text = tidyPerfectText(cleanLiteralNewlines(out.text));
+  out.title = cleanLiteralNewlines(out.title);
+  out.summary = cleanLiteralNewlines(out.summary);
+  out.items = out.items.map(function (r) {
+    return { item: r.item, name: cleanLiteralNewlines(r.name), how: cleanLiteralNewlines(r.how) };
+  });
+  if (!out.text || out.text.replace(/\s/g, '').length < 80) {
+    throw new Error('응답에서 설교 원고를 찾지 못했습니다. 원고 전문이 들어 있게 다시 붙여넣어 주세요.');
+  }
+  if (!out.title) out.title = String((sermon && sermon.title) || '설교') + ' (100점 보완 원고)';
+  out.title = out.title.replace(/^#{1,6}\s*/, '').replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+  return out;
 }
 
 /* ---------- 설교 객체 만들기 ---------- */
@@ -1280,6 +1601,7 @@ function renderReport() {
   renderHighlight(s);
   renderRewritePanel(s);
   renderTranslate(s);
+  renderPerfect(s);
 }
 
 function renderCoaching(s) {
@@ -1572,11 +1894,19 @@ function renderRewritePanel(s) {
 function rewriteResultsHTML(s) {
   const a = s.analysis || {};
   let out = '';
+  const actions = function (key) {
+    return '<div class="btn-row">' +
+      '<button class="btn btn-primary btn-small" data-dl="docx" data-doc="' + esc(key) + '">📄 워드(.docx)</button>' +
+      '<button class="btn btn-outline btn-small" data-print-doc="' + esc(key) + '">🖨️ PDF 저장 / 인쇄</button>' +
+      '<button class="btn btn-outline btn-small" data-dl="txt" data-doc="' + esc(key) + '">📝 텍스트(.txt)</button>' +
+      '<button class="btn btn-outline btn-small" data-copy-block="' + esc(key) + '">📋 복사</button>' +
+      '<button class="btn btn-ghost btn-small" data-del-block="' + esc(key) + '">지우기</button>' +
+    '</div>';
+  };
   if (a.rewriteHealthy) {
     out += '<div class="card report-card rewrite-block"><h4>건강한 설교로 다시 쓴 원고</h4>' +
       '<div class="rewrite-text">' + esc(a.rewriteHealthy) + '</div>' +
-      '<div class="btn-row"><button class="btn btn-outline btn-small" data-copy-block="healthy">복사</button>' +
-      '<button class="btn btn-ghost btn-small" data-del-block="healthy">지우기</button></div></div>';
+      actions('healthy') + '</div>';
   }
   Object.keys(a.conversions || {}).forEach(function (k) {
     const text = a.conversions[k];
@@ -1584,14 +1914,14 @@ function rewriteResultsHTML(s) {
     const name = (FORMATS[k] || {}).label || k;
     out += '<div class="card report-card rewrite-block"><h4>' + esc(name) + ' 형식으로 다시 쓴 원고</h4>' +
       '<div class="rewrite-text">' + esc(text) + '</div>' +
-      '<div class="btn-row"><button class="btn btn-outline btn-small" data-copy-block="format:' + esc(k) + '">복사</button>' +
-      '<button class="btn btn-ghost btn-small" data-del-block="format:' + esc(k) + '">지우기</button></div></div>';
+      actions('format:' + k) + '</div>';
   });
   if (!out) out = '<div class="empty-mini">아직 다시 쓴 원고가 없습니다.</div>';
   return out;
 }
 
 function saveRewriteResult(s, mode, text) {
+  text = cleanLiteralNewlines(String(text || '')).trim();
   if (!text) { toast('원고가 비어 있습니다.', true); return; }
   s.analysis = s.analysis || {};
   if (mode === 'healthy') s.analysis.rewriteHealthy = text;
@@ -1656,6 +1986,342 @@ function renderTranslate(s) {
     '<div class="card report-card">' +
       '<h3>문장별 번역 대조 <span class="sub">' + list.length + '문장</span></h3>' + inner +
     '</div>';
+}
+
+/* ---------- 100점 보완 원고 ---------- */
+let perfectDraft = '';
+let perfectPasteOpen = false;
+
+function renderPerfect(s) {
+  const host = $('#rpanel-perfect');
+  if (!host) return;
+  const a = s.analysis || {};
+  const now = perfectScoreSum(a);
+  const gain = round1(100 - now);
+  const gaps = perfectGaps(a);
+  const hasKey = !!apiKeyFor(activeProvider());
+
+  const gapHTML = gaps.length
+    ? gaps.map(function (x) {
+        return '<span class="gap-badge' + (x.v < 7 ? ' is-low' : '') + '">' +
+          '<b>' + esc(x.it.ko) + '</b><em>' + x.v + '점</em><i>−' + round1(10 - x.v) + '</i></span>';
+      }).join('')
+    : '<span class="gap-badge is-full">열 항목 모두 10점 — 이미 100점입니다</span>';
+
+  const summaryCard =
+    '<div class="card report-card perfect-summary">' +
+      '<h3>100점까지 <span class="sub">감점된 항목만 다시 써서 100점을 채웁니다</span></h3>' +
+      '<div class="perfect-meter">' +
+        '<div class="pm-box"><span>현재 점수</span><b>' + now + '</b><small>/ 100</small></div>' +
+        '<div class="pm-arrow" aria-hidden="true">→</div>' +
+        '<div class="pm-box is-goal"><span>보완 목표</span><b>100</b><small>/ 100</small></div>' +
+        (gain > 0 ? '<div class="pm-gain">+' + gain + '점</div>' : '') +
+      '</div>' +
+      '<p class="perfect-gap-label">10점 미만으로 감점된 항목 <strong>' + gaps.length + '개</strong>' +
+        (gaps.length ? ' — 점수가 낮은 항목부터 보완합니다.' : '') + '</p>' +
+      '<div class="perfect-gap-badges">' + gapHTML + '</div>' +
+    '</div>';
+
+  const createCard =
+    '<div class="card report-card perfect-create">' +
+      '<h3>100점 보완 원고 만들기 <span class="sub">무료 모드 · API 키 모드 모두</span></h3>' +
+      '<p class="score-note">' + (hasKey
+        ? esc(apiModelFor(activeProvider())) + ' 모델로 바로 만들 수 있습니다. 프롬프트를 복사해 ChatGPT·Claude에 붙여넣는 무료 모드도 그대로 쓸 수 있습니다.'
+        : 'API 키가 없어도 됩니다. <strong>100점 보완 프롬프트 복사</strong>를 눌러 ChatGPT·Claude에 붙여넣고, 돌아온 응답을 그대로 붙여넣으면 저장됩니다.') + '</p>' +
+      '<div class="btn-row">' +
+        (hasKey ? '<button class="btn btn-primary" type="button" data-perfect="api">💯 100점 원고 바로 만들기</button>' : '') +
+        '<button class="btn ' + (hasKey ? 'btn-outline' : 'btn-primary') + '" type="button" data-perfect="prompt">💯 100점 보완 프롬프트 복사</button>' +
+        '<a class="btn btn-outline" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT 바로 열기 ↗</a>' +
+        '<a class="btn btn-outline" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude 바로 열기 ↗</a>' +
+      '</div>' +
+      '<div class="status" id="perfect-status" role="status" aria-live="polite"></div>' +
+      '<div class="perfect-paste" id="perfect-paste-card"' + (perfectPasteOpen ? '' : ' hidden') + '>' +
+        '<label class="field field-full">' +
+          '<span class="field-label">AI 응답 붙여넣기 <span class="opt">JSON · 일반 텍스트 모두 됩니다</span></span>' +
+          '<textarea id="perfect-paste" rows="9" placeholder="ChatGPT·Claude가 돌려준 응답을 그대로 붙여넣으세요. JSON이면 항목별 보완 포인트까지 카드로 정리됩니다.">' + esc(perfectDraft) + '</textarea>' +
+        '</label>' +
+        '<div class="btn-row">' +
+          '<button class="btn btn-primary" type="button" data-perfect="save">100점 원고 저장</button>' +
+          '<label class="btn btn-outline file-btn">JSON 파일 열기<input type="file" id="perfect-file" accept=".json,.txt,application/json,text/plain" hidden></label>' +
+          '<button class="btn btn-ghost" type="button" data-perfect="cancel">닫기</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  host.innerHTML = summaryCard + createCard + '<div id="perfect-result">' + perfectResultHTML(s) + '</div>';
+}
+
+function perfectResultHTML(s) {
+  const pf = perfectOf(s);
+  if (!pf || !pf.text) {
+    const a = s.analysis || {};
+    return '<div class="empty-mini perfect-empty">' +
+      '<strong>💯 아직 100점 보완 원고가 없습니다.</strong>' +
+      '<span class="score-note">위에서 프롬프트를 복사해 붙여넣거나, API 키가 있으면 <strong>100점 원고 바로 만들기</strong>를 누르면 여기에 원고가 나타납니다.</span>' +
+      (a.rewriteHealthy ? '<span class="score-note">「다시 쓰기 · 형식 변환」의 <strong>건강한 설교 원고</strong>는 아쉬운 점을 고친 원고이지, 열 항목 모두 10점을 목표로 다시 쓴 100점 원고가 아닙니다.</span>' : '') +
+      '</div>';
+  }
+
+  const body = trimLeadTitle(pf.text, pf.title);
+  const metaLine = [s.scripture, fmtDate(s.date), s.preacher].filter(Boolean).join(' · ');
+  const before = typeof pf.scoreBefore === 'number' ? pf.scoreBefore : perfectScoreSum(s.analysis);
+
+  let itemsHTML;
+  if (pf.items && pf.items.length) {
+    itemsHTML = '<ul class="perfect-items">' + pf.items.map(function (r) {
+      const old = r.item && s.analysis && s.analysis.scores ? Number(s.analysis.scores[r.item] || 0) : null;
+      return '<li class="perfect-item">' +
+        '<div class="pi-head">' +
+          '<span class="pi-name">' + esc(r.name || itemKo(r.item) || '보완') + '</span>' +
+          (old !== null ? '<span class="pi-score"><b>' + old + '</b> → <b>10</b></span>' : '') +
+        '</div>' +
+        (r.how ? '<p class="pi-how">' + esc(r.how) + '</p>' : '') +
+      '</li>';
+    }).join('') + '</ul>';
+  } else {
+    itemsHTML = '<div class="empty-mini">이 응답에는 항목별 보완 설명이 들어 있지 않습니다. 원고는 아래에 그대로 저장했습니다.</div>';
+  }
+
+  return '<div class="card manuscript-card" id="perfect-manuscript">' +
+      '<div class="ms-head">' +
+        '<span class="ms-eyebrow">💯 100점 보완 원고 · ' + before + '점 → 100점 목표</span>' +
+        '<h2 class="ms-title">' + esc(pf.title) + '</h2>' +
+        (metaLine ? '<p class="ms-meta">' + esc(metaLine) + '</p>' : '') +
+      '</div>' +
+      '<div class="ms-body">' + esc(body) + '</div>' +
+      '<div class="btn-row ms-actions no-print">' +
+        '<button class="btn btn-primary" type="button" data-dl="docx" data-doc="perfect">📄 워드(.docx) 다운로드</button>' +
+        '<button class="btn btn-outline" type="button" data-print-doc="perfect">🖨️ PDF 저장 / 인쇄</button>' +
+        '<button class="btn btn-outline" type="button" data-dl="txt" data-doc="perfect">📝 텍스트(.txt) 다운로드</button>' +
+        '<button class="btn btn-outline" type="button" data-copy-doc="perfect">📋 원고 복사</button>' +
+        '<button class="btn btn-ghost" type="button" data-del-perfect="1">지우기</button>' +
+      '</div>' +
+      '<p class="ms-foot">이 화면의 원고를 그대로 내려받습니다 · 본문 18pt · 맑은 고딕' + (pf.createdAt ? ' · ' + esc(fmtDate(pf.createdAt)) + ' 저장' : '') + '</p>' +
+    '</div>' +
+    '<div class="card report-card">' +
+      '<h3>보완 내역 <span class="sub">감점 항목을 어떻게 10점 수준으로 고쳤는지</span></h3>' +
+      (pf.summary ? '<p class="summary-text">' + esc(pf.summary) + '</p>' : '') +
+      itemsHTML +
+    '</div>';
+}
+
+/* ---------- 내려받기 · 인쇄 ---------- */
+function safeFileName(name) {
+  const out = String(name || '설교원고')
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+  return out || '설교원고';
+}
+
+function trimLeadTitle(body, title) {
+  const text = String(body || '').replace(/\r\n?/g, '\n');
+  const lines = text.split('\n');
+  let i = 0;
+  while (i < lines.length && !lines[i].trim()) i++;
+  if (i >= lines.length) return text.trim();
+  const norm = function (v) { return String(v || '').replace(/[\s"'“”‘’·:.,!?()\[\]]/g, ''); };
+  const first = norm(lines[i].trim().replace(/^#{1,6}\s*/, '').replace(/^["'“”]+|["'“”]+$/g, ''));
+  const t = norm(title);
+  if (first && t && (first === t || (first.length >= 6 && t.indexOf(first) !== -1) || (t.length >= 6 && first.indexOf(t) !== -1))) {
+    lines.splice(i, 1);
+    return lines.join('\n').replace(/^\n+/, '').trim();
+  }
+  return text.trim();
+}
+
+function manuscriptFor(s, key) {
+  if (!s) return null;
+  const a = s.analysis || {};
+  const meta = [s.scripture, fmtDate(s.date), s.preacher].filter(Boolean).join(' · ');
+  const base = String(s.title || '설교');
+  let title = '';
+  let body = '';
+  let label = '';
+  let tag = '';
+
+  if (key === 'perfect') {
+    const pf = perfectOf(s);
+    if (!pf || !pf.text) return null;
+    title = pf.title || (base + ' (100점 보완 원고)');
+    body = trimLeadTitle(pf.text, pf.title || base);
+    label = '💯 100점 보완 원고';
+    tag = '100점보완원고';
+  } else if (key === 'healthy') {
+    if (!a.rewriteHealthy) return null;
+    title = base + ' (다시 쓴 원고)';
+    body = trimLeadTitle(a.rewriteHealthy, base);
+    label = '다시 쓴 설교 원고';
+    tag = '다시쓴원고';
+  } else if (key.indexOf('format:') === 0) {
+    const k = key.slice(7);
+    const text = (a.conversions || {})[k];
+    if (!text) return null;
+    const fl = (FORMATS[k] || {}).label || k;
+    title = base + ' (' + fl + ') ';
+    title = title.trim();
+    body = trimLeadTitle(text, base);
+    label = fl + ' 설교 원고';
+    tag = fl.replace(/\s+/g, '');
+  } else {
+    return null;
+  }
+
+  return {
+    title: title,
+    body: body,
+    meta: meta,
+    label: label,
+    fileBase: tag + '_' + safeFileName(base) + (s.date ? '_' + String(s.date).slice(0, 10) : '')
+  };
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 6000);
+}
+
+function downloadManuscript(s, key, fmt) {
+  const doc = manuscriptFor(s, key);
+  if (!doc) { toast('내려받을 원고가 없습니다.', true); return; }
+
+  if (fmt === 'docx') {
+    if (!window.DocxLite || typeof window.DocxLite.makeDocx !== 'function') {
+      toast('워드 생성기를 불러오지 못했습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.', true);
+      return;
+    }
+    let bytes;
+    try {
+      bytes = window.DocxLite.makeDocx({ title: doc.title, meta: doc.meta, body: doc.body, subject: doc.label, creator: '므두셀라 티칭' });
+    } catch (err) {
+      toast('워드 파일을 만들지 못했습니다: ' + (err && err.message ? err.message : '알 수 없는 오류'), true);
+      return;
+    }
+    downloadBlob(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), doc.fileBase + '.docx');
+    toast('워드(.docx) 파일로 내려받았습니다.');
+    return;
+  }
+
+  if (fmt === 'txt') {
+    const text = doc.title + '\n' + (doc.meta ? doc.meta + '\n' : '') + '\n' + doc.body + '\n';
+    downloadBlob(new Blob(['\ufeff' + text], { type: 'text/plain;charset=utf-8' }), doc.fileBase + '.txt');
+    toast('텍스트(.txt) 파일로 내려받았습니다.');
+  }
+}
+
+function printManuscriptFor(s, key) {
+  const doc = manuscriptFor(s, key);
+  if (!doc) { toast('인쇄할 원고가 없습니다.', true); return; }
+  const host = $('#print-doc');
+  if (!host) return;
+  host.innerHTML = '<div class="print-page">' +
+    '<p class="print-eyebrow">' + esc(doc.label) + '</p>' +
+    '<h1 class="print-title">' + esc(doc.title) + '</h1>' +
+    (doc.meta ? '<p class="print-meta">' + esc(doc.meta) + '</p>' : '') +
+    '<div class="print-body">' + esc(doc.body) + '</div>' +
+  '</div>';
+
+  document.body.classList.add('is-printing-doc');
+  const clear = function () {
+    document.body.classList.remove('is-printing-doc');
+    window.removeEventListener('afterprint', clear);
+  };
+  window.addEventListener('afterprint', clear);
+  setTimeout(function () {
+    window.print();
+    setTimeout(clear, 800);
+  }, 120);
+}
+
+function handlePerfectAction(action) {
+  const s = currentSermon();
+  if (!s) return;
+
+  if (action === 'prompt') {
+    const prompt = buildPerfectPrompt(s);
+    const card = $('#perfect-paste-card');
+    perfectPasteOpen = true;
+    if (card) {
+      card.hidden = false;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    copyText(prompt, '100점 보완 프롬프트를 복사했습니다. ChatGPT·Claude에 붙여넣으세요.').then(function (ok) {
+      setStatus('#perfect-status', ok
+        ? '프롬프트가 복사되었습니다. AI의 응답을 아래에 붙여넣고 <strong>[100점 원고 저장]</strong>을 누르세요.'
+        : '프롬프트를 복사하지 못했습니다. 다시 눌러 주세요.', ok ? 'ok' : 'err');
+      const ta = $('#perfect-paste');
+      if (ok && ta) ta.focus();
+    });
+    return;
+  }
+
+  if (action === 'cancel') {
+    perfectPasteOpen = false;
+    perfectDraft = '';
+    const card = $('#perfect-paste-card');
+    if (card) card.hidden = true;
+    return;
+  }
+
+  if (action === 'save') { savePerfectFromPaste(); return; }
+  if (action === 'api') { runPerfectApi(); return; }
+}
+
+function savePerfect(s, perfect) {
+  s.analysis = s.analysis || {};
+  s.analysis.perfect = perfect;
+  saveState();
+  renderPerfect(s);
+  const host = $('#perfect-manuscript');
+  if (host) host.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function savePerfectFromPaste() {
+  const s = currentSermon();
+  if (!s) return;
+  const ta = $('#perfect-paste');
+  const raw = (ta ? ta.value : perfectDraft).trim();
+  if (!raw) { setStatus('#perfect-status', 'AI의 응답을 먼저 아래에 붙여넣어 주세요.', 'err'); return; }
+  let perfect;
+  try {
+    perfect = normalizePerfect(raw, s);
+  } catch (err) {
+    setStatus('#perfect-status', esc(err.message), 'err');
+    return;
+  }
+  perfectDraft = '';
+  perfectPasteOpen = false;
+  savePerfect(s, perfect);
+  setStatus('#perfect-status', '100점 원고를 저장했습니다 — ' + esc(perfect.title), 'ok');
+  toast('100점 보완 원고를 저장했습니다.');
+}
+
+async function runPerfectApi() {
+  const s = currentSermon();
+  if (!s) return;
+  if (!apiKeyFor(activeProvider())) {
+    toast('설정에서 API 키를 먼저 입력해 주세요.', true);
+    openSettings();
+    return;
+  }
+  setStatus('#perfect-status', '<span class="spinner"></span>' + esc(apiModelFor(activeProvider())) + ' 모델이 100점 원고를 쓰고 있습니다. 1~2분 걸릴 수 있습니다.', 'busy');
+  try {
+    const raw = await callAI(buildPerfectPrompt(s), { json: true, maxTokens: 6000 });
+    const perfect = normalizePerfect(raw, s);
+    savePerfect(s, perfect);
+    setStatus('#perfect-status', '100점 보완 원고를 저장했습니다. 아래에서 바로 내려받을 수 있습니다.', 'ok');
+    toast('100점 보완 원고를 만들었습니다.');
+  } catch (err) {
+    setStatus('#perfect-status', esc(err.message), 'err');
+    toast(err.message, true);
+  }
 }
 
 /* ---------- 서재 ---------- */
@@ -2704,6 +3370,34 @@ function bindEvents() {
     const delBlock = t.closest('[data-del-block]');
     if (delBlock) { deleteBlock(delBlock.dataset.delBlock); return; }
 
+    const perf = t.closest('[data-perfect]');
+    if (perf) { handlePerfectAction(perf.dataset.perfect); return; }
+
+    const delPerfect = t.closest('[data-del-perfect]');
+    if (delPerfect) {
+      const s = currentSermon();
+      if (!s || !perfectOf(s)) return;
+      if (!confirm('100점 보완 원고를 지울까요? 다시 만들 수 있습니다.')) return;
+      delete s.analysis.perfect;
+      saveState();
+      renderPerfect(s);
+      toast('100점 보완 원고를 지웠습니다.');
+      return;
+    }
+
+    const dlBtn = t.closest('[data-dl]');
+    if (dlBtn) { downloadManuscript(currentSermon(), dlBtn.dataset.doc, dlBtn.dataset.dl); return; }
+
+    const printDoc = t.closest('[data-print-doc]');
+    if (printDoc) { printManuscriptFor(currentSermon(), printDoc.dataset.printDoc); return; }
+
+    const copyDoc = t.closest('[data-copy-doc]');
+    if (copyDoc) {
+      const m = manuscriptFor(currentSermon(), copyDoc.dataset.copyDoc);
+      if (m) copyText(m.title + '\n' + (m.meta ? m.meta + '\n' : '') + '\n' + m.body, '원고를 복사했습니다.');
+      return;
+    }
+
     const open = t.closest('[data-open]');
     if (open) {
       state.currentId = open.dataset.open;
@@ -2742,6 +3436,28 @@ function bindEvents() {
     }
 
     if (t.closest('[data-close-modal]')) { closeSettings(); return; }
+  });
+
+  document.addEventListener('input', function (ev) {
+    const t = ev.target;
+    if (t && t.id === 'perfect-paste') perfectDraft = t.value;
+  });
+
+  document.addEventListener('change', function (ev) {
+    const t = ev.target;
+    if (!t || t.id !== 'perfect-file') return;
+    const f = t.files && t.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      const text = String(reader.result || '');
+      perfectDraft = text;
+      const ta = $('#perfect-paste');
+      if (ta) ta.value = text;
+      setStatus('#perfect-status', '파일을 불러왔습니다. <strong>[100점 원고 저장]</strong>을 누르세요.', 'ok');
+    };
+    reader.readAsText(f);
+    t.value = '';
   });
 
   document.addEventListener('keydown', function (ev) {

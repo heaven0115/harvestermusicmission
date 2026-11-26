@@ -8,7 +8,7 @@
 <meta name="description" content="말씀 앞에서 설교를 살피는 코칭 워크스페이스. 설교를 10가지 항목으로 분석하고, 원문 근거와 함께 코칭 리포트를 남깁니다.">
 <meta name="theme-color" content="#1d2c47">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d2c47'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23f5efe2' font-family='Georgia,serif'%3E%E1%84%86%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20261126h">
+<link rel="stylesheet" href="styles.css?v=20261126i">
 </head>
 <body>
 <a class="skip-link" href="#main">본문으로 건너뛰기</a>
@@ -218,6 +218,7 @@
         <button class="rtab is-active" data-rtab="coaching" type="button">코칭 리포트</button>
         <button class="rtab" data-rtab="highlight" type="button">원문 하이라이트</button>
         <button class="rtab" data-rtab="rewrite" type="button">다시 쓰기 · 형식 변환</button>
+        <button class="rtab" data-rtab="perfect" type="button">💯 100점 보완 원고</button>
         <button class="rtab" data-rtab="translate" type="button">번역 대조</button>
         <button class="btn btn-ghost rtab-print" type="button" id="btn-print">인쇄</button>
       </div>
@@ -225,6 +226,7 @@
       <div class="rpanel is-active" id="rpanel-coaching"></div>
       <div class="rpanel" id="rpanel-highlight"></div>
       <div class="rpanel" id="rpanel-rewrite"></div>
+      <div class="rpanel" id="rpanel-perfect"></div>
       <div class="rpanel" id="rpanel-translate"></div>
     </div>
   </section>
@@ -414,6 +416,9 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+<!-- 인쇄 전용: 100점 보완 원고·다시 쓴 원고를 강단용 18pt로 출력 -->
+<div id="print-doc" aria-hidden="true"></div>
+
 <noscript><div class="noscript">이 앱은 자바스크립트가 필요합니다. 브라우저에서 자바스크립트를 켜 주세요.</div></noscript>
 
 <script>
@@ -422,6 +427,7 @@ window.__mtErrors = [];
 window.addEventListener('error', function (e) { if (window.__mtErrors.length < 20) window.__mtErrors.push(String(e.message || e.error || 'error')); });
 window.addEventListener('unhandledrejection', function (e) { if (window.__mtErrors.length < 20) window.__mtErrors.push('promise: ' + String(e.reason)); });
 </script>
-<script src="app.js?v=20261126h"></script>
+<script src="vendor/docx-lite.js?v=20261126i"></script>
+<script src="app.js?v=20261126i"></script>
 </body>
 </html>
