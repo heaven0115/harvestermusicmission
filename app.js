@@ -1722,31 +1722,31 @@
   var CARD_SERIF = '"Noto Serif KR","Nanum Myeongjo","Apple SD Gothic Neo",serif';
   var CARD_SANS = '"Pretendard Variable",Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
   var CARD_PANEL = { x: 84, y: 96, w: 912, h: 888 };
-  var CARD_TOP = 180, CARD_BOTTOM = 880, CARD_CONTENT_W = 764;
+  var CARD_TOP = 172, CARD_BOTTOM = 888, CARD_CONTENT_W = 764;
   var CARD_THEMES = [
     {
       id: 'sage', name: '세이지 그린', sw: '#BFD3BC',
-      bg: ['#EEF3EA', '#DCE7D8'], blobs: ['#AEC9AD', '#C9DCC4', '#E8E1C9', '#B7CDB3'],
-      panel: '#FCFAF3', ink: '#24352A', inkSoft: '#4A5C4F', accent: '#5F7F66',
-      gold: '#C0A05E', band: '#F1EAD8', frame: 'rgba(255,255,255,.60)'
+      bg: ['#E4EEDE', '#CBDBc4'], blobs: ['#A6C2A3', '#BCD4B7', '#E3D8BA', '#9DBB9A'],
+      panel: '#FFFDF7', ink: '#1F2F25', inkSoft: '#455A4C', accent: '#547862',
+      gold: '#B99A55', band: '#F1E7D2', frame: 'rgba(255,255,255,.58)'
     },
     {
       id: 'cream', name: '웜 크림 골드', sw: '#EBD5A8',
-      bg: ['#FBF4E6', '#F1E3C7'], blobs: ['#E7D1A3', '#F3E3BE', '#DBC28C', '#F8EFDD'],
-      panel: '#FFFDF7', ink: '#3F3220', inkSoft: '#6A573B', accent: '#A67C39',
-      gold: '#BE8A2A', band: '#F7EACF', frame: 'rgba(255,255,255,.68)'
+      bg: ['#F8EDD7', '#EBD6AF'], blobs: ['#DFC38D', '#EFDCB1', '#D0B077', '#F6ECD5'],
+      panel: '#FFFDF8', ink: '#3A2E1C', inkSoft: '#655133', accent: '#9A7030',
+      gold: '#B88322', band: '#F6E6C6', frame: 'rgba(255,255,255,.62)'
     },
     {
       id: 'dawn', name: '새벽 하늘', sw: '#BBD0E6',
-      bg: ['#EAF1F8', '#D7E3F0'], blobs: ['#B6CDE4', '#CDDEEC', '#EBD7DE', '#A8C2DA'],
-      panel: '#FBFCFE', ink: '#26364A', inkSoft: '#4B5D72', accent: '#56799A',
-      gold: '#BC9E62', band: '#EDF1F7', frame: 'rgba(255,255,255,.64)'
+      bg: ['#DEEAF5', '#C5D8EC'], blobs: ['#A6C2DE', '#C0D5E8', '#E4CBD4', '#96B6D4'],
+      panel: '#FCFDFF', ink: '#1F2F44', inkSoft: '#455A72', accent: '#4B7093',
+      gold: '#B2945A', band: '#E9EFF7', frame: 'rgba(255,255,255,.60)'
     },
     {
       id: 'rose', name: '로즈 수채화', sw: '#E8BFC0',
-      bg: ['#FCF0EF', '#F2DEDC'], blobs: ['#E8C0C0', '#F4D6D1', '#DBC6D8', '#EFC8C3'],
-      panel: '#FFFCFA', ink: '#42302F', inkSoft: '#6C5452', accent: '#A16B73',
-      gold: '#C08E7F', band: '#F8EAE6', frame: 'rgba(255,255,255,.68)'
+      bg: ['#F9E6E5', '#EBCED0'], blobs: ['#DFAFAF', '#EEC9C3', '#D2BACE', '#E5BAB4'],
+      panel: '#FFFDFB', ink: '#3B2828', inkSoft: '#664C4C', accent: '#96606A',
+      gold: '#BA8677', band: '#F8E7E2', frame: 'rgba(255,255,255,.62)'
     }
   ];
 
@@ -1867,25 +1867,25 @@
       var x = rnd() * S, y = rnd() * S, r = 150 + rnd() * 320;
       var c = th.blobs[Math.floor(rnd() * th.blobs.length)];
       var rg = ctx.createRadialGradient(x, y, r * 0.04, x, y, r);
-      rg.addColorStop(0, hexA(c, (0.30 + rnd() * 0.15).toFixed(3)));
-      rg.addColorStop(0.52, hexA(c, 0.13));
+      rg.addColorStop(0, hexA(c, (0.34 + rnd() * 0.18).toFixed(3)));
+      rg.addColorStop(0.52, hexA(c, 0.16));
       rg.addColorStop(1, hexA(c, 0));
       ctx.fillStyle = rg;
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     }
     for (var k = 0; k < 3; k++) {
       var cx = rnd() * S, cy = rnd() * S, er = 130 + rnd() * 210;
-      ctx.strokeStyle = hexA(th.blobs[k % th.blobs.length], 0.10);
+      ctx.strokeStyle = hexA(th.blobs[k % th.blobs.length], 0.13);
       ctx.lineWidth = 10 + rnd() * 12;
       ctx.beginPath(); ctx.ellipse(cx, cy, er, er * (0.68 + rnd() * 0.5), rnd() * Math.PI, 0, Math.PI * 2); ctx.stroke();
     }
-    for (var n = 0; n < 2200; n++) {
+    for (var n = 0; n < 2400; n++) {
       var gx = rnd() * S, gy = rnd() * S;
-      ctx.fillStyle = 'rgba(92,78,58,' + (0.012 + rnd() * 0.026).toFixed(3) + ')';
-      ctx.fillRect(gx, gy, 1.4, 1.4);
+      ctx.fillStyle = 'rgba(88,74,54,' + (0.014 + rnd() * 0.03).toFixed(3) + ')';
+      ctx.fillRect(gx, gy, 1.5, 1.5);
     }
-    var vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.30, S / 2, S / 2, S * 0.80);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(38,32,22,0.10)');
+    var vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.80);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(34,28,18,0.13)');
     ctx.fillStyle = vg; ctx.fillRect(0, 0, S, S);
     ctx.strokeStyle = th.frame; ctx.lineWidth = 3;
     rr(ctx, 30, 30, S - 60, S - 60, 22); ctx.stroke();
@@ -1897,17 +1897,17 @@
     var ks = Math.round(21 * scale);
     blocks.push({ t: 'kicker', size: ks, h: Math.round(ks * 1.5), gap: 0, text: d.kicker });
     var ps = Math.round(28 * scale);
-    blocks.push({ t: 'passage', size: ps, h: Math.round(ps * 1.5), gap: Math.round(12 * scale), text: d.passage });
-    blocks.push({ t: 'rule', h: 1, gap: Math.round(24 * scale), w: Math.round(70 * scale) });
+    blocks.push({ t: 'passage', size: ps, h: Math.round(ps * 1.5), gap: Math.round(10 * scale), text: d.passage });
+    blocks.push({ t: 'rule', h: 1, gap: Math.round(22 * scale), w: Math.round(70 * scale) });
 
-    var ts = Math.round(56 * scale), tl;
+    var ts = Math.round(58 * scale), tl;
     for (;;) {
       ctx.font = '700 ' + ts + 'px ' + CARD_SERIF;
       tl = wrapText(ctx, d.title, CW);
       if (tl.length <= 3 || ts <= 30) break;
       ts -= Math.max(1, Math.round(ts * 0.06));
     }
-    blocks.push({ t: 'title', size: ts, lines: tl, lh: ts * 1.34, h: Math.round(tl.length * ts * 1.34), gap: Math.round(26 * scale) });
+    blocks.push({ t: 'title', size: ts, lines: tl, lh: ts * 1.34, h: Math.round(tl.length * ts * 1.34), gap: Math.round(24 * scale) });
 
     if (d.verses.length) {
       var vs = Math.round(35 * scale), padY = Math.round(30 * scale), padX = Math.round(34 * scale), vGap = Math.round(15 * scale);
@@ -1923,11 +1923,11 @@
       });
       var lh = vs * 1.62, vh = padY * 2;
       rows.forEach(function (r, i) { vh += r.lines.length * lh + (i ? vGap : 0); });
-      blocks.push({ t: 'verse', size: vs, padX: padX, padY: padY, vGap: vGap, lh: lh, rows: rows, h: Math.round(vh), gap: Math.round(30 * scale) });
+      blocks.push({ t: 'verse', size: vs, padX: padX, padY: padY, vGap: vGap, lh: lh, rows: rows, h: Math.round(vh), gap: Math.round(28 * scale) });
     }
     if (d.message) {
-      blocks.push({ t: 'rule', h: 1, gap: Math.round(26 * scale), w: Math.round(54 * scale) });
-      var ms = Math.round(27 * scale), ml;
+      blocks.push({ t: 'rule', h: 1, gap: Math.round(24 * scale), w: Math.round(54 * scale) });
+      var ms = Math.round(28 * scale), ml;
       for (;;) {
         ctx.font = '400 ' + ms + 'px ' + CARD_SANS;
         ml = wrapText(ctx, d.message, Math.min(CW, 700));
@@ -1995,7 +1995,7 @@
 
     var P = CARD_PANEL;
     ctx.save();
-    ctx.shadowColor = 'rgba(56,44,30,.16)'; ctx.shadowBlur = 44; ctx.shadowOffsetY = 18;
+    ctx.shadowColor = 'rgba(52,40,26,.20)'; ctx.shadowBlur = 52; ctx.shadowOffsetY = 20;
     rr(ctx, P.x, P.y, P.w, P.h, 26); ctx.fillStyle = th.panel; ctx.fill();
     ctx.restore();
     ctx.strokeStyle = hexA(th.gold, 0.30); ctx.lineWidth = 1.4;
