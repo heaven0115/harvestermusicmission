@@ -334,6 +334,11 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 .sermon-main .meta{margin-top:6px;font-size:13px;color:#7C8A83;display:flex;gap:9px;flex-wrap:wrap;align-items:center;}
 .sermon-main .meta .ref{color:var(--forest);font-weight:600;}
 .sermon-main .msg{margin-top:7px;font-size:13px;color:#8A968F;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;}
+.row-dots{display:none;gap:4px;margin-top:9px;}
+.row-dots i{flex:1;height:4px;border-radius:99px;background:#EDF3EF;}
+.row-dots i.완료{background:#4E9C74;}
+.row-dots i.진행-중{background:#7FAACF;}
+.row-dots i.추가-확인-필요{background:#E4BC80;}
 .chips{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:344px;}
 .chip{
   font-size:11px;font-weight:700;padding:4px 7px;border-radius:6px;white-space:nowrap;
@@ -506,7 +511,7 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .chips{max-width:300px;}
 }
 @media (max-width:1080px){
-  :root{--sidebar-w:264px;}
+  :root{--sidebar-w:240px;}
   .field-grid{grid-template-columns:1fr 1fr;}
   .field-grid .field:first-child{grid-column:1 / -1;}
   .status-grid{grid-template-columns:repeat(2,1fr);}
@@ -514,8 +519,10 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .kpis{grid-template-columns:repeat(2,1fr);}
   .routines{grid-template-columns:1fr;}
   .chips{display:none;}
+  .row-dots{display:flex;}
+  .mini-bar{display:none;}
 }
-@media (max-width:880px){
+@media (max-width:760px){
   .sidebar{
     position:fixed;left:0;top:0;bottom:0;height:100%;
     transform:translateX(-102%);transition:transform .24s ease;
@@ -560,6 +567,8 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .sermon-main{flex-basis:calc(100% - 64px);}
   .sermon-row .mini-bar{display:none;}
   .sermon-row .arrow{display:none;}
+  .sermon-row .row-dots{display:flex;}
+  .chips{display:none;}
   .board{grid-template-columns:1fr;}
   .board-col{min-height:auto;}
   .day{grid-template-columns:1fr;gap:10px;padding:16px;}
@@ -577,6 +586,8 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .status-grid{grid-template-columns:1fr;}
   .crumbs span{display:none;}
   .crumbs i{display:none;}
+  .card-head .ghost.small .lbl{display:none;}
+  .card-head .ghost.small{padding:8px;}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important;}

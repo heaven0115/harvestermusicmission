@@ -266,6 +266,9 @@
         (s.central ? '<span>중심 ' + esc(s.central) + '</span>' : '') +
         '<span>' + reviewedCount(s) + '/8 검토</span></div>' +
         (s.message ? '<div class="msg">' + esc(s.message) + '</div>' : '') +
+        '<div class="row-dots">' + STATUS_FIELDS.map(function (f) {
+          return '<i class="' + dotClass(statusOf(s, f.id)) + '"></i>';
+        }).join('') + '</div>' +
         '</div>' +
         '<div class="chips">' + chips + '</div>' +
         '<div class="mini-bar"><i style="width:' + p + '%"></i></div>' +
@@ -281,7 +284,7 @@
     var count = weekSermons().filter(matchesFilter).length;
     return '<div class="card">' +
       '<div class="list-head"><h2>설교 서재</h2><span class="count" id="listCount">' + count + '편 · ' + weekLabel(ui.weekStart) + '</span>' +
-      '<div class="head-actions"><button type="button" class="ghost small" id="newSermonBtn">' + ICON.template + '빈 템플릿 복제</button></div></div>' +
+      '<div class="head-actions"><button type="button" class="ghost small" id="newSermonBtn">' + ICON.template + '<span class="lbl">빈 템플릿 복제</span></button></div></div>' +
       '<div id="listRows">' + listRowsHTML() + '</div>' +
       '</div>';
   }
@@ -313,8 +316,8 @@
       '<div class="card-head">' +
       '<button type="button" class="link-back" id="backToList">' + ICON.chevL + '서재 목록</button>' +
       '<div class="head-actions">' +
-      '<button type="button" class="ghost small" id="dupTemplate">' + ICON.template + '빈 템플릿 복제</button>' +
-      '<button type="button" class="ghost small" id="reuseContent">' + ICON.copy + '내용 재사용</button>' +
+      '<button type="button" class="ghost small" id="dupTemplate">' + ICON.template + '<span class="lbl">빈 템플릿 복제</span></button>' +
+      '<button type="button" class="ghost small" id="reuseContent">' + ICON.copy + '<span class="lbl">내용 재사용</span></button>' +
       '</div></div>' +
       '<div class="delete-row"><button type="button" class="danger-ghost" id="deleteSermon">이 설교 삭제</button>' +
       '<span>휴지통으로 이동하며 언제든 복원할 수 있습니다.</span></div>' +
