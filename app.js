@@ -32,7 +32,7 @@
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
   function loadDb() {
-    var base = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily) };
+    var base = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily), entries: clone(DEFAULT.entries || []) };
     try {
       var raw = localStorage.getItem(DB_KEY);
       if (!raw) return base;
@@ -43,7 +43,8 @@
         sermons: p.sermons,
         routines: p.routines || base.routines,
         dayPlan: p.dayPlan || base.dayPlan,
-        daily: p.daily || base.daily
+        daily: p.daily || base.daily,
+        entries: Array.isArray(p.entries) ? p.entries : []
       };
     } catch (e) { return base; }
   }
@@ -55,6 +56,7 @@
       if (!raw) return def;
       var p = JSON.parse(raw);
       for (var k in def) if (p[k] === undefined) p[k] = def[k];
+      if (p.weekStart) p.weekStart = weekStartISO(p.weekStart);
       return p;
     } catch (e) { return def; }
   }
@@ -94,10 +96,13 @@
   }
   function parseISO(s) { var p = String(s).split('-'); return new Date(+p[0], (+p[1]) - 1, +p[2]); }
   function addDays(d, n) { var x = new Date(d.getTime()); x.setDate(x.getDate() + n); return x; }
-  function weekStartISO(iso) { var d = parseISO(iso); d.setDate(d.getDate() - d.getDay()); return fmt(d); }
+  /* 주간 기준: 월요일 시작 ~ 주일 종료 */
+  function weekOffset(day) { return (day + 6) % 7; }
+  function weekStartISO(iso) { var d = parseISO(iso); d.setDate(d.getDate() - weekOffset(d.getDay())); return fmt(d); }
+  function weekEndISO(startIso) { return fmt(addDays(parseISO(startIso), 6)); }
   function weekLabel(startIso) {
     var s = parseISO(startIso), e = addDays(s, 6);
-    return s.getFullYear() + '. ' + (s.getMonth() + 1) + '.' + s.getDate() + ' – ' + (e.getMonth() + 1) + '.' + e.getDate();
+    return s.getFullYear() + '. ' + pad(s.getMonth() + 1) + '.' + pad(s.getDate()) + ' – ' + pad(e.getMonth() + 1) + '.' + pad(e.getDate());
   }
   function weekdayOf(iso) { return WD[parseISO(iso).getDay()]; }
   function dateLabel(iso) { var d = parseISO(iso); return (d.getMonth() + 1) + '.' + d.getDate(); }
@@ -357,39 +362,153 @@
   }
 
   /* ---------------- schedule ---------------- */
-  var TIME_RANK = { '새벽': -100, '': -60, '오전': 600 };
+  var TIME_RANK = { '새벽': -100, '': -60, '오전': 600, '오후': 780 };
+  var ENTRY_KINDS = [
+    { id: 'worship', label: '예배' },
+    { id: 'study', label: '성경공부' },
+    { id: 'review', label: '검토' },
+    { id: 'shorts', label: '쇼츠' },
+    { id: 'blog', label: '블로그' },
+    { id: 'podcast', label: '팟캐스트' },
+    { id: 'docx', label: '설교원고' },
+    { id: 'pdf', label: '강단 PDF' },
+    { id: 'report', label: '보고' },
+    { id: 'rest', label: '쉼' },
+    { id: 'custom', label: '기타' }
+  ];
   function timeRank(t) {
     if (TIME_RANK[t] !== undefined) return TIME_RANK[t];
     var m = /^(\d{1,2}):(\d{2})$/.exec(t);
     return m ? (+m[1]) * 60 + (+m[2]) : 999;
   }
+  function entryById(id) {
+    return (db.entries || []).filter(function (e) { return e.id === id; })[0] || null;
+  }
+  function entriesOn(iso) {
+    return (db.entries || []).filter(function (e) { return e.date === iso; }).sort(function (a, b) {
+      var d = timeRank(a.time) - timeRank(b.time);
+      if (d) return d;
+      var x = a.createdAt || '', y = b.createdAt || '';
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
+  }
+  function entryRowHTML(e) {
+    return '<div class="day-item entry' + (e.done ? ' done' : '') + '">' +
+      '<div class="t">' + esc(e.time || '—') + '</div>' +
+      '<div class="c"><div class="l">' +
+      '<input type="checkbox" class="tick" data-entry-check="' + esc(e.id) + '"' + (e.done ? ' checked' : '') + ' aria-label="완료 표시">' +
+      '<span class="entry-title">' + esc(e.title) + '</span>' +
+      '<span class="kind ' + esc(e.kind || 'custom') + '">' + kindLabel(e.kind) + '</span>' +
+      '<span class="entry-acts">' +
+      '<button type="button" data-entry-edit="' + esc(e.id) + '">수정</button>' +
+      '<button type="button" class="danger" data-entry-del="' + esc(e.id) + '">삭제</button>' +
+      '</span></div>' +
+      (e.note ? '<div class="d">' + esc(e.note) + '</div>' : '') +
+      '</div></div>';
+  }
   function scheduleHTML() {
     var start = parseISO(ui.weekStart);
     var today = todayISO();
+    var end = weekEndISO(ui.weekStart);
     var days = [];
     for (var i = 0; i < 7; i++) days.push(addDays(start, i));
-    return '<div class="days">' + days.map(function (d) {
+    var mine = (db.entries || []).filter(function (e) { return e.date >= ui.weekStart && e.date <= end; });
+    var bar = '<div class="schedule-bar">' +
+      '<div class="schedule-note">' + (mine.length ? '이 주에 내가 추가한 일정 <strong>' + mine.length + '</strong>개' : '요일별 고정 사역에 내 일정을 더할 수 있습니다') + '</div>' +
+      '<button type="button" class="btn-add" id="entryAddTop">' + ICON.plus + '일정 추가</button>' +
+      '</div>';
+    return bar + '<div class="days">' + days.map(function (d) {
       var iso = fmt(d), s = null;
       weekSermons().forEach(function (x) { if (x.date === iso) s = x; });
       var items = [];
-      if (s) items.push({ time: '새벽', label: '새벽예배 · ' + (s.passage || '본문 미정'), detail: s.title || '제목 없는 설교', kind: 'worship', sid: s.id });
-      (db.daily || []).forEach(function (x) { items.push({ time: x.time, label: x.label, detail: x.detail, kind: x.kind }); });
-      (db.dayPlan[String(d.getDay())] || []).forEach(function (x) { items.push({ time: x.time, label: x.label, detail: x.detail, kind: x.kind }); });
-      items.sort(function (a, b) { return timeRank(a.time) - timeRank(b.time); });
+      if (s) items.push({ order: 0, time: '새벽', label: '새벽예배 · ' + (s.passage || '본문 미정'), detail: s.title || '제목 없는 설교', kind: 'worship', sid: s.id });
+      (db.daily || []).forEach(function (x) { items.push({ order: 1, time: x.time, label: x.label, detail: x.detail, kind: x.kind }); });
+      (db.dayPlan[String(d.getDay())] || []).forEach(function (x) { items.push({ order: 2, time: x.time, label: x.label, detail: x.detail, kind: x.kind }); });
+      entriesOn(iso).forEach(function (e) { items.push({ order: 3, entry: e, time: e.time, kind: e.kind }); });
+      items.sort(function (a, b) { return timeRank(a.time) - timeRank(b.time) || a.order - b.order; });
+      var rows = items.map(function (it) {
+        if (it.entry) return entryRowHTML(it.entry);
+        return '<div class="day-item"><div class="t">' + esc(it.time || '—') + '</div>' +
+          '<div class="c"><div class="l"><span class="kind ' + esc(it.kind) + '">' + kindLabel(it.kind) + '</span>' + esc(it.label) +
+          (it.sid ? '<button type="button" class="go" data-open="' + esc(it.sid) + '">원고 열기 →</button>' : '') +
+          '</div>' + (it.detail ? '<div class="d">' + esc(it.detail) + '</div>' : '') + '</div></div>';
+      }).join('');
+      if (!items.length) rows = '<p class="day-empty">아직 일정이 없습니다.</p>';
       return '<div class="day' + (iso === today ? ' today' : '') + '">' +
         '<div class="day-head"><div class="dw">' + DAY_FULL[d.getDay()] + '</div>' +
         '<div class="dd">' + d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '</div>' +
         (iso === today ? '<span class="today-tag">오늘</span>' : '') + '</div>' +
-        '<div class="day-items">' + items.map(function (it) {
-          return '<div class="day-item"><div class="t">' + esc(it.time || '—') + '</div>' +
-            '<div class="c"><div class="l"><span class="kind ' + esc(it.kind) + '">' + kindLabel(it.kind) + '</span>' + esc(it.label) +
-            (it.sid ? '<button type="button" class="go" data-open="' + esc(it.sid) + '">원고 열기 →</button>' : '') +
-            '</div>' + (it.detail ? '<div class="d">' + esc(it.detail) + '</div>' : '') + '</div></div>';
-        }).join('') + '</div></div>';
+        '<div class="day-items">' + rows +
+        '<button type="button" class="add-line" data-entry-add="' + iso + '">' + ICON.plus + '<span>이 날에 일정 추가</span></button>' +
+        '</div></div>';
     }).join('') + '</div>';
   }
   function kindLabel(k) {
-    return { worship: '예배', shorts: '쇼츠', blog: '블로그', pdf: '강단 PDF', docx: '설교원고', review: '검토', study: '성경공부', rest: '쉼', report: '보고', podcast: '팟캐스트' }[k] || '일정';
+    return { worship: '예배', shorts: '쇼츠', blog: '블로그', pdf: '강단 PDF', docx: '설교원고', review: '검토', study: '성경공부', rest: '쉼', report: '보고', podcast: '팟캐스트', custom: '기타' }[k] || '일정';
+  }
+  function openEntryModal(id, presetDate) {
+    var cur = id ? entryById(id) : null;
+    var date = cur ? cur.date : (presetDate || ui.weekStart);
+    var kindOpts = ENTRY_KINDS.map(function (k) {
+      var sel = (cur ? (cur.kind || 'custom') : 'custom') === k.id;
+      return '<option value="' + k.id + '"' + (sel ? ' selected' : '') + '>' + esc(k.label) + '</option>';
+    }).join('');
+    var body = '<div class="entry-form">' +
+      '<label class="field"><span>날짜</span><input type="date" id="eDate" value="' + esc(date) + '"></label>' +
+      '<label class="field"><span>시간 <em>선택</em></span><input type="time" id="eTime" value="' + esc(cur ? cur.time : '') + '"></label>' +
+      '<label class="field wide"><span>제목</span><input type="text" id="eTitle" maxlength="80" placeholder="예: 구역예배 인도" value="' + esc(cur ? cur.title : '') + '"></label>' +
+      '<label class="field"><span>구분</span><select class="status-select" id="eKind">' + kindOpts + '</select></label>' +
+      '<label class="field wide"><span>메모 <em>선택</em></span><textarea id="eNote" rows="3" placeholder="장소, 준비물, 함께하는 사람처럼 기억해 둘 것을 적어 두세요">' + esc(cur ? (cur.note || '') : '') + '</textarea></label>' +
+      '</div>' +
+      (cur ? '<div class="entry-del"><button type="button" class="btn-line danger" id="eDel">이 일정 삭제</button></div>' : '');
+
+    var modal = openModal({
+      title: cur ? '일정 수정' : '일정 추가',
+      okText: cur ? '저장' : '추가',
+      cancelText: '취소',
+      body: body,
+      onOk: function () {
+        var dEl = document.getElementById('eDate'), tEl = document.getElementById('eTime');
+        var tiEl = document.getElementById('eTitle'), kEl = document.getElementById('eKind'), nEl = document.getElementById('eNote');
+        var dv = ((dEl && dEl.value) || '').trim();
+        var title = ((tiEl && tiEl.value) || '').trim();
+        if (!dv) { toast('날짜를 골라 주세요'); return false; }
+        if (!title) { toast('일정 제목을 적어 주세요'); if (tiEl) tiEl.focus(); return false; }
+        var rec = cur || {
+          id: 'e-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6),
+          createdAt: new Date().toISOString(),
+          done: false
+        };
+        rec.date = dv;
+        rec.time = ((tEl && tEl.value) || '').trim();
+        rec.title = title;
+        rec.kind = kEl ? kEl.value : 'custom';
+        rec.note = ((nEl && nEl.value) || '').trim();
+        if (!cur) { db.entries = db.entries || []; db.entries.push(rec); }
+        saveDb(true);
+        if (dv < ui.weekStart || dv > weekEndISO(ui.weekStart)) ui.weekStart = weekStartISO(dv);
+        render();
+        toast(cur ? '일정을 저장했습니다' : '일정을 추가했습니다');
+      }
+    });
+
+    if (cur) {
+      var delBtn = document.getElementById('eDel');
+      if (delBtn) delBtn.addEventListener('click', function () {
+        modal.closeModal();
+        confirmModal({
+          title: '이 일정을 삭제할까요?',
+          body: '「' + cur.title + '」 일정을 지웁니다. 되돌릴 수 없습니다.',
+          okText: '삭제', danger: true,
+          onOk: function () {
+            db.entries = (db.entries || []).filter(function (e) { return e.id !== cur.id; });
+            saveDb(true); render(); toast('일정을 삭제했습니다');
+          }
+        });
+      });
+    }
+    var ti = document.getElementById('eTitle');
+    if (ti) ti.focus();
   }
 
   /* ---------------- progress ---------------- */
@@ -597,6 +716,43 @@
     ['importBtn', 'importBtn2'].forEach(function (id) { var el = $(id); if (el) el.addEventListener('click', function () { $('importFile').click(); }); });
     if ($('resetBtn')) $('resetBtn').addEventListener('click', resetData);
 
+    if ($('entryAddTop')) $('entryAddTop').addEventListener('click', function () {
+      var today = todayISO();
+      openEntryModal(null, (today >= ui.weekStart && today <= weekEndISO(ui.weekStart)) ? today : ui.weekStart);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-entry-add]'), function (el) {
+      el.addEventListener('click', function () { openEntryModal(null, el.getAttribute('data-entry-add')); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-entry-edit]'), function (el) {
+      el.addEventListener('click', function () { openEntryModal(el.getAttribute('data-entry-edit'), null); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-entry-check]'), function (box) {
+      box.addEventListener('change', function () {
+        var rec = entryById(box.getAttribute('data-entry-check'));
+        if (!rec) return;
+        rec.done = box.checked;
+        saveDb();
+        var row = box.closest('.day-item');
+        if (row) row.classList.toggle('done', box.checked);
+        toast(box.checked ? '완료로 표시했습니다' : '완료 표시를 풀었습니다');
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-entry-del]'), function (el) {
+      el.addEventListener('click', function () {
+        var rec = entryById(el.getAttribute('data-entry-del'));
+        if (!rec) return;
+        confirmModal({
+          title: '이 일정을 삭제할까요?',
+          body: '「' + rec.title + '」 일정을 지웁니다. 되돌릴 수 없습니다.',
+          okText: '삭제', danger: true,
+          onOk: function () {
+            db.entries = (db.entries || []).filter(function (e) { return e.id !== rec.id; });
+            saveDb(true); render(); toast('일정을 삭제했습니다');
+          }
+        });
+      });
+    });
+
     Array.prototype.forEach.call(document.querySelectorAll('[data-restore]'), function (el) {
       el.addEventListener('click', function () {
         var s = sermonById(el.getAttribute('data-restore'));
@@ -693,7 +849,7 @@
     var used = {};
     weekSermons().forEach(function (s) { used[s.date] = true; });
     var date = null, today = todayISO();
-    var startIdx = (today >= start && today <= fmt(addDays(parseISO(start), 6))) ? parseISO(today).getDay() : 0;
+    var startIdx = (today >= start && today <= weekEndISO(start)) ? weekOffset(parseISO(today).getDay()) : 0;
     for (var k = 0; k < 7; k++) {
       var d = fmt(addDays(parseISO(start), (startIdx + k) % 7));
       if (!used[d]) { date = d; break; }
@@ -732,7 +888,7 @@
   }
 
   function exportJson() {
-    var payload = { app: '사역의 한 주', kind: 'ministry-workspace-backup', exportedAt: new Date().toISOString(), version: db.version, sermons: db.sermons, routines: db.routines, dayPlan: db.dayPlan, daily: db.daily };
+    var payload = { app: '사역의 한 주', kind: 'ministry-workspace-backup', exportedAt: new Date().toISOString(), version: db.version, sermons: db.sermons, routines: db.routines, dayPlan: db.dayPlan, daily: db.daily, entries: db.entries || [] };
     var blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -749,17 +905,19 @@
         var p = JSON.parse(String(reader.result));
         var arr = p.sermons || (p.data && p.data.sermons) || (Array.isArray(p) ? p : null);
         if (!arr || !arr.length) throw new Error('sermons');
+        var newEntries = Array.isArray(p.entries) ? p.entries : [];
         confirmModal({
           title: 'JSON을 불러올까요?',
-          body: '지금 브라우저에 저장된 기록을 불러온 파일의 ' + arr.length + '편 설교로 바꿉니다. 먼저 백업을 받아 두시길 권합니다.',
+          body: '지금 브라우저에 저장된 기록을 불러온 파일의 ' + arr.length + '편 설교와 일정 ' + newEntries.length + '개로 바꿉니다. 먼저 백업을 받아 두시길 권합니다.',
           okText: '불러오기', onOk: function () {
             db.sermons = arr;
             if (p.routines) db.routines = p.routines;
             if (p.dayPlan) db.dayPlan = p.dayPlan;
             if (p.daily) db.daily = p.daily;
+            db.entries = newEntries;
             saveDb(true);
             ui.view = 'list'; ui.selectedId = null;
-            render(); toast(arr.length + '편 설교를 불러왔습니다');
+            render(); toast(arr.length + '편 설교와 일정 ' + newEntries.length + '개를 불러왔습니다');
           }
         });
       } catch (e) {
@@ -772,9 +930,9 @@
   function resetData() {
     confirmModal({
       title: '초기 데이터로 되돌릴까요?',
-      body: '이 브라우저에서 고친 내용이 모두 사라지고, 처음 넣어 둔 2026년 11월 23–29일 설교 일곱 편으로 돌아갑니다.',
+      body: '이 브라우저에서 고친 내용과 직접 추가한 일정이 모두 사라지고, 처음 넣어 둔 2026년 11월 23–29일 설교 일곱 편으로 돌아갑니다.',
       okText: '되돌리기', danger: true, onOk: function () {
-        db = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily) };
+        db = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily), entries: clone(DEFAULT.entries || []) };
         saveDb(true); ui.view = 'list'; ui.selectedId = null; render(); toast('초기 데이터로 되돌렸습니다');
       }
     });
@@ -840,6 +998,7 @@
     root.appendChild(back);
     function close() { root.removeChild(back); }
     back.querySelector('[data-cancel]').addEventListener('click', close);
+    back.closeModal = close;
     back.querySelector('[data-ok]').addEventListener('click', function () {
       var keep = opts.onOk ? opts.onOk() : null;
       if (keep !== false) close();
