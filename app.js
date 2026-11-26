@@ -525,7 +525,7 @@
         }
         var e = it.e;
         return '<button type="button" class="cal-chip k-' + esc(e.kind || 'custom') + (e.done ? ' done' : '') + '" data-entry-edit="' + esc(e.id) + '" title="' + esc((e.time ? e.time + ' · ' : '') + e.title + (e.note ? ' — ' + e.note : '')) + '">' +
-          '<i></i><span class="lbl-full">' + esc((e.time ? e.time + ' ' : '') + e.title) + '</span><span class="lbl-mini">' + esc(e.time || '일정') + '</span></button>';
+          '<i></i><span class="lbl-full">' + esc((e.time ? e.time + ' ' : '') + e.title) + '</span><span class="lbl-mini">' + esc(e.time || kindLabel(e.kind)) + '</span></button>';
       }).join('');
       if (more > 0) body += '<span class="cal-more">+' + more + '</span>';
       if (!body) body = '<span class="cal-blank" aria-hidden="true"></span>';
