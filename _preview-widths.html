@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>화면 폭 미리보기 (검증용)</title>
+<style>
+  body{margin:0;background:#20262C;color:#E7EDE9;font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;}
+  .wrap{display:flex;gap:18px;padding:16px;align-items:flex-start;}
+  figure{margin:0;}
+  figcaption{font-size:12px;letter-spacing:.04em;color:#9FB3A8;padding:0 0 7px 2px;}
+  iframe{border:0;background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.35);display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <figure>
+    <figcaption>iPhone 폭 390</figcaption>
+    <iframe src="./index.html?pv=mobile" width="390" height="820"></iframe>
+  </figure>
+  <figure>
+    <figcaption>iPad 폭 768</figcaption>
+    <iframe src="./index.html?pv=tablet" width="768" height="820"></iframe>
+  </figure>
+</div>
+</body>
+</html>
