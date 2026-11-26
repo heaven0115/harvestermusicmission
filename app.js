@@ -32,21 +32,45 @@
   /* ---------------- storage ---------------- */
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
+  /* data.js에 새로 추가된 설교만 저장된 목록 뒤에 덧붙입니다.
+     이미 저장된 설교는 편집 내용·진행 상태·휴지통 여부를 그대로 두고 건드리지 않으며,
+     완전히 지운 설교는 retiredSermons에 남겨 새 데이터로 다시 생겨나지 않게 합니다. */
+  function mergeSermons(saved, defaults, retired) {
+    var list = saved.slice();
+    var known = {}, gone = {};
+    list.forEach(function (s) { if (s && s.id) known[s.id] = true; });
+    (retired || []).forEach(function (id) { gone[id] = true; });
+    var added = 0;
+    (defaults || []).forEach(function (s) {
+      if (!s || !s.id || known[s.id] || gone[s.id]) return;
+      list.push(clone(s));
+      known[s.id] = true;
+      added += 1;
+    });
+    return { list: list, added: added };
+  }
+
   function loadDb() {
-    var base = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily), entries: clone(DEFAULT.entries || []) };
+    var base = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily), entries: clone(DEFAULT.entries || []), retiredSermons: [] };
     try {
       var raw = localStorage.getItem(DB_KEY);
       if (!raw) return base;
       var p = JSON.parse(raw);
       if (!p || !Array.isArray(p.sermons)) return base;
-      return {
+      var retired = Array.isArray(p.retiredSermons) ? p.retiredSermons : [];
+      var merged = mergeSermons(p.sermons, DEFAULT.sermons, retired);
+      var out = {
         version: p.version || DEFAULT.version,
-        sermons: p.sermons,
+        sermons: merged.list,
         routines: p.routines || base.routines,
         dayPlan: p.dayPlan || base.dayPlan,
         daily: p.daily || base.daily,
-        entries: Array.isArray(p.entries) ? p.entries : []
+        entries: Array.isArray(p.entries) ? p.entries : [],
+        retiredSermons: retired
       };
+      /* 새 설교를 실제로 덧붙였을 때만 저장해, 다음 방문에서도 같은 결과가 유지되게 합니다. */
+      if (merged.added) { try { localStorage.setItem(DB_KEY, JSON.stringify(out)); } catch (e) {} }
+      return out;
     } catch (e) { return base; }
   }
 
@@ -945,6 +969,8 @@
           title: '완전히 삭제할까요?', body: '이 설교와 여덟 구성의 기록이 모두 사라지며 되돌릴 수 없습니다.',
           okText: '영구 삭제', danger: true, onOk: function () {
             db.sermons = db.sermons.filter(function (s) { return s.id !== id; });
+            /* 새 data.js가 들어와도 지운 설교가 다시 생기지 않도록 기록해 둡니다. */
+            db.retiredSermons = (db.retiredSermons || []).concat([id]).filter(function (x, i, a) { return a.indexOf(x) === i; });
             saveDb(true); render(); toast('영구 삭제했습니다');
           }
         });
@@ -1067,7 +1093,7 @@
   }
 
   function exportJson() {
-    var payload = { app: '사역의 한 주', kind: 'ministry-workspace-backup', exportedAt: new Date().toISOString(), version: db.version, sermons: db.sermons, routines: db.routines, dayPlan: db.dayPlan, daily: db.daily, entries: db.entries || [] };
+    var payload = { app: '사역의 한 주', kind: 'ministry-workspace-backup', exportedAt: new Date().toISOString(), version: db.version, sermons: db.sermons, routines: db.routines, dayPlan: db.dayPlan, daily: db.daily, entries: db.entries || [], retiredSermons: db.retiredSermons || [] };
     var blob = new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1093,6 +1119,7 @@
             if (p.routines) db.routines = p.routines;
             if (p.dayPlan) db.dayPlan = p.dayPlan;
             if (p.daily) db.daily = p.daily;
+            if (Array.isArray(p.retiredSermons)) db.retiredSermons = p.retiredSermons;
             db.entries = newEntries;
             saveDb(true);
             ui.view = 'list'; ui.selectedId = null;
@@ -1111,7 +1138,7 @@
       title: '초기 데이터로 되돌릴까요?',
       body: '이 브라우저에서 고친 내용과 직접 추가한 일정이 모두 사라지고, 처음 넣어 둔 2026년 11월 23–29일 설교 일곱 편으로 돌아갑니다.',
       okText: '되돌리기', danger: true, onOk: function () {
-        db = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily), entries: clone(DEFAULT.entries || []) };
+        db = { version: DEFAULT.version, sermons: clone(DEFAULT.sermons), routines: clone(DEFAULT.routines), dayPlan: clone(DEFAULT.dayPlan), daily: clone(DEFAULT.daily), entries: clone(DEFAULT.entries || []), retiredSermons: [] };
         saveDb(true); ui.view = 'list'; ui.selectedId = null; render(); toast('초기 데이터로 되돌렸습니다');
       }
     });
