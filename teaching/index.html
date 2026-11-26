@@ -8,7 +8,7 @@
 <meta name="description" content="말씀 앞에서 설교를 살피는 코칭 워크스페이스. 설교를 10가지 항목으로 분석하고, 원문 근거와 함께 코칭 리포트를 남깁니다.">
 <meta name="theme-color" content="#1d2c47">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d2c47'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23f5efe2' font-family='Georgia,serif'%3E%E1%84%86%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20261126b">
+<link rel="stylesheet" href="styles.css?v=20261126c">
 </head>
 <body>
 <a class="skip-link" href="#main">본문으로 건너뛰기</a>
@@ -53,6 +53,27 @@
       <button class="mode-btn" data-mode="api" type="button">
         <strong>API 키 모드</strong><span>원클릭 자동 분석</span>
       </button>
+    </div>
+
+    <!-- 파일 업로드 -->
+    <div class="card upload-card" id="upload-card">
+      <div class="upload-head">
+        <h3>설교 파일에서 본문 불러오기</h3>
+        <p>PDF · 워드(<code>.docx</code>) · 텍스트(<code>.txt</code>, <code>.md</code>) 파일을 여기에 끌어다 놓으면, 파일에서 본문을 읽어 아래 <strong>설교 본문</strong> 입력창에 그대로 채워 드립니다.</p>
+      </div>
+
+      <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="설교 파일을 끌어다 놓거나, 파일 불러오기 버튼으로 선택하세요">
+        <div class="dropzone-mark" aria-hidden="true">📄</div>
+        <p class="dropzone-title">여기에 파일을 끌어다 놓으세요</p>
+        <p class="dropzone-sub">PDF · DOCX · TXT · MD &nbsp;|&nbsp; 한 파일, 25MB까지</p>
+        <span class="btn btn-primary upload-btn">
+          📄 PDF / 워드(.docx) 파일 불러오기
+          <input type="file" id="file-sermon" accept=".pdf,.docx,.doc,.hwp,.hwpx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" hidden>
+        </span>
+      </div>
+
+      <div class="upload-status" id="upload-status" role="status" aria-live="polite" hidden></div>
+      <p class="upload-note">구형 <code>.doc</code> 파일은 워드에서 <code>.docx</code>로, 한글(<code>.hwp</code>) 파일은 <code>.pdf</code>로 저장한 뒤 올려 주세요. 파일은 이 브라우저에서만 읽히고 어디에도 전송되지 않습니다.</p>
     </div>
 
     <form id="sermon-form" class="card form-card" novalidate>
@@ -401,6 +422,6 @@ window.__mtErrors = [];
 window.addEventListener('error', function (e) { if (window.__mtErrors.length < 20) window.__mtErrors.push(String(e.message || e.error || 'error')); });
 window.addEventListener('unhandledrejection', function (e) { if (window.__mtErrors.length < 20) window.__mtErrors.push('promise: ' + String(e.reason)); });
 </script>
-<script src="app.js?v=20261126b"></script>
+<script src="app.js?v=20261126c"></script>
 </body>
 </html>

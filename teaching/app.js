@@ -2106,6 +2106,313 @@ function resetAll() {
   toast('모든 자료를 비웠습니다.');
 }
 
+/* =========================================================
+   파일 업로드 → 본문 추출 (PDF · DOCX · TXT · MD)
+   PDF: pdf.js (한국어 CMap 포함, teaching/vendor/)
+   DOCX: mammoth (teaching/vendor/)
+   ========================================================= */
+const VENDOR_VERSION = '20261126c';
+const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
+const UPLOAD_KINDS = { pdf: 'PDF', docx: '워드(.docx)', txt: '텍스트', md: '텍스트' };
+const LEGACY_HINTS = {
+  doc: '구형 워드 파일(<code>.doc</code>)은 바로 읽지 못합니다. Word에서 <strong>.docx</strong>로 저장해 올려 주세요.',
+  hwp: '한글 파일(<code>.hwp</code>)은 지원하지 않습니다. 한글에서 <strong>PDF</strong>로 저장해 올려 주세요.',
+  hwpx: '한글 파일(<code>.hwpx</code>)은 지원하지 않습니다. 한글에서 <strong>PDF</strong>로 저장해 올려 주세요.',
+  odt: 'ODT 파일은 지원하지 않습니다. Word에서 <strong>.docx</strong> 또는 <strong>.pdf</strong>로 저장해 올려 주세요.',
+  rtf: 'RTF 파일은 지원하지 않습니다. Word에서 <strong>.docx</strong> 또는 <strong>.pdf</strong>로 저장해 올려 주세요.'
+};
+
+let pdfLibPromise = null;
+let mammothLibPromise = null;
+let uploadBusy = false;
+
+function loadScriptOnce(src) {
+  return new Promise(function (resolve, reject) {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = function () { resolve(); };
+    s.onerror = function () { reject(new Error('스크립트를 불러오지 못했습니다: ' + src)); };
+    document.head.appendChild(s);
+  });
+}
+
+function ensurePdfLib() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!pdfLibPromise) {
+    pdfLibPromise = loadScriptOnce('vendor/pdf.min.js?v=' + VENDOR_VERSION).then(function () {
+      if (!window.pdfjsLib) throw new Error('PDF 엔진을 초기화하지 못했습니다.');
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js?v=' + VENDOR_VERSION;
+      return window.pdfjsLib;
+    }).catch(function (err) { pdfLibPromise = null; throw err; });
+  }
+  return pdfLibPromise;
+}
+
+function ensureMammothLib() {
+  if (window.mammoth) return Promise.resolve(window.mammoth);
+  if (!mammothLibPromise) {
+    mammothLibPromise = loadScriptOnce('vendor/mammoth.browser.min.js?v=' + VENDOR_VERSION).then(function () {
+      if (!window.mammoth) throw new Error('워드 문서 엔진을 초기화하지 못했습니다.');
+      return window.mammoth;
+    }).catch(function (err) { mammothLibPromise = null; throw err; });
+  }
+  return mammothLibPromise;
+}
+
+function fileExt(name) {
+  const m = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+  return m ? m[1] : '';
+}
+
+function formatBytes(n) {
+  if (!n && n !== 0) return '';
+  if (n < 1024) return n + 'B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + 'KB';
+  return (Math.round(n / (1024 * 1024) * 10) / 10) + 'MB';
+}
+
+function setUploadStatus(kind, html) {
+  const el = $('#upload-status');
+  if (!el) return;
+  if (!kind) {
+    el.hidden = true;
+    el.className = 'upload-status';
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.className = 'upload-status ' + kind;
+  el.innerHTML = html;
+}
+
+function tidyText(text) {
+  return String(text || '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[\u200b\u200c\u200d\ufeff]/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function countParagraphs(text) {
+  return String(text || '').split(/\n{2,}/).filter(function (p) { return p.trim().length > 0; }).length;
+}
+
+/* PDF 한 페이지의 텍스트 조각을 y좌표로 줄을 묶고, x좌표 순서로 이어 붙입니다. */
+function pdfLinesFromItems(items) {
+  const rows = [];
+  (items || []).forEach(function (it) {
+    if (!it || typeof it.str !== 'string') return;
+    const tr = it.transform || [1, 0, 0, 1, 0, 0];
+    const x = Number(tr[4]) || 0;
+    const y = Number(tr[5]) || 0;
+    const h = Math.abs(Number(tr[3])) || Number(it.height) || 10;
+    let row = null;
+    for (let i = rows.length - 1; i >= 0 && i >= rows.length - 8; i--) {
+      if (Math.abs(rows[i].y - y) <= Math.max(2.4, h * 0.42)) { row = rows[i]; break; }
+    }
+    if (!row) {
+      row = { y: y, h: h, items: [] };
+      rows.push(row);
+    }
+    row.items.push({ x: x, w: Number(it.width) || 0, h: h, str: it.str });
+  });
+
+  rows.sort(function (a, b) { return b.y - a.y; });
+  return rows.map(function (row) {
+    const parts = row.items.slice().sort(function (a, b) { return a.x - b.x; });
+    let line = '';
+    let prev = null;
+    parts.forEach(function (p) {
+      if (prev) {
+        const gap = p.x - (prev.x + prev.w);
+        const em = Math.max(4, p.h || prev.h || 10);
+        if (gap > em * 0.3 && line && !/\s$/.test(line) && !/^\s/.test(p.str)) line += ' ';
+      }
+      line += p.str;
+      prev = p;
+    });
+    return line.replace(/[ \t]+$/g, '').replace(/^[ \t]+/g, '');
+  });
+}
+
+async function extractPdfText(file) {
+  const lib = await ensurePdfLib();
+  const data = new Uint8Array(await file.arrayBuffer());
+  const task = lib.getDocument({
+    data: data,
+    cMapUrl: 'vendor/cmaps/',
+    cMapPacked: true,
+    isEvalSupported: false,
+    useSystemFonts: false
+  });
+  let doc;
+  try {
+    doc = await task.promise;
+  } catch (err) {
+    const name = (err && err.name) || '';
+    if (name === 'PasswordException') {
+      throw new Error('암호가 걸린 PDF입니다. 암호를 풀어 저장한 뒤 다시 올려 주세요.');
+    }
+    if (name === 'InvalidPDFException') {
+      throw new Error('PDF 파일을 읽지 못했습니다. 파일이 손상되었거나 PDF가 아닐 수 있습니다.');
+    }
+    throw new Error('PDF를 여는 중 문제가 생겼습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.');
+  }
+
+  const pageTexts = [];
+  const total = doc.numPages;
+  for (let p = 1; p <= total; p++) {
+    const page = await doc.getPage(p);
+    const content = await page.getTextContent();
+    pageTexts.push(pdfLinesFromItems(content.items).join('\n'));
+    page.cleanup();
+  }
+  try { await task.destroy(); } catch (e) { /* 이미 정리됨 */ }
+
+  return { text: tidyText(pageTexts.join('\n\n')), pages: total };
+}
+
+function htmlBlocksToText(html) {
+  const box = document.createElement('div');
+  box.innerHTML = String(html || '')
+    .replace(/<img\b[^>]*>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/t[dh]>/gi, '\t')
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|pre|tr|table|section)>/gi, '\n\n');
+  return String(box.textContent || '').replace(/\t+\n/g, '\n');
+}
+
+async function extractDocxText(file) {
+  const lib = await ensureMammothLib();
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await lib.convertToHtml({ arrayBuffer: arrayBuffer });
+  const text = tidyText(htmlBlocksToText(result && result.value));
+  return { text: text };
+}
+
+async function extractPlainText(file) {
+  let raw = '';
+  if (typeof file.text === 'function') {
+    raw = await file.text();
+  } else {
+    raw = await new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () { resolve(String(reader.result || '')); };
+      reader.onerror = function () { reject(new Error('파일을 읽지 못했습니다.')); };
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+  return { text: tidyText(raw) };
+}
+
+/* 파일명에서 설교 제목을 추정합니다.
+   예) 2026-11-26_이사야40장1-11절_10분설교원고_18pt.pdf → 이사야40장1-11절 10분설교원고 */
+function guessTitleFromName(name) {
+  let base = String(name || '').replace(/\.[^.]+$/, '');
+  base = base.replace(/^\s*\d{4}[-_.]\d{1,2}[-_.]\d{1,2}\s*[-_.]?\s*/, '');
+  base = base.replace(/[_]+/g, ' ');
+  base = base.replace(/\s*[\(\[（【]\s*(?:최종|수정|rev|final)\s*[\d.]*\s*[\)\]）】]/gi, ' ');
+  base = base.replace(/\b\d+(?:\.\d+)?\s*pt\b/gi, ' ');
+  base = base.replace(/\s{2,}/g, ' ').replace(/^[\s\-_.]+|[\s\-_.]+$/g, '').trim();
+  return base;
+}
+
+function fillSermonForm(text, file) {
+  const ta = $('#f-text');
+  if (!ta) return { ok: false, titleFilled: false };
+  const existing = String(ta.value || '').trim();
+  if (existing && existing !== text) {
+    const go = window.confirm('설교 본문 입력창에 이미 글이 있습니다.\n\n파일에서 읽은 내용으로 바꿀까요?\n(취소하면 지금 쓰신 글이 그대로 남습니다.)');
+    if (!go) return { ok: false, titleFilled: false };
+  }
+  ta.value = text;
+  ta.dispatchEvent(new Event('input', { bubbles: true }));
+
+  let titleFilled = false;
+  const titleEl = $('#f-title');
+  if (titleEl && !String(titleEl.value || '').trim()) {
+    const guess = guessTitleFromName(file && file.name);
+    if (guess) { titleEl.value = guess; titleFilled = true; }
+  }
+  return { ok: true, titleFilled: titleFilled };
+}
+
+async function handleSermonFile(file) {
+  if (!file || uploadBusy) return;
+  const ext = fileExt(file.name);
+  const name = String(file.name || '파일');
+
+  if (LEGACY_HINTS[ext]) {
+    setUploadStatus('err', '⚠ ' + LEGACY_HINTS[ext] + '<span class="file-chip">선택한 파일: ' + esc(name) + '</span>');
+    toast('이 파일 형식은 바로 읽지 못합니다. 안내를 확인해 주세요.', true);
+    return;
+  }
+  if (!UPLOAD_KINDS[ext]) {
+    setUploadStatus('err', '⚠ 지원하지 않는 파일 형식입니다' + (ext ? '(<code>.' + esc(ext) + '</code>)' : '') + '. <strong>PDF · DOCX · TXT · MD</strong> 파일을 올려 주세요.<span class="file-chip">선택한 파일: ' + esc(name) + '</span>');
+    toast('PDF · DOCX · TXT · MD 파일을 올려 주세요.', true);
+    return;
+  }
+  if (!file.size) {
+    setUploadStatus('err', '⚠ 파일이 비어 있습니다(0바이트). 다른 파일을 올려 주세요.<span class="file-chip">선택한 파일: ' + esc(name) + '</span>');
+    return;
+  }
+  if (file.size > UPLOAD_MAX_BYTES) {
+    setUploadStatus('err', '⚠ 파일이 너무 큽니다(' + formatBytes(file.size) + '). 25MB 이하 파일을 올려 주세요.');
+    return;
+  }
+
+  uploadBusy = true;
+  const zone = $('#dropzone');
+  if (zone) { zone.classList.add('is-busy'); zone.setAttribute('aria-busy', 'true'); }
+  setUploadStatus('busy', '<span class="spinner"></span><strong>' + esc(name) + '</strong> 읽는 중…' + (ext === 'pdf' ? ' PDF는 페이지 수에 따라 몇 초 걸릴 수 있습니다.' : ''));
+
+  try {
+    let parsed;
+    if (ext === 'pdf') parsed = await extractPdfText(file);
+    else if (ext === 'docx') parsed = await extractDocxText(file);
+    else parsed = await extractPlainText(file);
+
+    const text = String(parsed.text || '');
+    if (text.replace(/\s/g, '').length < 20) {
+      const hint = ext === 'pdf'
+        ? 'PDF에서 글자를 찾지 못했습니다. 스캔한 사진 PDF이거나 암호가 걸린 파일일 수 있습니다. 원본 문서에서 PDF로 다시 저장해 올려 주세요.'
+        : '파일에서 글자를 찾지 못했습니다. 내용이 들어 있는 파일인지 확인해 주세요.';
+      setUploadStatus('err', '⚠ ' + hint + '<span class="file-chip">선택한 파일: ' + esc(name) + '</span>');
+      toast('파일에서 본문을 찾지 못했습니다.', true);
+      return;
+    }
+
+    const res = fillSermonForm(text, file);
+    if (!res.ok) {
+      setUploadStatus('', '');
+      toast('지금 쓰신 본문을 그대로 두었습니다.');
+      return;
+    }
+
+    const parts = ['✅ <strong>' + esc(UPLOAD_KINDS[ext]) + '</strong> 파일에서 <strong>' + text.length.toLocaleString('ko-KR') + '자</strong>를 불러와 본문에 채웠습니다'];
+    const meta = [];
+    if (parsed.pages) meta.push(parsed.pages.toLocaleString('ko-KR') + '쪽');
+    const paras = countParagraphs(text);
+    if (paras > 1) meta.push(paras.toLocaleString('ko-KR') + '문단');
+    let html = parts.join('') + (meta.length ? ' <span style="font-weight:600">(' + meta.join(' · ') + ')</span>' : '') + '.';
+    if (res.titleFilled) html += '<span class="file-chip">제목도 파일명에서 채웠습니다 — 필요하면 고쳐 주세요.</span>';
+    html += '<span class="file-chip">' + esc(name) + ' · ' + formatBytes(file.size) + '</span>';
+    setUploadStatus('ok', html);
+    toast('파일에서 본문을 불러왔습니다.');
+  } catch (err) {
+    const msg = (err && err.message) ? err.message : '파일을 읽는 중 문제가 생겼습니다.';
+    setUploadStatus('err', '⚠ ' + esc(msg) + '<span class="file-chip">선택한 파일: ' + esc(name) + '</span>');
+    toast('파일을 읽지 못했습니다.', true);
+  } finally {
+    uploadBusy = false;
+    if (zone) { zone.classList.remove('is-busy'); zone.removeAttribute('aria-busy'); }
+  }
+}
+
 /* ---------- 이벤트 ---------- */
 function bindEvents() {
   document.addEventListener('click', function (ev) {
@@ -2255,6 +2562,62 @@ function bindEvents() {
     });
   }
 
+  /* ----- 설교 파일 업로드 ----- */
+  const fileSermon = $('#file-sermon');
+  if (fileSermon) {
+    fileSermon.addEventListener('change', function () {
+      const f = fileSermon.files && fileSermon.files[0];
+      fileSermon.value = '';
+      if (f) handleSermonFile(f);
+    });
+  }
+
+  const dropzone = $('#dropzone');
+  if (dropzone) {
+    dropzone.addEventListener('click', function (ev) {
+      if (ev.target === fileSermon) return;
+      if (uploadBusy || !fileSermon) return;
+      fileSermon.click();
+    });
+    dropzone.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+        ev.preventDefault();
+        if (!uploadBusy && fileSermon) fileSermon.click();
+      }
+    });
+    ['dragenter', 'dragover'].forEach(function (type) {
+      dropzone.addEventListener(type, function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+        if (!uploadBusy) dropzone.classList.add('is-drag');
+      });
+    });
+    dropzone.addEventListener('dragleave', function (ev) {
+      ev.preventDefault();
+      if (ev.relatedTarget && dropzone.contains(ev.relatedTarget)) return;
+      dropzone.classList.remove('is-drag');
+    });
+    dropzone.addEventListener('drop', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      dropzone.classList.remove('is-drag');
+      const dt = ev.dataTransfer;
+      const f = dt && dt.files && dt.files[0];
+      if (f) handleSermonFile(f);
+    });
+  }
+
+  /* 파일을 창 밖에 잘못 떨어뜨렸을 때 페이지가 파일로 이동하지 않도록 막습니다. */
+  ['dragover', 'drop'].forEach(function (type) {
+    document.addEventListener(type, function (ev) {
+      const types = ev.dataTransfer && ev.dataTransfer.types;
+      if (!types) return;
+      const hasFiles = Array.prototype.indexOf.call(types, 'Files') >= 0;
+      if (hasFiles) ev.preventDefault();
+    });
+  });
+
   const fmt = $('#f-format');
   if (fmt) fmt.addEventListener('change', updateFormatGuide);
 
@@ -2300,6 +2663,7 @@ function bindEvents() {
       updateFormatGuide();
       $('#char-count').textContent = '0자';
       setStatus('#parse-status', '', '');
+      setUploadStatus('', '');
       toast('입력을 비웠습니다.');
     });
   }
