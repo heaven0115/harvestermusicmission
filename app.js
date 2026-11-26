@@ -1798,15 +1798,27 @@
     });
     return out.length ? out : [''];
   }
-  function drawSpaced(ctx, text, x, y, size, spacing, color, weight, family, align) {
+  function drawSpaced(ctx, text, x, y, size, spacing, color, weight, family, align, lw) {
     ctx.font = weight + ' ' + size + 'px ' + family;
     var chars = String(text).split('');
     var ws = chars.map(function (c) { return ctx.measureText(c).width; });
     var total = ws.reduce(function (a, b) { return a + b; }, 0) + spacing * Math.max(0, chars.length - 1);
     var sx = align === 'left' ? x : align === 'right' ? x - total : x - total / 2;
     ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    for (var i = 0; i < chars.length; i++) { ctx.fillText(chars[i], sx, y); sx += ws[i] + spacing; }
+    if (lw) { ctx.lineWidth = lw; ctx.strokeStyle = color; ctx.lineJoin = 'round'; ctx.miterLimit = 2; }
+    for (var i = 0; i < chars.length; i++) {
+      if (lw) ctx.strokeText(chars[i], sx, y);
+      ctx.fillText(chars[i], sx, y);
+      sx += ws[i] + spacing;
+    }
     return total;
+  }
+  function cardText(ctx, text, x, y, lw, color) {
+    if (lw) {
+      ctx.lineWidth = lw; ctx.strokeStyle = color; ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+      ctx.strokeText(text, x, y);
+    }
+    ctx.fillText(text, x, y);
   }
 
   function cardShortMessage(t, max) {
@@ -1944,16 +1956,16 @@
     lay.blocks.forEach(function (b) {
       y += b.gap || 0;
       if (b.t === 'kicker') {
-        drawSpaced(ctx, b.text, CX, y + b.h / 2, b.size, b.size * 0.15, th.accent, '600', CARD_SANS);
+        drawSpaced(ctx, b.text, CX, y + b.h / 2, b.size, b.size * 0.15, th.accent, '600', CARD_SANS, 'center', b.size * 0.018);
       } else if (b.t === 'passage') {
-        drawSpaced(ctx, b.text, CX, y + b.h / 2, b.size, b.size * 0.03, th.accent, '600', CARD_SANS);
+        drawSpaced(ctx, b.text, CX, y + b.h / 2, b.size, b.size * 0.03, th.accent, '600', CARD_SANS, 'center', b.size * 0.022);
       } else if (b.t === 'rule') {
         ctx.strokeStyle = hexA(th.gold, 0.55); ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(CX - b.w / 2, y + 0.5); ctx.lineTo(CX + b.w / 2, y + 0.5); ctx.stroke();
       } else if (b.t === 'title') {
         ctx.font = '700 ' + b.size + 'px ' + CARD_SERIF;
         ctx.fillStyle = th.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        b.lines.forEach(function (ln, i) { ctx.fillText(ln, CX, y + i * b.lh + b.lh / 2); });
+        b.lines.forEach(function (ln, i) { cardText(ctx, ln, CX, y + i * b.lh + b.lh / 2, b.size * 0.045, th.ink); });
       } else if (b.t === 'verse') {
         rr(ctx, CARD_PANEL.x + 74, y, CARD_CONTENT_W, b.h, 18);
         ctx.fillStyle = hexA(th.band, 0.92); ctx.fill();
@@ -1969,7 +1981,7 @@
             if (j === 0 && r.n) {
               ctx.font = '700 ' + Math.round(b.size * 0.62) + 'px ' + CARD_SANS;
               ctx.fillStyle = hexA(th.accent, 0.95);
-              ctx.fillText(r.n, x - r.numW + b.size * 0.1, yy + b.lh / 2);
+              cardText(ctx, r.n, x - r.numW + b.size * 0.1, yy + b.lh / 2, b.size * 0.035, hexA(th.accent, 0.95));
               ctx.font = '400 ' + b.size + 'px ' + CARD_SERIF;
             }
             ctx.fillStyle = th.ink;
@@ -2013,8 +2025,8 @@
     drawCardBlocks(ctx, th, lay, startY);
 
     var fy = P.y + P.h - 58;
-    drawSpaced(ctx, '세리토스장로교회', P.x + 74, fy, 17, 2.4, hexA(th.accent, 0.9), '600', CARD_SANS, 'left');
-    drawSpaced(ctx, 'HarvesterMusic', P.x + P.w - 74, fy, 17, 1.6, hexA(th.accent, 0.9), '600', CARD_SANS, 'right');
+    drawSpaced(ctx, '세리토스장로교회', P.x + 74, fy, 17, 2.4, hexA(th.accent, 0.9), '600', CARD_SANS, 'left', 0.4);
+    drawSpaced(ctx, 'HarvesterMusic', P.x + P.w - 74, fy, 17, 1.6, hexA(th.accent, 0.9), '600', CARD_SANS, 'right', 0.4);
     ctx.restore();
   }
 
