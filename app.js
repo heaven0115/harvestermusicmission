@@ -793,7 +793,7 @@
   function loadArchiveIndex() {
     if (ARC.index || ARC.loading) return;
     ARC.loading = true;
-    fetch('archive/index.json').then(function (r) {
+    fetch('archive/index.json', { cache: 'no-cache' }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     }).then(function (j) {
@@ -814,7 +814,7 @@
     if (!todo.length) { if (cb) cb(); return; }
     var left = todo.length;
     todo.forEach(function (k) {
-      fetch('archive/' + k + '.json').then(function (r) {
+      fetch('archive/' + k + '.json', { cache: 'no-cache' }).then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       }).then(function (j) {
