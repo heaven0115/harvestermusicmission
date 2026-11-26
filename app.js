@@ -2376,7 +2376,12 @@
     items.forEach(function (c, k) {
       var start = c.i + 1;
       var end = (k + 1 < items.length) ? items[k + 1].i : (c.last ? c.last : nlines);
-      var body = lines.slice(start, end).filter(function (x) { return x && !ARC_NOISE_RE.test(x); });
+      var raw = [];
+      for (var bi = start; bi < end; bi++) {
+        if (/^[ⅣⅤⅥⅦⅧⅨⅩ]\./.test(lines[bi])) break;   /* 기도·찬송·블로그 구간은 대지 본문에서 뺀다 */
+        raw.push(lines[bi]);
+      }
+      var body = raw.filter(function (x) { return x && !ARC_NOISE_RE.test(x); });
       var apply = c.apply || '';
       if (!apply) {
         for (var j = body.length - 1; j >= 0; j--) {
