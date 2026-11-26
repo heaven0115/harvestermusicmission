@@ -2099,7 +2099,7 @@
 
   function arcApplyPrayer(p) {
     var base = stripEnd(p.apply || '');
-    if (!base) {
+    if (!base || /^\d{1,3}[.)]?\s/.test(base)) {
       return '주님, “' + cut(stripEnd(p.text), 80) + '” 이 말씀을 붙들고 오늘 하루를 살아가게 하여 주시옵소서.';
     }
     return '주님, “' + cut(base, 110) + '” 이 말씀대로 살아가기를 원합니다. 저희의 결단을 붙드시고 순종의 걸음을 놓치지 않게 하여 주시옵소서.';
@@ -2387,7 +2387,7 @@
       if (!apply) {
         for (var k2 = body.length - 1; k2 >= 0; k2--) {
           var t2 = arcDeIntro(body[k2]);
-          if (arcFragmentStart(t2) || /^\d{1,3}\s/.test(t2)) continue;
+          if (arcFragmentStart(t2) || /^\d{1,3}[.)]?\s/.test(t2)) continue;
           if (t2.length >= 30 && t2.length <= 190) { apply = t2; break; }
         }
       }
@@ -2549,13 +2549,14 @@
   function arcComposePrayer(m) {
     var out = [];
     out.push('사랑하고 자비하신 하나님 아버지, 오늘 ' + stripEnd(m.passage || '본문') + '의 말씀으로 우리를 찾아와 주심을 감사합니다.');
-    if (m.core) out.push('주님, 오늘 주신 말씀은 이것입니다. “' + cut(stripEnd(m.core), 120) + '” 이 말씀이 우리의 삶에서 살아지게 하여 주시옵소서.');
+    if (m.core) out.push('주님, 오늘 주신 말씀의 중심은 이것입니다. “' + cut(stripEnd(m.core), 100) + '” 이 말씀이 우리의 삶에서 살아지게 하여 주시옵소서.');
     (m.points || []).slice(0, 3).forEach(function (p) {
       var t = stripEnd(p.text);
       if (m.core && t === stripEnd(m.core)) return;
-      out.push('주님, “' + cut(t, 90) + '” 이 말씀을 붙들고 이번 주를 살아가게 하여 주시옵소서.');
+      out.push('주님, “' + cut(t, 70) + '” 이 말씀이 저희의 삶의 자리에서 이루어지게 하여 주시옵소서.');
     });
-    out.push('말씀을 듣기만 하고 잊지 않게 하시고, 들은 대로 순종하는 걸음을 놓치지 않게 하여 주시옵소서.');
+    out.push('들은 말씀을 잊지 않고 이번 주 삶의 자리에서 순종으로 살아가게 하여 주시옵소서.');
+    out.push('믿음이 연약한 저희를 붙드시고, 오늘 받은 은혜를 이웃과 나누는 걸음을 걷게 하여 주시옵소서.');
     out.push('우리 구주 예수 그리스도의 이름으로 기도드립니다. 아멘.');
     return out;
   }
@@ -2946,9 +2947,17 @@
 
     var msg = String(m.core || '').trim();
     if (!msg) msg = (m.practice && m.practice[0]) || String(m.theme || '');
-    var iso = /^\d{4}-\d{2}-\d{2}$/.test(String(m.date || '')) ? m.date : todayISO();
-    var d = parseISO(iso);
-    var dateStr = d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. (' + WD[d.getDay()] + ')';
+    var iso = /^\d{4}-\d{2}-\d{2}$/.test(String(m.date || '')) ? m.date : '';
+    var dateStr;
+    if (iso) {
+      var d = parseISO(iso);
+      dateStr = d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. (' + WD[d.getDay()] + ')';
+    } else {
+      dateStr = String(m.when || '').trim() || (function () {
+        var t = parseISO(todayISO());
+        return t.getFullYear() + '. ' + (t.getMonth() + 1) + '. ' + t.getDate() + '. (' + WD[t.getDay()] + ')';
+      })();
+    }
     return {
       kicker: dateStr + ' · 말씀 묵상',
       passage: String(m.passage || '본문 미정').replace(/\s+/g, ' ').trim(),
