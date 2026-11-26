@@ -2453,8 +2453,10 @@ async function handleSermonFile(file) {
     const parts = ['✅ <strong>' + esc(UPLOAD_KINDS[ext]) + '</strong> 파일에서 <strong>' + text.length.toLocaleString('ko-KR') + '자</strong>를 불러와 본문에 채웠습니다'];
     const meta = [];
     if (parsed.pages) meta.push(parsed.pages.toLocaleString('ko-KR') + '쪽');
-    const paras = countParagraphs(text);
-    if (paras > 1) meta.push(paras.toLocaleString('ko-KR') + '문단');
+    if (ext !== 'pdf') {
+      const paras = countParagraphs(text);
+      if (paras > 1) meta.push(paras.toLocaleString('ko-KR') + '문단');
+    }
     let html = parts.join('') + (meta.length ? ' <span style="font-weight:600">(' + meta.join(' · ') + ')</span>' : '') + '.';
     if (res.titleFilled) html += '<span class="file-chip">제목도 파일명에서 채웠습니다 — 필요하면 고쳐 주세요.</span>';
     html += '<span class="file-chip">' + esc(name) + ' · ' + formatBytes(file.size) + '</span>';
