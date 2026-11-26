@@ -828,6 +828,17 @@
     });
   }
 
+  function arcSearchKeys() {
+    if (ui.arcYear && ui.arcYear !== '전체') return [ui.arcYear === '연도미상' ? 'unknown' : ui.arcYear];
+    return (ARC.index.years || []).map(function (y) { return y.label === '연도미상' ? 'unknown' : y.label; });
+  }
+
+  function arcBodiesPending() {
+    var q = (ui.arcQ || '').trim();
+    if (q.length < 2) return false;
+    return arcSearchKeys().some(function (k) { return !ARC.bodies[k]; });
+  }
+
   function arcMatchesBody(it, q) {
     var key = arcYearKey(it);
     var bodies = ARC.bodies[key];
@@ -854,6 +865,7 @@
   }
 
   function arcCountText(n, searching) {
+    if ((ui.arcQ || '').trim().length >= 2 && arcBodiesPending()) return '본문을 불러오는 중…';
     return (searching ? '찾은 설교 ' : '설교 ') + n + '편' + (ui.arcQ ? ' · 본문까지 검색' : '');
   }
 
@@ -1053,6 +1065,11 @@
             if (cnt) cnt.textContent = arcCountText(arcFilterItems().length, true);
           }
         }, 220);
+      });
+    }
+    if (arcQ && (ui.arcQ || '').trim().length >= 2 && arcBodiesPending()) {
+      loadArcBodies(arcSearchKeys(), function () {
+        if (ui.tab === 'archive' && !ARC.selected) render();
       });
     }
     Array.prototype.forEach.call(document.querySelectorAll('[data-arc]'), function (el) {
