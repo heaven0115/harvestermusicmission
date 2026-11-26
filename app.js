@@ -266,11 +266,11 @@
         (s.central ? '<span>중심 ' + esc(s.central) + '</span>' : '') +
         '<span>' + reviewedCount(s) + '/8 검토</span></div>' +
         (s.message ? '<div class="msg">' + esc(s.message) + '</div>' : '') +
+        '<div class="chips">' + chips + '</div>' +
         '<div class="row-dots">' + STATUS_FIELDS.map(function (f) {
           return '<i class="' + dotClass(statusOf(s, f.id)) + '"></i>';
         }).join('') + '</div>' +
         '</div>' +
-        '<div class="chips">' + chips + '</div>' +
         '<div class="mini-bar"><i style="width:' + p + '%"></i></div>' +
         ICON.arrow +
         '</button>';
