@@ -316,11 +316,12 @@
     }).join('') + '</div>';
 
     var gen = '<div class="gen-bar">' +
-      '<div class="gen-head"><strong>자료 자동 생성</strong><span>효석패턴6 여덟 구성을 읽어 바로 만들어 드립니다</span></div>' +
+      '<div class="gen-head"><strong>자료 자동 생성</strong><span>효석패턴6 여덟 구성을 읽어 PPT·교재·기도문·말씀카드까지 만들어 드립니다</span></div>' +
       '<div class="gen-actions">' +
       '<button type="button" class="gen-btn" id="genPpt"><span class="ico">📊</span><span class="tx"><strong>PPT 만들기 (.pptx)</strong><small>표지부터 기도·찬송까지 8장</small></span></button>' +
       '<button type="button" class="gen-btn" id="genStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 복사</small></span></button>' +
       '<button type="button" class="gen-btn" id="genPrayer"><span class="ico">🙏</span><span class="tx"><strong>기도문 만들기</strong><small>예배 · 소그룹용</small></span></button>' +
+      '<button type="button" class="gen-btn" id="genCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>정사각 1080 · PNG 저장</small></span></button>' +
       '</div></div>';
 
     var outline = '<div class="outline-list">' + SECTIONS.map(function (sec) {
@@ -803,6 +804,7 @@
     if ($('genPpt')) $('genPpt').addEventListener('click', function () { generatePptx(this); });
     if ($('genStudy')) $('genStudy').addEventListener('click', openStudyDoc);
     if ($('genPrayer')) $('genPrayer').addEventListener('click', openPrayerDoc);
+    if ($('genCard')) $('genCard').addEventListener('click', openCardModal);
 
     var t = $('fTitle'), p = $('fPassage'), d = $('fDate');
     if (t) t.addEventListener('input', function () { var s = sermonById(ui.selectedId); if (!s) return; s.title = t.value; saveDb(); });
@@ -1713,6 +1715,444 @@
       copyLabel: '기도문'
     });
     markStatus('prayer', '기도문을 만들었습니다 · 상태를 완료로 바꿨습니다');
+  }
+
+  /* ---- 말씀 묵상카드 (Canvas 1080×1080 · 사역세트1 수채화 톤) ---- */
+  var CARD_SIZE = 1080;
+  var CARD_SERIF = '"Noto Serif KR","Nanum Myeongjo","Apple SD Gothic Neo",serif';
+  var CARD_SANS = '"Pretendard Variable",Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+  var CARD_PANEL = { x: 84, y: 96, w: 912, h: 888 };
+  var CARD_TOP = 180, CARD_BOTTOM = 880, CARD_CONTENT_W = 764;
+  var CARD_THEMES = [
+    {
+      id: 'sage', name: '세이지 그린', sw: '#BFD3BC',
+      bg: ['#EEF3EA', '#DCE7D8'], blobs: ['#AEC9AD', '#C9DCC4', '#E8E1C9', '#B7CDB3'],
+      panel: '#FCFAF3', ink: '#24352A', inkSoft: '#4A5C4F', accent: '#5F7F66',
+      gold: '#C0A05E', band: '#F1EAD8', frame: 'rgba(255,255,255,.60)'
+    },
+    {
+      id: 'cream', name: '웜 크림 골드', sw: '#EBD5A8',
+      bg: ['#FBF4E6', '#F1E3C7'], blobs: ['#E7D1A3', '#F3E3BE', '#DBC28C', '#F8EFDD'],
+      panel: '#FFFDF7', ink: '#3F3220', inkSoft: '#6A573B', accent: '#A67C39',
+      gold: '#BE8A2A', band: '#F7EACF', frame: 'rgba(255,255,255,.68)'
+    },
+    {
+      id: 'dawn', name: '새벽 하늘', sw: '#BBD0E6',
+      bg: ['#EAF1F8', '#D7E3F0'], blobs: ['#B6CDE4', '#CDDEEC', '#EBD7DE', '#A8C2DA'],
+      panel: '#FBFCFE', ink: '#26364A', inkSoft: '#4B5D72', accent: '#56799A',
+      gold: '#BC9E62', band: '#EDF1F7', frame: 'rgba(255,255,255,.64)'
+    },
+    {
+      id: 'rose', name: '로즈 수채화', sw: '#E8BFC0',
+      bg: ['#FCF0EF', '#F2DEDC'], blobs: ['#E8C0C0', '#F4D6D1', '#DBC6D8', '#EFC8C3'],
+      panel: '#FFFCFA', ink: '#42302F', inkSoft: '#6C5452', accent: '#A16B73',
+      gold: '#C08E7F', band: '#F8EAE6', frame: 'rgba(255,255,255,.68)'
+    }
+  ];
+
+  function hexA(hex, a) {
+    var h = String(hex).replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+  function mulberry32(a) {
+    return function () {
+      a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function cardSeed(str) {
+    var h = 2166136261;
+    str = String(str);
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+  function wrapText(ctx, text, maxWidth) {
+    var out = [];
+    String(text == null ? '' : text).replace(/\s+/g, ' ').trim().split(' ').forEach(function (word) {
+      if (!word) return;
+      if (out.length && ctx.measureText(out[out.length - 1] + ' ' + word).width <= maxWidth) {
+        out[out.length - 1] += ' ' + word;
+        return;
+      }
+      if (ctx.measureText(word).width <= maxWidth) { out.push(word); return; }
+      var chunk = '';
+      for (var i = 0; i < word.length; i++) {
+        var t2 = chunk + word[i];
+        if (chunk && ctx.measureText(t2).width > maxWidth) { out.push(chunk); chunk = word[i]; }
+        else chunk = t2;
+      }
+      if (chunk) out.push(chunk);
+    });
+    return out.length ? out : [''];
+  }
+  function drawSpaced(ctx, text, x, y, size, spacing, color, weight, family, align) {
+    ctx.font = weight + ' ' + size + 'px ' + family;
+    var chars = String(text).split('');
+    var ws = chars.map(function (c) { return ctx.measureText(c).width; });
+    var total = ws.reduce(function (a, b) { return a + b; }, 0) + spacing * Math.max(0, chars.length - 1);
+    var sx = align === 'left' ? x : align === 'right' ? x - total : x - total / 2;
+    ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (var i = 0; i < chars.length; i++) { ctx.fillText(chars[i], sx, y); sx += ws[i] + spacing; }
+    return total;
+  }
+
+  function cardShortMessage(t, max) {
+    var x = String(t || '').replace(/\s+/g, ' ').trim();
+    if (x.length <= max) return x;
+    var head = x.slice(0, max);
+    var i = head.lastIndexOf('.');
+    if (i > max * 0.4) return head.slice(0, i + 1).trim();
+    return cut(x, max);
+  }
+  function parseVerses(text) {
+    var out = [];
+    String(text || '').split(/\n+/).forEach(function (line) {
+      var t = line.replace(/\s+/g, ' ').trim();
+      if (!t) return;
+      var m = t.match(/^(\d{1,3})\s*[.)]?\s+([\s\S]+)$/);
+      if (m) out.push({ n: m[1], t: m[2].trim() });
+      else out.push({ n: '', t: t });
+    });
+    return out;
+  }
+  function cardDataOf(s) {
+    var nums = [], verses = [];
+    String(s.central || '').split(',').forEach(function (p) {
+      var m = p.match(/(\d+(?:\s*-\s*\d+)?)\s*절/);
+      if (m) expandNums(m[1]).forEach(function (n) { if (nums.indexOf(n) < 0) nums.push(n); });
+    });
+    var got = verseLines(s, nums.join(','), 2);
+    if (!got.length) got = verseLines(s, '', 2);
+    var total = 0;
+    got.forEach(function (v) { total += v.t.length; });
+    while (got.length > 1 && total > 150) total -= got.pop().t.length;
+    got.forEach(function (v) { verses.push({ n: v.n, t: v.t }); });
+
+    var msg = String(s.message || '').trim();
+    if (!msg) {
+      var prac = practiceOf(s);
+      msg = prac[0] || String(s.theme || '').trim();
+    }
+    var d = parseISO(s.date || todayISO());
+    var dateStr = d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '. (' + WD[d.getDay()] + ')';
+    return {
+      kicker: dateStr + ' · 말씀 묵상',
+      passage: String(s.passageFull || s.passage || '본문 미정').replace(/\s+/g, ' ').trim(),
+      title: String(s.title || '제목 없는 설교').replace(/\s+/g, ' ').trim(),
+      verses: verses,
+      message: cardShortMessage(msg, 104)
+    };
+  }
+
+  function paintCardWash(ctx, th, seed) {
+    var S = CARD_SIZE;
+    var g = ctx.createLinearGradient(0, 0, S * 0.92, S);
+    g.addColorStop(0, th.bg[0]); g.addColorStop(1, th.bg[1]);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+    var rnd = mulberry32(seed);
+    for (var i = 0; i < 11; i++) {
+      var x = rnd() * S, y = rnd() * S, r = 150 + rnd() * 320;
+      var c = th.blobs[Math.floor(rnd() * th.blobs.length)];
+      var rg = ctx.createRadialGradient(x, y, r * 0.04, x, y, r);
+      rg.addColorStop(0, hexA(c, (0.30 + rnd() * 0.15).toFixed(3)));
+      rg.addColorStop(0.52, hexA(c, 0.13));
+      rg.addColorStop(1, hexA(c, 0));
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    for (var k = 0; k < 3; k++) {
+      var cx = rnd() * S, cy = rnd() * S, er = 130 + rnd() * 210;
+      ctx.strokeStyle = hexA(th.blobs[k % th.blobs.length], 0.10);
+      ctx.lineWidth = 10 + rnd() * 12;
+      ctx.beginPath(); ctx.ellipse(cx, cy, er, er * (0.68 + rnd() * 0.5), rnd() * Math.PI, 0, Math.PI * 2); ctx.stroke();
+    }
+    for (var n = 0; n < 2200; n++) {
+      var gx = rnd() * S, gy = rnd() * S;
+      ctx.fillStyle = 'rgba(92,78,58,' + (0.012 + rnd() * 0.026).toFixed(3) + ')';
+      ctx.fillRect(gx, gy, 1.4, 1.4);
+    }
+    var vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.30, S / 2, S / 2, S * 0.80);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(38,32,22,0.10)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, S, S);
+    ctx.strokeStyle = th.frame; ctx.lineWidth = 3;
+    rr(ctx, 30, 30, S - 60, S - 60, 22); ctx.stroke();
+  }
+
+  function cardLayout(ctx, d, scale) {
+    var blocks = [];
+    var CW = CARD_CONTENT_W;
+    var ks = Math.round(21 * scale);
+    blocks.push({ t: 'kicker', size: ks, h: Math.round(ks * 1.5), gap: 0, text: d.kicker });
+    var ps = Math.round(28 * scale);
+    blocks.push({ t: 'passage', size: ps, h: Math.round(ps * 1.5), gap: Math.round(12 * scale), text: d.passage });
+    blocks.push({ t: 'rule', h: 1, gap: Math.round(24 * scale), w: Math.round(70 * scale) });
+
+    var ts = Math.round(56 * scale), tl;
+    for (;;) {
+      ctx.font = '700 ' + ts + 'px ' + CARD_SERIF;
+      tl = wrapText(ctx, d.title, CW);
+      if (tl.length <= 3 || ts <= 30) break;
+      ts -= Math.max(1, Math.round(ts * 0.06));
+    }
+    blocks.push({ t: 'title', size: ts, lines: tl, lh: ts * 1.34, h: Math.round(tl.length * ts * 1.34), gap: Math.round(26 * scale) });
+
+    if (d.verses.length) {
+      var vs = Math.round(35 * scale), padY = Math.round(30 * scale), padX = Math.round(34 * scale), vGap = Math.round(15 * scale);
+      var inner = CW - padX * 2;
+      var rows = d.verses.map(function (v) {
+        var numW = 0;
+        if (v.n) {
+          ctx.font = '700 ' + Math.round(vs * 0.62) + 'px ' + CARD_SANS;
+          numW = ctx.measureText(v.n).width + vs * 0.62;
+        }
+        ctx.font = '400 ' + vs + 'px ' + CARD_SERIF;
+        return { n: v.n, numW: numW, lines: wrapText(ctx, v.t, inner - numW) };
+      });
+      var lh = vs * 1.62, vh = padY * 2;
+      rows.forEach(function (r, i) { vh += r.lines.length * lh + (i ? vGap : 0); });
+      blocks.push({ t: 'verse', size: vs, padX: padX, padY: padY, vGap: vGap, lh: lh, rows: rows, h: Math.round(vh), gap: Math.round(30 * scale) });
+    }
+    if (d.message) {
+      blocks.push({ t: 'rule', h: 1, gap: Math.round(26 * scale), w: Math.round(54 * scale) });
+      var ms = Math.round(27 * scale), ml;
+      for (;;) {
+        ctx.font = '400 ' + ms + 'px ' + CARD_SANS;
+        ml = wrapText(ctx, d.message, Math.min(CW, 700));
+        if (ml.length <= 4 || ms <= 20) break;
+        ms -= 1;
+      }
+      blocks.push({ t: 'message', size: ms, lines: ml, lh: ms * 1.66, h: Math.round(ml.length * ms * 1.66), gap: 0 });
+    }
+    return { blocks: blocks, total: blocks.reduce(function (n, b) { return n + b.h + b.gap; }, 0) };
+  }
+
+  function drawCardBlocks(ctx, th, lay, top) {
+    var CX = CARD_SIZE / 2, y = top;
+    lay.blocks.forEach(function (b) {
+      y += b.gap || 0;
+      if (b.t === 'kicker') {
+        drawSpaced(ctx, b.text, CX, y + b.h / 2, b.size, b.size * 0.15, th.accent, '600', CARD_SANS);
+      } else if (b.t === 'passage') {
+        drawSpaced(ctx, b.text, CX, y + b.h / 2, b.size, b.size * 0.03, th.accent, '600', CARD_SANS);
+      } else if (b.t === 'rule') {
+        ctx.strokeStyle = hexA(th.gold, 0.55); ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(CX - b.w / 2, y + 0.5); ctx.lineTo(CX + b.w / 2, y + 0.5); ctx.stroke();
+      } else if (b.t === 'title') {
+        ctx.font = '700 ' + b.size + 'px ' + CARD_SERIF;
+        ctx.fillStyle = th.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        b.lines.forEach(function (ln, i) { ctx.fillText(ln, CX, y + i * b.lh + b.lh / 2); });
+      } else if (b.t === 'verse') {
+        rr(ctx, CARD_PANEL.x + 74, y, CARD_CONTENT_W, b.h, 18);
+        ctx.fillStyle = hexA(th.band, 0.92); ctx.fill();
+        ctx.strokeStyle = hexA(th.gold, 0.18); ctx.lineWidth = 1; ctx.stroke();
+        var yy = y + b.padY;
+        b.rows.forEach(function (r, i) {
+          if (i) yy += b.vGap;
+          r.lines.forEach(function (ln, j) {
+            ctx.font = '400 ' + b.size + 'px ' + CARD_SERIF;
+            var w = ctx.measureText(ln).width;
+            var x = CX - w / 2;
+            ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            if (j === 0 && r.n) {
+              ctx.font = '700 ' + Math.round(b.size * 0.62) + 'px ' + CARD_SANS;
+              ctx.fillStyle = hexA(th.accent, 0.95);
+              ctx.fillText(r.n, x - r.numW + b.size * 0.1, yy + b.lh / 2);
+              ctx.font = '400 ' + b.size + 'px ' + CARD_SERIF;
+            }
+            ctx.fillStyle = th.ink;
+            ctx.fillText(ln, x, yy + b.lh / 2);
+            yy += b.lh;
+          });
+        });
+      } else if (b.t === 'message') {
+        ctx.font = '400 ' + b.size + 'px ' + CARD_SANS;
+        ctx.fillStyle = th.inkSoft; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        b.lines.forEach(function (ln, i) { ctx.fillText(ln, CX, y + i * b.lh + b.lh / 2); });
+      }
+      y += b.h;
+    });
+  }
+
+  function paintCard(canvas, d, th, seedStr) {
+    var ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, CARD_SIZE, CARD_SIZE);
+    paintCardWash(ctx, th, cardSeed(seedStr + '|' + th.id));
+
+    var P = CARD_PANEL;
+    ctx.save();
+    ctx.shadowColor = 'rgba(56,44,30,.16)'; ctx.shadowBlur = 44; ctx.shadowOffsetY = 18;
+    rr(ctx, P.x, P.y, P.w, P.h, 26); ctx.fillStyle = th.panel; ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = hexA(th.gold, 0.30); ctx.lineWidth = 1.4;
+    rr(ctx, P.x, P.y, P.w, P.h, 26); ctx.stroke();
+    ctx.strokeStyle = hexA(th.gold, 0.15); ctx.lineWidth = 1;
+    rr(ctx, P.x + 14, P.y + 14, P.w - 28, P.h - 28, 18); ctx.stroke();
+
+    var lay, scale = 1;
+    for (var i = 0; i < 24; i++) {
+      lay = cardLayout(ctx, d, scale);
+      if (lay.total <= (CARD_BOTTOM - CARD_TOP) || scale <= 0.70) break;
+      scale -= 0.03;
+    }
+    var startY = CARD_TOP + Math.max(0, ((CARD_BOTTOM - CARD_TOP) - lay.total) / 2);
+    drawCardBlocks(ctx, th, lay, startY);
+
+    var fy = P.y + P.h - 58;
+    drawSpaced(ctx, '세리토스장로교회', P.x + 74, fy, 17, 2.4, hexA(th.accent, 0.9), '600', CARD_SANS, 'left');
+    drawSpaced(ctx, 'HarvesterMusic', P.x + P.w - 74, fy, 17, 1.6, hexA(th.accent, 0.9), '600', CARD_SANS, 'right');
+    ctx.restore();
+  }
+
+  function ensureCardFonts(sample) {
+    if (!document.fonts || !document.fonts.load) return Promise.resolve();
+    var t = String(sample || '');
+    var faces = [
+      '700 56px "Noto Serif KR"', '400 35px "Noto Serif KR"',
+      '700 22px "Noto Sans KR"', '400 27px "Noto Sans KR"'
+    ];
+    return Promise.all(faces.map(function (f) {
+      try { return document.fonts.load(f, t); } catch (e) { return Promise.resolve(); }
+    })).then(function () { return document.fonts.ready; })['catch'](function () { });
+  }
+
+  function cardFileName(s) {
+    var pass = String(s.passage || '본문').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    return String(s.date) + '_' + pass + '_말씀묵상카드.png';
+  }
+  function saveCardPng(canvas, s, btn) {
+    var old = btn ? btn.innerHTML : '';
+    var restore = function () { if (btn) { btn.disabled = false; btn.innerHTML = old; } };
+    if (btn) { btn.disabled = true; btn.innerHTML = '저장하는 중…'; }
+    var finish = function (url, revoke) {
+      restore();
+      var name = cardFileName(s);
+      var a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () {
+        if (a.parentNode) a.parentNode.removeChild(a);
+        if (revoke) URL.revokeObjectURL(url);
+      }, 2000);
+      toast('말씀 묵상카드를 저장했습니다 · ' + name);
+    };
+    try {
+      if (canvas.toBlob) {
+        canvas.toBlob(function (blob) {
+          if (!blob) { restore(); toast('이미지를 만들지 못했습니다 — 잠시 뒤 다시 눌러 주세요'); return; }
+          finish(URL.createObjectURL(blob), true);
+        }, 'image/png');
+      } else {
+        finish(canvas.toDataURL('image/png'), false);
+      }
+    } catch (e) {
+      restore();
+      toast('이미지를 저장하지 못했습니다 — ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  function openCardModal() {
+    var s = sermonById(ui.selectedId);
+    if (!s) return;
+    stashEditor(s);
+    var data = cardDataOf(s);
+    var state = {
+      theme: 0,
+      kicker: data.kicker,
+      passage: data.passage,
+      title: data.title,
+      verse: data.verses.map(function (v) { return (v.n ? v.n + ' ' : '') + v.t; }).join('\n'),
+      message: data.message,
+      seed: String(s.id) + '|' + String(s.date)
+    };
+    var root = document.getElementById('modalRoot');
+    var back = document.createElement('div');
+    back.className = 'modal-back card-back';
+    back.innerHTML =
+      '<div class="modal card-modal" role="dialog" aria-modal="true">' +
+      '<div class="doc-bar">' +
+      '<div class="doc-bar-t"><strong>말씀 묵상카드 미리보기</strong><span>' + esc(data.passage) + ' · 1080×1080 PNG · 수채화 4가지 테마</span></div>' +
+      '<div class="doc-bar-b">' +
+      '<button type="button" class="btn-solid" data-card-save>PNG 이미지 저장</button>' +
+      '<button type="button" class="btn-line" data-card-close>닫기</button>' +
+      '</div></div>' +
+      '<div class="card-body">' +
+      '<div class="card-stage"><canvas id="cardCanvas" width="' + CARD_SIZE + '" height="' + CARD_SIZE + '"></canvas></div>' +
+      '<div class="card-panel">' +
+      '<div class="card-field"><span>배경 테마</span><div class="card-themes">' +
+      CARD_THEMES.map(function (t, i) {
+        return '<button type="button" class="card-theme' + (i === 0 ? ' on' : '') + '" data-theme="' + i + '">' +
+          '<i style="background:' + t.sw + '"></i>' + esc(t.name) + '</button>';
+      }).join('') +
+      '</div></div>' +
+      '<label class="card-field"><span>중심 구절</span>' +
+      '<textarea data-card-verse rows="4" spellcheck="false"></textarea></label>' +
+      '<label class="card-field"><span>묵상 한 줄</span>' +
+      '<textarea data-card-message rows="3" spellcheck="false"></textarea></label>' +
+      '<p class="card-hint">설교 제목과 본문 주소는 위의 제목·본문 칸에서 그대로 가져옵니다. 구절은 줄마다 절 번호를 앞에 두면 그대로 표시됩니다.</p>' +
+      '<button type="button" class="btn-solid card-save" data-card-save>PNG 이미지 저장 (1080×1080)</button>' +
+      '</div></div></div>';
+    root.appendChild(back);
+
+    var canvas = back.querySelector('#cardCanvas');
+    var verseEl = back.querySelector('[data-card-verse]');
+    var msgEl = back.querySelector('[data-card-message]');
+    verseEl.value = state.verse;
+    msgEl.value = state.message;
+
+    var raf = 0;
+    var draw = function () {
+      if (raf) return;
+      raf = window.requestAnimationFrame(function () {
+        raf = 0;
+        try {
+          paintCard(canvas, {
+            kicker: state.kicker, passage: state.passage, title: state.title,
+            verses: parseVerses(state.verse), message: state.message
+          }, CARD_THEMES[state.theme], state.seed);
+        } catch (e) { toast('카드를 그리지 못했습니다 — ' + (e && e.message ? e.message : e)); }
+      });
+    };
+    draw();
+    ensureCardFonts(data.title + data.verses.map(function (v) { return v.t; }).join('')).then(draw);
+
+    Array.prototype.forEach.call(back.querySelectorAll('[data-theme]'), function (btn) {
+      btn.addEventListener('click', function () {
+        state.theme = +btn.getAttribute('data-theme') || 0;
+        Array.prototype.forEach.call(back.querySelectorAll('[data-theme]'), function (b) { b.classList.toggle('on', b === btn); });
+        draw();
+      });
+    });
+    verseEl.addEventListener('input', function () { state.verse = verseEl.value; draw(); });
+    msgEl.addEventListener('input', function () { state.message = msgEl.value; draw(); });
+
+    var onKey = function (e) { if (e.key === 'Escape') close(); };
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      if (raf) { window.cancelAnimationFrame(raf); raf = 0; }
+      if (back.parentNode) root.removeChild(back);
+    }
+    document.addEventListener('keydown', onKey);
+    back.addEventListener('click', function (e) { if (e.target === back) close(); });
+    back.querySelector('[data-card-close]').addEventListener('click', close);
+    Array.prototype.forEach.call(back.querySelectorAll('[data-card-save]'), function (btn) {
+      btn.addEventListener('click', function () { saveCardPng(canvas, s, btn); });
+    });
+    return back;
   }
 
   /* ---------------- modal ---------------- */
