@@ -895,6 +895,7 @@
           '<em class="arc-chip">' + esc(it.service) + '</em>' +
           (it.scripture ? '<span class="arc-ref">' + esc(it.scripture) + '</span>' : '') +
           (it.year ? '<span>' + esc(String(it.year)) + '년</span>' : '<span>연도 미상</span>') +
+          (it.chars ? '<span>' + esc(String(it.chars).replace(/\B(?=(\d{3})+(?!\d))/g, ',')) + '자</span>' : '') +
           '</span></span>' +
           ICON.arrow + '</button>';
       }).join('') + '</div>';
