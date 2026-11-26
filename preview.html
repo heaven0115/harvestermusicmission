@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>화면 폭 미리보기</title>
+<style>
+  body{margin:0;background:#EEF3EF;font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;}
+  .wrap{display:flex;gap:18px;padding:14px;align-items:flex-start;}
+  .col{background:#fff;border:1px solid #DDE8E1;border-radius:12px;overflow:hidden;box-shadow:0 6px 20px rgba(22,32,46,.08);}
+  .cap{font-size:12px;font-weight:700;color:#1F5B3F;padding:7px 10px;background:#F4F8F5;border-bottom:1px solid #DDE8E1;}
+  iframe{border:0;display:block;transform-origin:top left;}
+  .shot{width:252px;height:1000px;overflow:hidden;}
+  .shot iframe{width:390px;height:1620px;transform:scale(.62);}
+  .tab{width:400px;height:1000px;overflow:hidden;}
+  .tab iframe{width:834px;height:1660px;transform:scale(.62);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="col shot"><div class="cap">iPhone 390px</div><iframe src="index.html"></iframe></div>
+  <div class="col tab"><div class="cap">iPad 834px</div><iframe src="index.html"></iframe></div>
+</div>
+</body>
+</html>
