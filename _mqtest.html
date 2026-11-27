@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow">
+<title>MOBILE CHECK</title>
+<style>
+  body{margin:0;font:13px/1.5 -apple-system,system-ui,sans-serif;background:#eef2ef;color:#123}
+  .row{display:flex;gap:12px;align-items:flex-start;padding:10px}
+  .cell{border:1px solid #cfd8d2;background:#fff}
+  .cell h3{margin:0;padding:6px 8px;font-size:12px;background:#dfe9e3}
+  iframe{border:0;display:block}
+  #out{position:fixed;left:0;top:0;right:0;background:#fff;padding:6px 10px;border-bottom:2px solid #1F5B3F;z-index:5;font:12px/1.45 ui-monospace,monospace;white-space:pre-wrap}
+</style></head>
+<body>
+<div id="out">측정 중…</div>
+<div class="row" id="row"></div>
+<script>
+const sizes = [375, 390, 430, 768, 820, 1024];
+const row = document.getElementById('row');
+const frames = [];
+sizes.forEach(w => {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  const h = document.createElement('h3');
+  h.textContent = w + 'px';
+  const f = document.createElement('iframe');
+  f.width = w; f.height = w < 500 ? 812 : 900;
+  f.src = 'index.html?__mq=' + w;
+  cell.appendChild(h); cell.appendChild(f); row.appendChild(cell);
+  frames.push({ w: w, f: f, h: h });
+});
+
+function audit(doc, w) {
+  const de = doc.documentElement;
+  const inner = doc.defaultView.innerWidth;
+  const sw = Math.max(de.scrollWidth, doc.body.scrollWidth);
+  const bad = [];
+  doc.querySelectorAll('*').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return;
+    if (r.right > inner + 1) {
+      const cs = doc.defaultView.getComputedStyle(el);
+      if (cs.position === 'fixed' || cs.position === 'absolute') return;
+      bad.push({
+        sel: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''),
+        right: Math.round(r.right), w: Math.round(r.width),
+        minW: cs.minWidth
+      });
+    }
+  });
+  bad.sort((a, b) => b.right - a.right);
+  return { w: w, inner: inner, sw: sw, over: sw - inner, bad: bad.slice(0, 8) };
+}
+
+setTimeout(() => {
+  const lines = [];
+  frames.forEach(({ w, f, h }) => {
+    let doc;
+    try { doc = f.contentDocument; } catch (e) { lines.push(w + ': 접근 불가'); return; }
+    if (!doc || !doc.body) { lines.push(w + ': 로드 안 됨'); return; }
+    const a = audit(doc, w);
+    h.textContent = w + 'px · scrollWidth ' + a.sw + ' / inner ' + a.inner + (a.over > 0 ? ' · 넘침 ' + a.over + 'px' : ' · OK');
+    h.style.background = a.over > 0 ? '#f7d9d4' : '#d8ecd9';
+    lines.push(w + 'px → scrollWidth=' + a.sw + ' innerWidth=' + a.inner + ' over=' + a.over);
+    a.bad.forEach(b => lines.push('   ' + b.sel + '  right=' + b.right + ' w=' + b.w + ' minW=' + b.minW));
+  });
+  document.getElementById('out').textContent = lines.join('\n');
+  window.__AUDIT = lines.join('\n');
+}, 2500);
+</script>
+</body></html>
