@@ -2157,10 +2157,11 @@
     function step() {
       if (idx >= totalPages) return Promise.resolve(pages);
       var start = cuts[idx];
+      var hPx = Math.max(1, Math.min(PDF_PAGE_H, cuts[idx + 1] - start));
       if (onStep) onStep(idx + 1, totalPages);
       var page = document.createElement('div');
       page.className = 'pdf-page pdf-sheet';
-      page.style.cssText = 'position:relative;width:' + PDF_PAGE_W + 'px;height:' + PDF_PAGE_H +
+      page.style.cssText = 'position:relative;width:' + PDF_PAGE_W + 'px;height:' + hPx +
         'px;overflow:hidden;background:#fff;';
       var inner = document.createElement('div');
       inner.style.cssText = 'position:absolute;left:0;top:' + (-start) + 'px;width:' + PDF_PAGE_W + 'px;background:#fff;';
@@ -2169,7 +2170,7 @@
       document.body.appendChild(page);
       return window.html2canvas(page, {
         scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
-        width: PDF_PAGE_W, height: PDF_PAGE_H,
+        width: PDF_PAGE_W, height: hPx,
         windowWidth: 1024, windowHeight: 1200, scrollX: 0, scrollY: 0
       }).then(function (canvas) {
         pages.push(canvas);
@@ -2187,9 +2188,10 @@
   function pdfBuild(canvases) {
     var JsPDF = window.jspdf.jsPDF;
     var pdf = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
-    var left = 15, top = 16, bw = 180, bh = PDF_PAGE_H * (180 / PDF_PAGE_W);
+    var left = 15, top = 16, bw = 180;
     for (var i = 0; i < canvases.length; i++) {
       if (i) pdf.addPage();
+      var bh = canvases[i].height * (bw / canvases[i].width);
       pdf.addImage(canvases[i].toDataURL('image/jpeg', 0.95), 'JPEG', left, top, bw, bh, 'p' + i, 'FAST');
     }
     return pdf;
