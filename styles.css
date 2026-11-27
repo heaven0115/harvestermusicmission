@@ -974,23 +974,24 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 
 /* ---------- PDF 파일 만들기 (아이패드 홈 화면 웹앱 대비) ---------- */
 .pdf-stage{position:fixed;left:-20000px;top:0;width:680px;background:#fff;pointer-events:none;z-index:0;}
-.pdf-stage .doc{width:680px;padding:0;background:#fff;font-size:10.5pt;line-height:1.72;}
-.pdf-stage .doc.doc-lg{font-size:13pt;}
-.pdf-stage .doc.doc-ten{padding:0;font-size:18pt;line-height:1.72;}
-.pdf-stage .doc.doc-ten .tm-title{font-size:25pt;line-height:1.3;margin:6pt 0 10pt;}
-.pdf-stage .doc.doc-ten .tm-kicker{font-size:10pt;}
-.pdf-stage .doc.doc-ten .tm-lead{font-size:14pt;}
-.pdf-stage .doc.doc-ten .tm-meta{font-size:11pt;}
-.pdf-stage .doc.doc-ten .tm-h{font-size:17pt;}
-.pdf-stage .doc.doc-ten .tm-box-h{font-size:14pt;}
-.pdf-stage .doc.doc-ten .tm-q cite{font-size:12pt;}
-.pdf-stage .doc.doc-ten .tm-foot{position:static;margin-top:14pt;padding-top:6pt;border-top:1px solid #E2EAE5;font-size:8.5pt;color:#8A968F;text-align:center;}
-.pdf-stage .arc-doc{width:680px;max-width:none;margin:0;padding:0;background:#fff;}
-.pdf-stage .arc-doc-title{font-size:17pt;}
-.pdf-stage .arc-kicker{font-size:9.5pt;}
-.pdf-stage .arc-doc-ref{font-size:10pt;padding-bottom:10px;margin-bottom:14px;}
-.pdf-stage .arc-body p{font-size:11.2pt;line-height:1.85;margin-bottom:.72em;color:#111;}
-.pdf-stage .arc-big .arc-body p{font-size:18pt;line-height:1.8;}
+.pdf-sheet{background:#fff;}
+.pdf-sheet .doc{width:680px;padding:0;background:#fff;font-size:10.5pt;line-height:1.72;}
+.pdf-sheet .doc.doc-lg{font-size:13pt;}
+.pdf-sheet .doc.doc-ten{padding:0;font-size:18pt;line-height:1.72;}
+.pdf-sheet .doc.doc-ten .tm-title{font-size:25pt;line-height:1.3;margin:6pt 0 10pt;}
+.pdf-sheet .doc.doc-ten .tm-kicker{font-size:10pt;}
+.pdf-sheet .doc.doc-ten .tm-lead{font-size:14pt;}
+.pdf-sheet .doc.doc-ten .tm-meta{font-size:11pt;}
+.pdf-sheet .doc.doc-ten .tm-h{font-size:17pt;}
+.pdf-sheet .doc.doc-ten .tm-box-h{font-size:14pt;}
+.pdf-sheet .doc.doc-ten .tm-q cite{font-size:12pt;}
+.pdf-sheet .doc.doc-ten .tm-foot{position:static;margin-top:14pt;padding-top:6pt;border-top:1px solid #E2EAE5;font-size:8.5pt;color:#8A968F;text-align:center;}
+.pdf-sheet .arc-doc{width:680px;max-width:none;margin:0;padding:0;background:#fff;}
+.pdf-sheet .arc-doc-title{font-size:17pt;}
+.pdf-sheet .arc-kicker{font-size:9.5pt;}
+.pdf-sheet .arc-doc-ref{font-size:10pt;padding-bottom:10px;margin-bottom:14px;}
+.pdf-sheet .arc-body p{font-size:11.2pt;line-height:1.85;margin-bottom:.72em;color:#111;}
+.pdf-sheet .arc-big .arc-body p{font-size:18pt;line-height:1.8;}
 
 .pdf-note{display:flex;flex:0 0 auto;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid #E4DCC4;background:#FFFDF4;font-size:12.5px;color:#5A4A22;}
 .pdf-note[hidden]{display:none!important;}

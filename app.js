@@ -2096,7 +2096,8 @@
   /* 쪽 경계 — 글줄이나 상자 한가운데가 잘리지 않도록 문단 끝에서 자른다 */
   function pdfPageCuts(docEl, total, pageH) {
     var base = docEl.getBoundingClientRect().top;
-    var ends = [total];
+    var ends = [];
+    var lines = [];
     var nodes = docEl.querySelectorAll('p,li,tr,div,h1,h2,h3,h4,h5,section,table,ul,ol,blockquote,figure');
     for (var i = 0; i < nodes.length; i++) {
       var r = nodes[i].getBoundingClientRect();
@@ -2104,7 +2105,33 @@
       var b = Math.round(r.bottom - base);
       if (b > 0 && b < total) ends.push(b);
     }
+    /* 문단보다 큰 상자 안에서는 글줄 단위로 자른다 */
+    try {
+      var walker = document.createTreeWalker(docEl, 4, null, false);
+      var tn;
+      while ((tn = walker.nextNode())) {
+        if (!tn.nodeValue || !/\S/.test(tn.nodeValue)) continue;
+        var range = document.createRange();
+        range.selectNodeContents(tn);
+        var rects = range.getClientRects();
+        for (var k = 0; k < rects.length; k++) {
+          var lb = Math.round(rects[k].bottom - base);
+          if (lb > 0 && lb < total) lines.push(lb);
+        }
+      }
+    } catch (e) {}
     ends.sort(function (a, b) { return a - b; });
+    lines.sort(function (a, b) { return a - b; });
+
+    var pickIn = function (arr, from, to) {
+      var found = 0;
+      for (var j = 0; j < arr.length; j++) {
+        if (arr[j] > to) break;
+        if (arr[j] >= from) found = arr[j];
+      }
+      return found;
+    };
+
     var cuts = [0];
     var start = 0;
     var guard = 0;
@@ -2112,13 +2139,10 @@
       guard += 1;
       var target = start + pageH;
       if (target >= total - 4) { cuts.push(total); break; }
-      var pick = 0;
-      for (var j = 0; j < ends.length; j++) {
-        var v = ends[j];
-        if (v > target) break;
-        if (v >= start + pageH * 0.42) pick = v;
-      }
-      if (!pick) pick = target;   /* 한 덩어리가 한 쪽보다 길면 그대로 자른다 */
+      var from = start + pageH * 0.42;
+      var pick = pickIn(ends, from, target);      /* 문단 끝에서 자르는 것을 우선 */
+      if (!pick) pick = pickIn(lines, from, target);
+      if (!pick) pick = target;                   /* 그래도 없으면 그대로 자른다 */
       cuts.push(pick);
       start = pick;
     }
@@ -2135,7 +2159,7 @@
       var start = cuts[idx];
       if (onStep) onStep(idx + 1, totalPages);
       var page = document.createElement('div');
-      page.className = 'pdf-page';
+      page.className = 'pdf-page pdf-sheet';
       page.style.cssText = 'position:relative;width:' + PDF_PAGE_W + 'px;height:' + PDF_PAGE_H +
         'px;overflow:hidden;background:#fff;';
       var inner = document.createElement('div');
@@ -2172,7 +2196,7 @@
   }
 
   function pdfFileName(docEl) {
-    var h = docEl.querySelector('.doc-title') || docEl.querySelector('.arc-doc-title');
+    var h = docEl.querySelector('.doc-title') || docEl.querySelector('.tm-title') || docEl.querySelector('.arc-doc-title');
     var t = h ? String(h.textContent || '') : '';
     t = t.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
     if (!t) t = '설교원고';
@@ -2266,7 +2290,7 @@
 
     ensurePdfLibs().then(pdfFontsReady).then(function () {
       stage = document.createElement('div');
-      stage.className = 'pdf-stage';
+      stage.className = 'pdf-stage pdf-sheet';
       var clone = docEl.cloneNode(true);
       var strip = o.strip || [];
       for (var i = 0; i < strip.length; i++) {
@@ -2290,9 +2314,9 @@
       var sizeTxt = kb >= 1024 ? (kb / 1024).toFixed(1) + 'MB' : kb + 'KB';
       restore();
       note.className = 'pdf-note ok';
-      txt.textContent = 'PDF ' + pages.length + '쪽 · ' + sizeTxt +
-        (standalone ? '이 준비되었습니다. 아래 「PDF 저장 / 공유」를 누르면 파일로 저장하거나 보낼 수 있습니다.'
-                    : '을 만들었습니다. 저장되지 않았다면 「PDF 저장 / 공유」를 눌러 주세요.');
+      txt.textContent = 'PDF ' + pages.length + '쪽 · ' + sizeTxt + ' 파일을 만들었습니다. ' +
+        (standalone ? '아래 「PDF 저장 / 공유」를 누르면 파일로 저장하거나 보낼 수 있습니다.'
+                    : '저장되지 않았다면 「PDF 저장 / 공유」를 눌러 주세요.');
       saveBtn.hidden = false;
       againBtn.hidden = false;
       saveBtn.onclick = function () { pdfSaveBlob(blob, name); };
