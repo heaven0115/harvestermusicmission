@@ -2197,18 +2197,26 @@
     if (!bands.length) return h;
     /* 쪽을 꽉 채우도록 아래쪽 빈 줄을 먼저 보고, 가까운 것들 중에서는 넓은
        빈 줄(문단 사이)을 고른다 */
-    var lowest = 0;
-    for (var n = 0; n < bands.length; n++) if (bands[n].mid > lowest) lowest = bands[n].mid;
-    var nearLimit = lowest - Math.round(60 * scale);
-    var near = bands.filter(function (b) { return b.mid >= nearLimit; });
-    near.sort(function (a, b) { return (b.width - a.width) || (b.mid - a.mid); });
+    var lowest = 0, widest = 0;
+    for (var n = 0; n < bands.length; n++) {
+      if (bands[n].mid > lowest) lowest = bands[n].mid;
+      if (bands[n].width > widest) widest = bands[n].width;
+    }
+    /* 글줄 사이(좁은 빈 줄)보다 문단·절 사이(넓은 빈 줄)에서 끊는다 */
+    var wideLimit = Math.max(minGap, Math.round(widest * 0.55));
+    var nearLimit = lowest - Math.round(70 * scale);
+    var near = bands.filter(function (b) { return b.mid >= nearLimit && b.width >= wideLimit; });
+    near.sort(function (a, b) { return (b.mid - a.mid); });
     for (var k = 0; k < near.length; k++) {
       var pos = start + near[k].mid / scale;
       if (pos > start + pageH * 0.45 && !pdfBlocked(keep, pos)) {
         return Math.round((pdfCloseBoxAt(pos, boxEnds, start, pageH) - start) * scale);
       }
     }
-    /* 문단 안이라도 글자가 잘리는 것보다는 낫다 — 쪽 끝에 가장 가까운 빈 줄 */
+    if (near.length) {
+      return Math.round((pdfCloseBoxAt(start + near[0].mid / scale, boxEnds, start, pageH) - start) * scale);
+    }
+    /* 넓은 빈 줄이 없으면 글자가 잘리지 않는 쪽 끝에 가장 가까운 빈 줄 */
     return Math.round((pdfCloseBoxAt(start + lowest / scale, boxEnds, start, pageH) - start) * scale);
   }
 
@@ -2368,7 +2376,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127aa';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127ab';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
