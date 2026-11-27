@@ -2134,7 +2134,7 @@
     /* 글줄에서 잘랐을 때 상자 끝이 바로 뒤에 있으면 상자째 닫아 준다 */
     var closeBox = function (v, limit) {
       for (var j = 0; j < ends.length; j++) {
-        if (ends[j] < v) continue;
+        if (ends[j] <= v) continue;   /* 지금 지점보다 뒤에 끝나는 상자만 */
         return ends[j] <= limit ? ends[j] : 0;
       }
       return 0;
