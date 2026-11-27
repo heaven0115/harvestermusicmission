@@ -2142,6 +2142,17 @@
     }
     return out;
   }
+  function pdfBoxEnds(docEl) {
+    var base = docEl.getBoundingClientRect().top;
+    var out = [];
+    var bs = docEl.querySelectorAll('.tm-box,.tm-q,.tm-key,.tm-bless,blockquote');
+    for (var i = 0; i < bs.length; i++) {
+      var r = bs[i].getBoundingClientRect();
+      if (!r.height) continue;
+      out.push(Math.round(r.bottom - base));
+    }
+    return out.sort(function (a, b) { return a - b; });
+  }
   function pdfBlocked(list, y) {
     if (!list) return false;
     for (var i = 0; i < list.length; i++) {
@@ -2151,20 +2162,18 @@
   }
 
   /* 그려진 쪽에서 다음 쪽 시작 지점(이 쪽 안의 CSS px)을 찾는다 */
-  /* 끊는 자리 바로 뒤에 상자 테두리나 바탕색 조각만 남아 있으면, 그 조각까지
-     이 쪽에 두고 끊는다(다음 쪽 위에 선 한 줄이 비치는 일을 막는다). */
-  function pdfClearTail(mid, inkRows, anyRows, scale) {
-    var h = inkRows.length;
-    var nextInk = mid;
-    while (nextInk < h && !inkRows[nextInk]) nextInk += 1;
-    var lastLight = -1;
-    for (var i = mid; i < nextInk; i++) if (anyRows[i]) lastLight = i;
-    if (lastLight < mid) return mid;
-    if ((lastLight - mid) > Math.round(40 * scale)) return mid;   /* 긴 바탕색은 그대로 둔다 */
-    return Math.min(nextInk, lastLight + Math.max(1, Math.round(2 * scale)));
+  /* 상자(본문 읽기·인용)가 쪽 끝에서 조금만 남으면 상자째 이 쪽에서 닫는다.
+     다음 쪽 위에 상자 테두리 한 줄이 비치는 일을 막는다. */
+  function pdfCloseBoxAt(cutCss, boxEnds, start, pageH) {
+    if (!boxEnds || !boxEnds.length) return cutCss;
+    for (var i = 0; i < boxEnds.length; i++) {
+      var e = boxEnds[i];
+      if (e > cutCss && e - cutCss <= 60 && e < start + pageH - 20) return e + 2;
+    }
+    return cutCss;
   }
 
-  function pdfCutRow(rows, scale, start, pageH, keep) {
+  function pdfCutRow(rows, scale, start, pageH, keep, boxEnds) {
     var inkRows = rows.ink || rows;
     var anyRows = rows.any || rows;
     var h = inkRows.length;
@@ -2195,13 +2204,12 @@
     near.sort(function (a, b) { return (b.width - a.width) || (b.mid - a.mid); });
     for (var k = 0; k < near.length; k++) {
       var pos = start + near[k].mid / scale;
-      if (pos > start + pageH * 0.45 && !pdfBlocked(keep, pos)) return pdfClearTail(near[k].mid, inkRows, anyRows, scale);
+      if (pos > start + pageH * 0.45 && !pdfBlocked(keep, pos)) {
+        return Math.round((pdfCloseBoxAt(pos, boxEnds, start, pageH) - start) * scale);
+      }
     }
     /* 문단 안이라도 글자가 잘리는 것보다는 낫다 — 쪽 끝에 가장 가까운 빈 줄 */
-    for (var k2 = 0; k2 < bands.length; k2++) {
-      if (bands[k2].mid === lowest) return pdfClearTail(bands[k2].mid, inkRows, anyRows, scale);
-    }
-    return pdfClearTail(lowest, inkRows, anyRows, scale);
+    return Math.round((pdfCloseBoxAt(start + lowest / scale, boxEnds, start, pageH) - start) * scale);
   }
 
   function pdfCropCanvas(canvas, keepCssPx, pageW) {
@@ -2221,6 +2229,7 @@
     var guard = 0;
     var total = Math.ceil(docEl.getBoundingClientRect().height) || 1;
     var keep = null;
+    var boxEnds = null;
     function step() {
       guard += 1;
       if (guard > 300) return Promise.resolve(pages);
@@ -2247,6 +2256,7 @@
       }).then(function (canvas) {
         if (page.parentNode) page.parentNode.removeChild(page);
         if (!keep) keep = pdfKeepRanges(docEl);
+        if (!boxEnds) boxEnds = pdfBoxEnds(docEl);
         var scale = canvas.width / PDF_PAGE_W;
         var rows = pdfInkRows(canvas);
         var cutRow = 0;
@@ -2257,7 +2267,7 @@
             while (y >= 0 && !rows[y]) y--;
             cutRow = (y < 0) ? rows.length : Math.min(rows.length, y + Math.round(8 * scale));
           } else {
-            cutRow = pdfCutRow(rows, scale, start, PDF_PAGE_H, keep);
+            cutRow = pdfCutRow(rows, scale, start, PDF_PAGE_H, keep, boxEnds);
             /* 다음 쪽과 겹치지 않게: 이 쪽 안에서 끊는다 */
             if (cutRow >= canvas.height - 1) cutRow = canvas.height;
           }
@@ -2358,7 +2368,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127z';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127aa';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
