@@ -2131,6 +2131,14 @@
       }
       return found;
     };
+    /* 글줄에서 잘랐을 때 상자 끝이 바로 뒤에 있으면 상자째 닫아 준다 */
+    var closeBox = function (v, limit) {
+      for (var j = 0; j < ends.length; j++) {
+        if (ends[j] < v) continue;
+        return ends[j] <= limit ? ends[j] : 0;
+      }
+      return 0;
+    };
 
     var cuts = [0];
     var start = 0;
@@ -2141,7 +2149,13 @@
       if (target >= total - 4) { cuts.push(total); break; }
       var from = start + pageH * 0.42;
       var pick = pickIn(ends, from, target);      /* 문단 끝에서 자르는 것을 우선 */
-      if (!pick) pick = pickIn(lines, from, target);
+      if (!pick) {
+        pick = pickIn(lines, from, target);
+        if (pick) {
+          var box = closeBox(pick, Math.min(start + pageH, pick + 70));
+          if (box) pick = box;
+        }
+      }
       if (!pick) pick = target;                   /* 그래도 없으면 그대로 자른다 */
       cuts.push(pick);
       start = pick;
