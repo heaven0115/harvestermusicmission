@@ -2154,7 +2154,7 @@
       /* 상자 끝이 바로 뒤에 있으면 상자째 닫아 다음 쪽에 조각이 남지 않게 한다
          (한두 줄만큼은 쪽 높이를 조금 넘겨도 된다) */
       var box = closeBox(pick, Math.min(start + pageH + 30, pick + 80));
-      if (box) pick = box;
+      if (box) pick = Math.min(total, box + 2);   /* 테두리 한 줄까지 넘겨 다음 쪽 위에 선이 남지 않게 */
       cuts.push(pick);
       start = pick;
     }
