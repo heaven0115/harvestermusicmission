@@ -350,10 +350,10 @@
       '<div class="gen-head"><strong>자료 자동 생성</strong><span>효석패턴6 여덟 구성을 읽어 10분 원고·PPT·교재·기도문·말씀카드까지 만들어 드립니다</span></div>' +
       '<div class="gen-actions">' +
       '<button type="button" class="gen-btn" id="genPpt"><span class="ico">📊</span><span class="tx"><strong>PPT 만들기 (.pptx)</strong><small>표지부터 기도·찬송까지 8장</small></span></button>' +
-      '<button type="button" class="gen-btn" id="genStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 복사</small></span></button>' +
+      '<button type="button" class="gen-btn" id="genStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 워드 · 복사</small></span></button>' +
       '<button type="button" class="gen-btn" id="genPrayer"><span class="ico">🙏</span><span class="tx"><strong>기도문 만들기</strong><small>예배 · 소그룹용</small></span></button>' +
       '<button type="button" class="gen-btn" id="genCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>정사각 1080 · PNG 저장</small></span></button>' +
-      '<button type="button" class="gen-btn gen-ten" id="genTen"><span class="ico">📝</span><span class="tx"><strong>10분 설교 원고 만들기</strong><small>강단 낭독용 10분 압축 · 18pt 인쇄 · 복사 · 새벽예배 형식</small></span></button>' +
+      '<button type="button" class="gen-btn gen-ten" id="genTen"><span class="ico">📝</span><span class="tx"><strong>10분 설교 원고 만들기</strong><small>강단 낭독용 10분 압축 · 18pt 인쇄 · 워드 · 복사</small></span></button>' +
       '</div></div>';
 
     var outline = '<div class="outline-list">' + SECTIONS.map(function (sec) {
@@ -2388,7 +2388,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127ae';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127af';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
@@ -3008,8 +3008,8 @@
     var n = 0;
     html += secs.map(function (sec) { n += 1; return sec.replace('__N', String(n)); }).join('');
     html += '<p class="doc-foot">' + (m.kind === 'archive'
-      ? '저장된 과거 설교 원고에서 본문 · 대지 · 핵심 문장 · 적용을 읽어 묶은 교재입니다. 원고의 문장을 그대로 살렸으니 필요에 따라 다듬어 인쇄하거나 PDF로 저장해 나눠 주세요.'
-      : '본문 분석 · 전후 맥락 · 핵심 원어 · 소그룹 적용에서 자동으로 묶은 교재입니다. 필요에 따라 인쇄하거나 PDF로 저장해 나눠 주세요.') + '</p>';
+      ? '저장된 과거 설교 원고에서 본문 · 대지 · 핵심 문장 · 적용을 읽어 묶은 교재입니다. 원고의 문장을 그대로 살렸으니 필요에 따라 다듬어 인쇄하거나 PDF·워드로 저장해 나눠 주세요.'
+      : '본문 분석 · 전후 맥락 · 핵심 원어 · 소그룹 적용에서 자동으로 묶은 교재입니다. 필요에 따라 인쇄하거나 PDF·워드로 저장해 나눠 주세요.') + '</p>';
     return html + '</article>';
   }
 
