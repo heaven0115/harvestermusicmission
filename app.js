@@ -2093,12 +2093,13 @@
     });
   }
 
-  /* 쪽 경계 — 글줄이나 상자 한가운데가 잘리지 않도록 문단 끝에서 자른다 */
+  /* 쪽 경계 — 글줄이나 상자 한가운데가 잘리지 않도록 문단 끝에서 자른다.
+     제목(소제목) 바로 뒤나 인용·강조 상자 안에서는 자르지 않는다. */
   function pdfPageCuts(docEl, total, pageH) {
     var base = docEl.getBoundingClientRect().top;
     var ends = [];
     var lines = [];
-    var heads = [];
+    var keep = [];            /* 이 구간 안에서는 자르지 않는다 [위, 아래] */
     var nodes = docEl.querySelectorAll('p,li,tr,div,h1,h2,h3,h4,h5,section,table,ul,ol,blockquote,figure');
     for (var i = 0; i < nodes.length; i++) {
       var r = nodes[i].getBoundingClientRect();
@@ -2106,29 +2107,58 @@
       var b = Math.round(r.bottom - base);
       if (b > 0 && b < total) ends.push(b);
     }
+    /* 제목은 통째로 한 쪽에 두고 뒤로 두어 줄을 더 붙이며,
+       인용·강조 상자(.tm-q 등)는 쪼개지 않는다 */
+    function tagOf(el) {
+      var c = (typeof el.className === 'string' ? el.className : '');
+      return (/^H[1-6]$/.test(el.tagName)) || /(^|\s)(tm-h|tm-box-h|tm-title|doc-h2|doc-h3)(\s|$)/.test(c);
+    }
+    function strongOf(el) {
+      var c = (typeof el.className === 'string' ? el.className : '');
+      return /(^|\s)(tm-q|tm-key|tm-trans|tm-bless|tm-kicker|tm-lead|tm-meta)(\s|$)/.test(c) || el.tagName === 'BLOCKQUOTE';
+    }
+    var strict = docEl.querySelectorAll('h1,h2,h3,h4,h5,blockquote,p,div');
+    for (var k = 0; k < strict.length; k++) {
+      var el = strict[k];
+      var isHead = tagOf(el), isStrong = strongOf(el);
+      if (!isHead && !isStrong) continue;
+      var rr = el.getBoundingClientRect();
+      if (!rr.height) continue;
+      var top = Math.round(rr.top - base), bot = Math.round(rr.bottom - base);
+      keep.push([top - 4, bot + 4]);
+      if (isHead) keep.push([bot - 2, bot + 96]);   /* 제목 아래 2~3줄은 제목과 같은 쪽에 */
+    }
+    function blocked(y) {
+      for (var m = 0; m < keep.length; m++) {
+        if (y >= keep[m][0] && y <= keep[m][1]) return true;
+      }
+      return false;
+    }
     /* 문단보다 큰 상자 안에서는 글줄 단위로 자른다 */
     try {
-      var hs = docEl.querySelectorAll('h1,h2,h3,h4,h5,.tm-h,.doc-h2,.doc-h3');
-    for (var q = 0; q < hs.length; q++) {
-      var hr = hs[q].getBoundingClientRect();
-      if (!hr.height) continue;
-      heads.push({ top: Math.round(hr.top - base), bottom: Math.round(hr.bottom - base) });
-    }
-    var walker = document.createTreeWalker(docEl, 4, null, false);
+      var walker = document.createTreeWalker(docEl, 4, null, false);
       var tn;
       while ((tn = walker.nextNode())) {
         if (!tn.nodeValue || !/\S/.test(tn.nodeValue)) continue;
         var range = document.createRange();
         range.selectNodeContents(tn);
         var rects = range.getClientRects();
-        for (var k = 0; k < rects.length; k++) {
-          var lb = Math.round(rects[k].bottom - base);
+        for (var n = 0; n < rects.length; n++) {
+          var lb = Math.round(rects[n].bottom - base);
           if (lb > 0 && lb < total) lines.push(lb);
         }
       }
     } catch (e) {}
-    ends.sort(function (a, b) { return a - b; });
-    lines.sort(function (a, b) { return a - b; });
+    function uniqSorted(arr) {
+      arr.sort(function (a, b) { return a - b; });
+      var out = [];
+      for (var q = 0; q < arr.length; q++) if (!out.length || out[out.length - 1] !== arr[q]) out.push(arr[q]);
+      return out;
+    }
+    ends = uniqSorted(ends);
+    lines = uniqSorted(lines);
+    var safeEnds = ends.filter(function (y) { return !blocked(y); });
+    var safeLines = lines.filter(function (y) { return !blocked(y); });
 
     var pickIn = function (arr, from, to) {
       var found = 0;
@@ -2141,8 +2171,10 @@
     /* 글줄에서 잘랐을 때 상자 끝이 바로 뒤에 있으면 상자째 닫아 준다 */
     var closeBox = function (v, limit) {
       for (var j = 0; j < ends.length; j++) {
-        if (ends[j] <= v) continue;   /* 지금 지점보다 뒤에 끝나는 상자만 */
-        return ends[j] <= limit ? ends[j] : 0;
+        if (ends[j] <= v) continue;      /* 지금 지점보다 뒤에 끝나는 상자만 */
+        if (ends[j] > limit) return 0;
+        if (blocked(ends[j])) return 0;
+        return ends[j];
       }
       return 0;
     };
@@ -2155,20 +2187,21 @@
       var target = start + pageH;
       if (target >= total - 4) { cuts.push(total); break; }
       var from = start + pageH * 0.42;
-      var pick = pickIn(ends, from, target);      /* 문단 끝에서 자르는 것을 우선 */
-      if (!pick) pick = pickIn(lines, from, target);
-      if (!pick) pick = target;                   /* 그래도 없으면 그대로 자른다 */
+      var pick = pickIn(safeEnds, from, target);        /* 문단 끝에서 자르는 것을 우선 */
+      if (!pick) pick = pickIn(safeLines, from, target);
+      if (!pick) pick = pickIn(ends, start + pageH * 0.3, target);
+      if (!pick) pick = pickIn(lines, start + pageH * 0.3, target);
+      if (!pick || pick <= start + 8) pick = target;     /* 그래도 없으면 그대로 자른다 */
+      /* 고른 지점이 제목·강조 상자 안이면 그 앞 문단 끝으로 물러난다 */
+      if (blocked(pick)) {
+        var back = pickIn(safeEnds, start + pageH * 0.25, pick - 2);
+        if (!back) back = pickIn(safeLines, start + pageH * 0.25, pick - 2);
+        if (back) pick = back;
+      }
       /* 상자 끝이 바로 뒤에 있으면 상자째 닫아 다음 쪽에 조각이 남지 않게 한다
          (한두 줄만큼은 쪽 높이를 조금 넘겨도 된다) */
       var box = closeBox(pick, Math.min(start + pageH + 30, pick + 80));
       if (box) pick = Math.min(total, box + 2);   /* 테두리 한 줄까지 넘겨 다음 쪽 위에 선이 남지 않게 */
-      /* 제목만 쪽 끝에 남으면 제목째 다음 쪽으로 넘긴다 */
-      for (var t = 0; t < heads.length; t++) {
-        if (Math.abs(heads[t].bottom - pick) <= 3 && heads[t].top > start + pageH * 0.25) {
-          pick = heads[t].top;
-          break;
-        }
-      }
       cuts.push(pick);
       start = pick;
     }
@@ -2286,6 +2319,153 @@
     pdfDownload(blob, name);
   }
 
+  /* ================= 워드(.docx)로 저장 =================
+     teaching/vendor/docx-lite.js 하나를 두 앱이 같이 쓴다(외부 라이브러리 없이
+     브라우저 안에서 .docx 를 만든다). 화면에 보이는 10분 설교 원고의 제목·본문
+     읽기·대지·인용·결론·기도문을 18pt 서식 그대로 워드 문단으로 옮긴다. */
+  var DOCX_LIB = null;
+  function ensureDocxLib() {
+    if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') return Promise.resolve();
+    if (DOCX_LIB) return DOCX_LIB;
+    DOCX_LIB = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127q';
+      s.async = true;
+      s.onload = function () {
+        if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
+        else { DOCX_LIB = null; reject(new Error('워드 생성기를 불러오지 못했습니다')); }
+      };
+      s.onerror = function () { DOCX_LIB = null; reject(new Error('워드 생성기 연결 실패')); };
+      document.head.appendChild(s);
+    });
+    return DOCX_LIB;
+  }
+
+  function tenDocxBlocks(root) {
+    var out = [];
+    var T = function (el) { return String(el.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim(); };
+    var clsOf = function (el) { return typeof el.className === 'string' ? el.className : ''; };
+    var has = function (el, name) { return clsOf(el).split(/\s+/).indexOf(name) > -1; };
+    var walk = function (el) {
+      var kids = el.children;
+      for (var i = 0; i < kids.length; i++) {
+        var n = kids[i];
+        if (n.tagName === 'SECTION' || n.tagName === 'BLOCKQUOTE') { walk(n); continue; }
+        if (n.tagName === 'HR') {
+          out.push({ text: '', size: 4, line: 240, after: 200, borderBottom: true, borderColor: '24332B' });
+          continue;
+        }
+        if (n.tagName === 'H1' || has(n, 'tm-title')) {
+          out.push({ text: T(n), size: 46, bold: true, align: 'center', color: '12251A', line: 300, after: 140, keepNext: true });
+          continue;
+        }
+        if (has(n, 'tm-kicker')) { out.push({ text: T(n), size: 20, bold: true, color: '6E7C75', align: 'center', after: 60 }); continue; }
+        if (has(n, 'tm-lead')) { out.push({ text: T(n), size: 28, align: 'center', after: 80 }); continue; }
+        if (has(n, 'tm-meta')) { out.push({ text: T(n), size: 22, align: 'center', color: '55655C', after: 200 }); continue; }
+        if (has(n, 'tm-box-h')) { out.push({ text: T(n), size: 28, bold: true, color: '453B22', shade: 'FAF6EC', before: 120, after: 80, keepNext: true }); continue; }
+        if (has(n, 'tm-h')) { out.push({ text: T(n), size: 34, bold: true, color: '12251A', before: 240, after: 100, keepNext: true, borderBottom: true }); continue; }
+        if (has(n, 'tm-v')) {
+          var num = n.querySelector('b'), body = n.querySelector('span');
+          out.push({
+            text: '', shade: 'FAF6EC', size: 36, line: 340, after: 80,
+            runs: [
+              { text: (num ? T(num) : '') + '  ', bold: true, color: '3A2F1C' },
+              { text: body ? T(body) : T(n) }
+            ]
+          });
+          continue;
+        }
+        if (has(n, 'tm-q')) {
+          var q = n.querySelector('p'), c = n.querySelector('cite');
+          if (q) out.push({ text: T(q), size: 34, bold: true, color: '2A2418', shade: 'FAF6EC', indent: 240, before: 120, after: 60 });
+          if (c) out.push({ text: T(c), size: 22, color: '6B5C42', indent: 240, after: 160 });
+          continue;
+        }
+        if (has(n, 'tm-key') || has(n, 'tm-trans')) { out.push({ text: T(n), size: 36, bold: true, before: 120, after: 120, keepNext: true }); continue; }
+        if (has(n, 'tm-bless')) { out.push({ text: T(n), size: 36, bold: true, before: 120, after: 120 }); continue; }
+        if (has(n, 'tm-foot')) { out.push({ text: T(n), size: 17, align: 'center', color: '8A968F', before: 240 }); continue; }
+        if (n.tagName === 'P') { out.push({ text: T(n), size: 36, after: 140 }); continue; }
+        if (n.children && n.children.length) walk(n);
+      }
+    };
+    walk(root);
+    return out;
+  }
+
+  function docxFileName(docEl, ext) {
+    var h = docEl.querySelector('.doc-title') || docEl.querySelector('.tm-title') || docEl.querySelector('.arc-doc-title');
+    var t = h ? String(h.textContent || '') : '';
+    t = t.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    if (!t) t = '설교원고';
+    var d = new Date();
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + t + '.' + ext;
+  }
+
+  function docxDownload(blob, name) {
+    try {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        if (a.parentNode) a.parentNode.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 4000);
+      toast('워드 파일을 저장했습니다 · ' + name);
+    } catch (e) {
+      toast('워드 파일을 저장하지 못했습니다 — 공유 버튼을 이용해 주세요');
+    }
+  }
+
+  function docxSave(blob, name) {
+    var file = null;
+    try { file = new File([blob], name, { type: blob.type }); } catch (e) { file = null; }
+    var can = false;
+    if (file && navigator.share && navigator.canShare) {
+      try { can = navigator.canShare({ files: [file] }); } catch (e) { can = false; }
+    }
+    if (can) {
+      navigator.share({ files: [file], title: name }).then(function () {
+        toast('워드 파일을 내보냈습니다 · ' + name);
+      }, function (err) {
+        if (err && err.name === 'AbortError') return;
+        docxDownload(blob, name);
+      });
+      return;
+    }
+    docxDownload(blob, name);
+  }
+
+  function docxExport(docEl, btn) {
+    if (!docEl) { toast('문서를 찾지 못했습니다'); return; }
+    var label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '워드 만드는 중…'; }
+    var restore = function () { if (btn) { btn.disabled = false; btn.innerHTML = label; } };
+    ensureDocxLib().then(function () {
+      var h = docEl.querySelector('.tm-title') || docEl.querySelector('.doc-title');
+      var title = h ? String(h.textContent || '').trim() : '설교 원고';
+      var blocks = tenDocxBlocks(docEl);
+      if (!blocks.length) throw new Error('문서 내용을 읽지 못했습니다');
+      var bytes = window.DocxLite.makeDocx({
+        title: title,
+        subject: '10분 설교 원고',
+        creator: '사역의 한 주',
+        blocks: blocks
+      });
+      var name = docxFileName(docEl, 'docx');
+      var blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      restore();
+      docxSave(blob, name);
+    })['catch'](function (err) {
+      restore();
+      toast('워드를 만들지 못했습니다 — ' + (err && err.message ? err.message : '다시 시도해 주세요'));
+    });
+  }
+
   /* o: { docEl, host, before, btn, strip:[선택자], extraClass } */
   function pdfExport(o) {
     if (pdfBusy) { toast('PDF를 만드는 중입니다 — 조금만 기다려 주세요'); return; }
@@ -2376,6 +2556,7 @@
       '<div class="doc-bar-b">' +
       '<button type="button" class="btn-line" data-doc-size>큰 글씨 (18pt)</button>' +
       '<button type="button" class="btn-solid" data-doc-print>' + (isStandaloneApp() ? 'PDF로 저장' : '인쇄 / PDF 저장') + '</button>' +
+      (o.word ? '<button type="button" class="btn-line" data-doc-word>워드로 저장</button>' : '') +
       (isStandaloneApp() ? '' : '<button type="button" class="btn-line" data-doc-pdf>PDF 파일</button>') +
       '<button type="button" class="btn-line" data-doc-copy>내용 복사</button>' +
       '<button type="button" class="btn-line" data-doc-close>닫기</button>' +
@@ -2410,9 +2591,11 @@
     });
     var printBtn = back.querySelector('[data-doc-print]');
     var pdfBtn = back.querySelector('[data-doc-pdf]');
+    var wordBtn = back.querySelector('[data-doc-word]');
     var pdfOpts = function (b) {
       return { docEl: liveDoc(), host: back.querySelector('.modal'), before: body, btn: b };
     };
+    if (wordBtn) wordBtn.addEventListener('click', function () { docxExport(liveDoc(), wordBtn); });
     if (pdfBtn) pdfBtn.addEventListener('click', function () { pdfExport(pdfOpts(pdfBtn)); });
     printBtn.addEventListener('click', function () {
       /* 홈 화면 웹앱(PWA)은 인쇄 창 자체가 열리지 않으므로 PDF 파일로 만든다 */
@@ -3203,9 +3386,10 @@
     stashEditor(s);
     openDocModal({
       title: '10분 설교 원고 미리보기',
-      sub: (s.passage || '본문') + ' · 강단 낭독용 10분 압축 원고 · 인쇄하거나 PDF로 저장할 수 있습니다',
+      sub: (s.passage || '본문') + ' · 강단 낭독용 10분 압축 원고 · 인쇄하거나 PDF·워드로 저장할 수 있습니다',
       html: tenDoc(tenModel(s)),
-      copyLabel: '10분 설교 원고'
+      copyLabel: '10분 설교 원고',
+      word: true
     });
     toast('10분 설교 원고를 만들었습니다 — 큰 글씨·인쇄·복사 그대로 쓰실 수 있습니다');
   }

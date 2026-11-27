@@ -1152,18 +1152,22 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 
 @media print{
   body.printing .doc.doc-ten{padding:0 0 4mm;font-size:18pt;line-height:1.72;}
-  body.printing .doc.doc-ten .tm-title{font-size:25pt;line-height:1.3;margin:6pt 0 10pt;}
-  body.printing .doc.doc-ten .tm-kicker{font-size:10pt;}
-  body.printing .doc.doc-ten .tm-lead{font-size:14pt;}
-  body.printing .doc.doc-ten .tm-meta{font-size:11pt;}
+  body.printing .doc.doc-ten .tm-title{font-size:25pt;line-height:1.3;margin:6pt 0 10pt;break-after:avoid;page-break-after:avoid;}
+  body.printing .doc.doc-ten .tm-kicker{font-size:10pt;break-after:avoid;page-break-after:avoid;}
+  body.printing .doc.doc-ten .tm-lead{font-size:14pt;break-after:avoid;page-break-after:avoid;}
+  body.printing .doc.doc-ten .tm-meta{font-size:11pt;break-after:avoid;page-break-after:avoid;}
+  body.printing .doc.doc-ten h1,body.printing .doc.doc-ten h2,body.printing .doc.doc-ten h3{
+    break-inside:avoid;page-break-inside:avoid;break-after:avoid;page-break-after:avoid;}
   body.printing .doc.doc-ten .tm-h{font-size:17pt;break-after:avoid;break-inside:avoid;}
+  body.printing .doc.doc-ten .tm-box-h{font-size:14pt;break-after:avoid;break-inside:avoid;}
   body.printing .doc.doc-ten .tm-box{break-inside:auto;break-after:page;background:#FAF6EC!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
-  body.printing .doc.doc-ten .tm-box-h{font-size:14pt;}
-  body.printing .doc.doc-ten .tm-q{break-inside:avoid;background:#FAF6EC!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+  body.printing .doc.doc-ten .tm-q{break-inside:avoid;page-break-inside:avoid;background:#FAF6EC!important;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
   body.printing .doc.doc-ten .tm-q cite{font-size:12pt;}
-  body.printing .doc.doc-ten .tm-key{break-inside:avoid;break-before:avoid;}
+  body.printing .doc.doc-ten .tm-key{break-inside:avoid;page-break-inside:avoid;break-before:avoid;page-break-before:avoid;}
+  body.printing .doc.doc-ten .tm-trans,body.printing .doc.doc-ten .tm-bless{break-inside:avoid;page-break-inside:avoid;}
   body.printing .doc.doc-ten .tm-sec{margin:0 0 18pt;}
-  body.printing .doc.doc-ten .tm-foot{position:static;margin-top:14pt;padding-top:6pt;border-top:1px solid #E2EAE5;font-size:8.5pt;color:#8A968F;text-align:center;}
-  body.printing .doc.doc-ten p{orphans:2;widows:2;}
+  body.printing .doc.doc-ten .tm-foot{position:static;margin-top:14pt;padding-top:6pt;border-top:1px solid #E2EAE5;font-size:8.5pt;color:#8A968F;text-align:center;break-before:avoid;page-break-before:avoid;}
+  body.printing .doc.doc-ten p,body.printing .doc.doc-ten .tm-v{break-inside:avoid;page-break-inside:avoid;orphans:2;widows:2;}
+  body.printing .doc.doc-ten hr{break-after:avoid;page-break-after:avoid;}
   @page{size:A4;margin:16mm 15mm 18mm;}
 }

@@ -132,40 +132,72 @@
       '</w:rPr>';
   }
 
-  /* opt: { size(반 포인트), bold, color, align, line(240=한 줄), after(트윙) } */
+  /* opt: { size(반 포인트), bold, color, align, line(240=한 줄), before, after(트윙),
+            keepNext, keepLines, pageBreakBefore, indent(트윙), shade('FAF6EC'),
+            borderBottom, borderColor, runs:[{text,bold,color,size}] }
+     pPr 자식은 워드 스키마 순서(keepNext → pageBreakBefore → pBdr → shd → spacing → ind → jc → rPr)를 지킨다. */
   function paragraph(text, opt) {
     opt = opt || {};
     var size = opt.size || 36;         // 18pt
     var line = opt.line || 340;
+    var before = opt.before === undefined ? 0 : opt.before;
     var after = opt.after === undefined ? 120 : opt.after;
     var rPr = runProps({ size: size, bold: opt.bold, color: opt.color });
     var pPr = '<w:pPr>' +
       (opt.keepNext ? '<w:keepNext/>' : '') +
-      '<w:spacing w:before="0" w:after="' + after + '" w:line="' + line + '" w:lineRule="auto"/>' +
+      (opt.keepLines ? '<w:keepLines/>' : '') +
+      (opt.pageBreakBefore ? '<w:pageBreakBefore/>' : '') +
+      (opt.borderBottom ? '<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="4" w:color="' + (opt.borderColor || 'C9D6CE') + '"/></w:pBdr>' : '') +
+      (opt.shade ? '<w:shd w:val="clear" w:color="auto" w:fill="' + opt.shade + '"/>' : '') +
+      '<w:spacing w:before="' + before + '" w:after="' + after + '" w:line="' + line + '" w:lineRule="auto"/>' +
+      (opt.indent ? '<w:ind w:left="' + opt.indent + '"/>' : '') +
       (opt.align ? '<w:jc w:val="' + opt.align + '"/>' : '') +
       rPr +
       '</w:pPr>';
-    var body = String(text === null || text === undefined ? '' : text);
-    var runs = body ? '<w:r>' + rPr + '<w:t xml:space="preserve">' + xmlEsc(body) + '</w:t></w:r>' : '';
+    var parts = (opt.runs && opt.runs.length) ? opt.runs : [{ text: text }];
+    var runs = parts.map(function (r) {
+      r = r || {};
+      var t = String(r.text === null || r.text === undefined ? '' : r.text);
+      if (!t) return '';
+      var useOwn = (r.bold !== undefined) || r.color || r.size;
+      var rr = useOwn ? runProps({
+        size: r.size || size,
+        bold: r.bold === undefined ? opt.bold : r.bold,
+        color: r.color || opt.color
+      }) : rPr;
+      return '<w:r>' + rr + '<w:t xml:space="preserve">' + xmlEsc(t) + '</w:t></w:r>';
+    }).join('');
     return '<w:p>' + pPr + runs + '</w:p>';
   }
 
   /* ---------- 문서 ---------- */
-  /* opts: { title, meta (문자열 또는 배열), body, subject } */
+  /* opts: { title, meta (문자열 또는 배열), body, subject,
+             blocks: [{ text, runs, size, bold, color, align, line, before, after,
+                        keepNext, keepLines, pageBreakBefore, indent, shade,
+                        borderBottom, borderColor }] }
+     blocks 를 주면 body/title 문단을 따로 넣지 않고 blocks 만으로 본문을 만든다
+     (제목·부제를 blocks 안에 원하는 서식으로 직접 넣기 때문). */
   function documentXml(opts) {
     var metaParts = opts.meta;
     if (Array.isArray(metaParts)) metaParts = metaParts.filter(Boolean).join(' · ');
     metaParts = String(metaParts || '');
 
     var paras = [];
-    paras.push(paragraph(opts.title || '설교 원고', { size: 52, bold: true, align: 'center', after: 160, line: 300 }));  // 26pt
-    if (metaParts) paras.push(paragraph(metaParts, { size: 24, color: '5A5A5A', align: 'center', after: 400, line: 300 })); // 12pt
+    if (opts.blocks && opts.blocks.length) {
+      opts.blocks.forEach(function (b) {
+        if (!b) return;
+        paras.push(paragraph(b.text, b));
+      });
+    } else {
+      paras.push(paragraph(opts.title || '설교 원고', { size: 52, bold: true, align: 'center', after: 160, line: 300 }));  // 26pt
+      if (metaParts) paras.push(paragraph(metaParts, { size: 24, color: '5A5A5A', align: 'center', after: 400, line: 300 })); // 12pt
 
-    var lines = String(opts.body || '').replace(/\r\n?/g, '\n').split('\n');
-    lines.forEach(function (line) {
-      var t = line.replace(/[ \t]+$/, '');
-      paras.push(paragraph(t, { size: 36, line: 340, after: t ? 140 : 60 }));  // 18pt
-    });
+      var lines = String(opts.body || '').replace(/\r\n?/g, '\n').split('\n');
+      lines.forEach(function (line) {
+        var t = line.replace(/[ \t]+$/, '');
+        paras.push(paragraph(t, { size: 36, line: 340, after: t ? 140 : 60 }));  // 18pt
+      });
+    }
 
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
