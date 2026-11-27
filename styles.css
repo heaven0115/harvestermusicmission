@@ -930,7 +930,7 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 .card-modal{width:min(1020px,100%);max-height:92vh;border-radius:14px;}
 .card-body{display:grid;grid-template-columns:minmax(0,1fr) 296px;gap:16px;padding:16px 18px 18px;overflow-y:auto;align-items:start;}
 .card-stage{display:flex;align-items:flex-start;justify-content:center;background:#F1F4F1;border:1px solid var(--line);border-radius:12px;padding:14px;}
-.card-stage canvas{display:block;width:100%;max-width:540px;height:auto;border-radius:8px;box-shadow:0 10px 30px rgba(22,32,46,.14);}
+.card-stage canvas{display:block;width:auto;height:auto;max-width:100%;max-height:min(66vh,720px);border-radius:8px;box-shadow:0 10px 30px rgba(22,32,46,.14);}
 .card-panel{display:flex;flex-direction:column;gap:12px;min-width:0;}
 .card-field{display:flex;flex-direction:column;gap:7px;}
 .card-field > span{font-size:12px;font-weight:800;color:var(--forest);letter-spacing:-.01em;}

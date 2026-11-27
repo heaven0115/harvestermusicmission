@@ -352,7 +352,7 @@
       '<button type="button" class="gen-btn" id="genPpt"><span class="ico">📊</span><span class="tx"><strong>PPT 만들기 (.pptx)</strong><small>표지부터 기도·찬송까지 8장</small></span></button>' +
       '<button type="button" class="gen-btn" id="genStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 워드 · 복사</small></span></button>' +
       '<button type="button" class="gen-btn" id="genPrayer"><span class="ico">🙏</span><span class="tx"><strong>기도문 만들기</strong><small>예배 · 소그룹용</small></span></button>' +
-      '<button type="button" class="gen-btn" id="genCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>정사각 1080 · PNG 저장</small></span></button>' +
+      '<button type="button" class="gen-btn" id="genCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>4:5 1080×1350 · PNG 저장</small></span></button>' +
       '<button type="button" class="gen-btn gen-ten" id="genTen"><span class="ico">📝</span><span class="tx"><strong>10분 설교 원고 만들기</strong><small>강단 낭독용 10분 압축 · 18pt 인쇄 · 워드 · 복사</small></span></button>' +
       '</div></div>';
 
@@ -930,7 +930,7 @@
       '<button type="button" class="gen-btn" id="arcGenPpt"><span class="ico">📊</span><span class="tx"><strong>PPT 만들기 (.pptx)</strong><small>표지부터 기도·찬송까지</small></span></button>' +
       '<button type="button" class="gen-btn" id="arcGenStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 워드 · 복사</small></span></button>' +
       '<button type="button" class="gen-btn" id="arcGenPrayer"><span class="ico">🙏</span><span class="tx"><strong>기도문 만들기</strong><small>예배 · 소그룹용</small></span></button>' +
-      '<button type="button" class="gen-btn" id="arcGenCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>정사각 1080 · PNG 저장</small></span></button>' +
+      '<button type="button" class="gen-btn" id="arcGenCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>4:5 1080×1350 · PNG 저장</small></span></button>' +
       '</div></div></div>';
   }
 
@@ -4394,12 +4394,12 @@
     openCardModalFor(m);
   }
 
-  /* ---- 말씀 묵상카드 (Canvas 1080×1080 · 사역세트1 수채화 톤) ---- */
-  var CARD_SIZE = 1080;
+  /* ---- 말씀 묵상카드 (Canvas 1080×1350 · 사역세트1 수채화 톤) ---- */
+  var CARD_W = 1080, CARD_H = 1350; /* 4:5 세로형 */
   var CARD_SERIF = '"Noto Serif KR","Nanum Myeongjo","Apple SD Gothic Neo",serif';
   var CARD_SANS = '"Pretendard Variable",Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
-  var CARD_PANEL = { x: 84, y: 96, w: 912, h: 888 };
-  var CARD_TOP = 172, CARD_BOTTOM = 888, CARD_CONTENT_W = 764;
+  var CARD_PANEL = { x: 84, y: 108, w: 912, h: 1134 };
+  var CARD_TOP = 190, CARD_BOTTOM = 1146, CARD_CONTENT_W = 764;
   var CARD_THEMES = [
     {
       id: 'sage', name: '세이지 그린', sw: '#BFD3BC',
@@ -4553,13 +4553,13 @@
   function cardDataOf(s) { return cardData(sermonModel(s)); }
 
   function paintCardWash(ctx, th, seed) {
-    var S = CARD_SIZE;
-    var g = ctx.createLinearGradient(0, 0, S * 0.92, S);
+    var W = CARD_W, H = CARD_H;
+    var g = ctx.createLinearGradient(0, 0, W * 0.92, H);
     g.addColorStop(0, th.bg[0]); g.addColorStop(1, th.bg[1]);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     var rnd = mulberry32(seed);
-    for (var i = 0; i < 11; i++) {
-      var x = rnd() * S, y = rnd() * S, r = 150 + rnd() * 320;
+    for (var i = 0; i < 13; i++) {
+      var x = rnd() * W, y = rnd() * H, r = 165 + rnd() * 370;
       var c = th.blobs[Math.floor(rnd() * th.blobs.length)];
       var rg = ctx.createRadialGradient(x, y, r * 0.04, x, y, r);
       rg.addColorStop(0, hexA(c, (0.34 + rnd() * 0.18).toFixed(3)));
@@ -4568,44 +4568,44 @@
       ctx.fillStyle = rg;
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     }
-    for (var k = 0; k < 3; k++) {
-      var cx = rnd() * S, cy = rnd() * S, er = 130 + rnd() * 210;
+    for (var k = 0; k < 4; k++) {
+      var cx = rnd() * W, cy = rnd() * H, er = 145 + rnd() * 240;
       ctx.strokeStyle = hexA(th.blobs[k % th.blobs.length], 0.13);
       ctx.lineWidth = 10 + rnd() * 12;
       ctx.beginPath(); ctx.ellipse(cx, cy, er, er * (0.68 + rnd() * 0.5), rnd() * Math.PI, 0, Math.PI * 2); ctx.stroke();
     }
-    for (var n = 0; n < 2400; n++) {
-      var gx = rnd() * S, gy = rnd() * S;
+    for (var n = 0; n < 3000; n++) {
+      var gx = rnd() * W, gy = rnd() * H;
       ctx.fillStyle = 'rgba(88,74,54,' + (0.014 + rnd() * 0.03).toFixed(3) + ')';
       ctx.fillRect(gx, gy, 1.5, 1.5);
     }
-    var vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.80);
+    var vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.26, W / 2, H / 2, H * 0.78);
     vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(34,28,18,0.13)');
-    ctx.fillStyle = vg; ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = th.frame; ctx.lineWidth = 3;
-    rr(ctx, 30, 30, S - 60, S - 60, 22); ctx.stroke();
+    rr(ctx, 30, 30, W - 60, H - 60, 22); ctx.stroke();
   }
 
   function cardLayout(ctx, d, scale) {
     var blocks = [];
     var CW = CARD_CONTENT_W;
-    var ks = Math.round(21 * scale);
+    var ks = Math.round(22 * scale);
     blocks.push({ t: 'kicker', size: ks, h: Math.round(ks * 1.5), gap: 0, text: d.kicker });
-    var ps = Math.round(28 * scale);
-    blocks.push({ t: 'passage', size: ps, h: Math.round(ps * 1.5), gap: Math.round(10 * scale), text: d.passage });
-    blocks.push({ t: 'rule', h: 1, gap: Math.round(22 * scale), w: Math.round(70 * scale) });
+    var ps = Math.round(30 * scale);
+    blocks.push({ t: 'passage', size: ps, h: Math.round(ps * 1.5), gap: Math.round(14 * scale), text: d.passage });
+    blocks.push({ t: 'rule', h: 1, gap: Math.round(36 * scale), w: Math.round(76 * scale) });
 
-    var ts = Math.round(58 * scale), tl;
+    var ts = Math.round(61 * scale), tl;
     for (;;) {
       ctx.font = '700 ' + ts + 'px ' + CARD_SERIF;
       tl = wrapText(ctx, d.title, CW);
       if (tl.length <= 3 || ts <= 30) break;
       ts -= Math.max(1, Math.round(ts * 0.06));
     }
-    blocks.push({ t: 'title', size: ts, lines: tl, lh: ts * 1.34, h: Math.round(tl.length * ts * 1.34), gap: Math.round(24 * scale) });
+    blocks.push({ t: 'title', size: ts, lines: tl, lh: ts * 1.36, h: Math.round(tl.length * ts * 1.36), gap: Math.round(32 * scale) });
 
     if (d.verses.length) {
-      var vs = Math.round(35 * scale), padY = Math.round(30 * scale), padX = Math.round(34 * scale), vGap = Math.round(15 * scale);
+      var vs = Math.round(38 * scale), padY = Math.round(46 * scale), padX = Math.round(38 * scale), vGap = Math.round(28 * scale);
       var inner = CW - padX * 2;
       var rows = d.verses.map(function (v) {
         var numW = 0;
@@ -4616,26 +4616,26 @@
         ctx.font = '400 ' + vs + 'px ' + CARD_SERIF;
         return { n: v.n, numW: numW, lines: wrapText(ctx, v.t, inner - numW) };
       });
-      var lh = vs * 1.62, vh = padY * 2;
+      var lh = vs * 1.68, vh = padY * 2;
       rows.forEach(function (r, i) { vh += r.lines.length * lh + (i ? vGap : 0); });
-      blocks.push({ t: 'verse', size: vs, padX: padX, padY: padY, vGap: vGap, lh: lh, rows: rows, h: Math.round(vh), gap: Math.round(28 * scale) });
+      blocks.push({ t: 'verse', size: vs, padX: padX, padY: padY, vGap: vGap, lh: lh, rows: rows, h: Math.round(vh), gap: Math.round(40 * scale) });
     }
     if (d.message) {
-      blocks.push({ t: 'rule', h: 1, gap: Math.round(24 * scale), w: Math.round(54 * scale) });
-      var ms = Math.round(28 * scale), ml;
+      blocks.push({ t: 'rule', h: 1, gap: Math.round(34 * scale), w: Math.round(54 * scale) });
+      var ms = Math.round(30 * scale), ml;
       for (;;) {
         ctx.font = '400 ' + ms + 'px ' + CARD_SANS;
         ml = wrapText(ctx, d.message, Math.min(CW, 700));
         if (ml.length <= 4 || ms <= 20) break;
         ms -= 1;
       }
-      blocks.push({ t: 'message', size: ms, lines: ml, lh: ms * 1.66, h: Math.round(ml.length * ms * 1.66), gap: 0 });
+      blocks.push({ t: 'message', size: ms, lines: ml, lh: ms * 1.7, h: Math.round(ml.length * ms * 1.7), gap: 0 });
     }
     return { blocks: blocks, total: blocks.reduce(function (n, b) { return n + b.h + b.gap; }, 0) };
   }
 
   function drawCardBlocks(ctx, th, lay, top) {
-    var CX = CARD_SIZE / 2, y = top;
+    var CX = CARD_W / 2, y = top;
     lay.blocks.forEach(function (b) {
       y += b.gap || 0;
       if (b.t === 'kicker') {
@@ -4685,7 +4685,7 @@
     var ctx = canvas.getContext('2d');
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, CARD_SIZE, CARD_SIZE);
+    ctx.clearRect(0, 0, CARD_W, CARD_H);
     paintCardWash(ctx, th, cardSeed(seedStr + '|' + th.id));
 
     var P = CARD_PANEL;
@@ -4777,13 +4777,13 @@
     back.innerHTML =
       '<div class="modal card-modal" role="dialog" aria-modal="true">' +
       '<div class="doc-bar">' +
-      '<div class="doc-bar-t"><strong>말씀 묵상카드 미리보기</strong><span>' + esc(data.passage) + ' · 1080×1080 PNG · 수채화 4가지 테마</span></div>' +
+      '<div class="doc-bar-t"><strong>말씀 묵상카드 미리보기</strong><span>' + esc(data.passage) + ' · 1080×1350 PNG · 수채화 4가지 테마</span></div>' +
       '<div class="doc-bar-b">' +
       '<button type="button" class="btn-solid" data-card-save>PNG 이미지 저장</button>' +
       '<button type="button" class="btn-line" data-card-close>닫기</button>' +
       '</div></div>' +
       '<div class="card-body">' +
-      '<div class="card-stage"><canvas id="cardCanvas" width="' + CARD_SIZE + '" height="' + CARD_SIZE + '"></canvas></div>' +
+      '<div class="card-stage"><canvas id="cardCanvas" width="' + CARD_W + '" height="' + CARD_H + '"></canvas></div>' +
       '<div class="card-panel">' +
       '<div class="card-field"><span>배경 테마</span><div class="card-themes">' +
       CARD_THEMES.map(function (t, i) {
@@ -4796,7 +4796,7 @@
       '<label class="card-field"><span>묵상 한 줄</span>' +
       '<textarea data-card-message rows="3" spellcheck="false"></textarea></label>' +
       '<p class="card-hint">설교 제목과 본문 주소는 읽고 있는 설교의 제목·본문에서 그대로 가져옵니다. 구절은 줄마다 절 번호를 앞에 두면 그대로 표시됩니다.</p>' +
-      '<button type="button" class="btn-solid card-save" data-card-save>PNG 이미지 저장 (1080×1080)</button>' +
+      '<button type="button" class="btn-solid card-save" data-card-save>PNG 이미지 저장 (1080×1350)</button>' +
       '</div></div></div>';
     root.appendChild(back);
 
