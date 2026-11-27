@@ -33,7 +33,15 @@ function audit(doc, w) {
   const inner = doc.defaultView.innerWidth;
   const sw = Math.max(de.scrollWidth, doc.body.scrollWidth);
   const bad = [];
+  const clipped = [];
   doc.querySelectorAll('*').forEach(el => {
+    const cs0 = doc.defaultView.getComputedStyle(el);
+    if ((cs0.overflowX === 'hidden' || cs0.overflowX === 'clip') && el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 0) {
+      clipped.push({
+        sel: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.') : ''),
+        clientW: el.clientWidth, scrollW: el.scrollWidth
+      });
+    }
     const r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) return;
     if (r.right > inner + 1) {
@@ -47,7 +55,7 @@ function audit(doc, w) {
     }
   });
   bad.sort((a, b) => b.right - a.right);
-  return { w: w, inner: inner, sw: sw, over: sw - inner, bad: bad.slice(0, 8) };
+  return { w: w, inner: inner, sw: sw, over: sw - inner, bad: bad.slice(0, 8), clipped: clipped.slice(0, 8) };
 }
 
 setTimeout(() => {
@@ -60,7 +68,8 @@ setTimeout(() => {
     h.textContent = w + 'px · scrollWidth ' + a.sw + ' / inner ' + a.inner + (a.over > 0 ? ' · 넘침 ' + a.over + 'px' : ' · OK');
     h.style.background = a.over > 0 ? '#f7d9d4' : '#d8ecd9';
     lines.push(w + 'px → scrollWidth=' + a.sw + ' innerWidth=' + a.inner + ' over=' + a.over);
-    a.bad.forEach(b => lines.push('   ' + b.sel + '  right=' + b.right + ' w=' + b.w + ' minW=' + b.minW));
+    a.bad.forEach(b => lines.push('   넘침 ' + b.sel + '  right=' + b.right + ' w=' + b.w + ' minW=' + b.minW));
+    a.clipped.forEach(c => lines.push('   잘림 ' + c.sel + '  clientW=' + c.clientW + ' scrollW=' + c.scrollW));
   });
   document.getElementById('out').textContent = lines.join('\n');
   window.__AUDIT = lines.join('\n');
