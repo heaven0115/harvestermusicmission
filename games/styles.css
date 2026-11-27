@@ -442,15 +442,15 @@ a{ color: inherit; }
   word-break: keep-all; color: #33291f;
 }
 .blank{
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 3.2em; min-height: 1.5em; margin: 0 1px; padding: 0 6px;
+  display: inline-block; vertical-align: baseline;
+  min-width: 2.9em; padding: 0 9px 2px; margin: 0 3px;
   border-bottom: 3px solid var(--tone); background: var(--tone-soft);
-  border-radius: 8px 8px 4px 4px; font-weight: 800; color: #2b2119;
-  cursor: pointer; transition: background .15s;
-  vertical-align: baseline;
+  border-radius: 7px 7px 3px 3px; font-weight: 800; color: #2b2119;
+  cursor: pointer; transition: background .15s; line-height: 1.35;
+  text-align: center;
 }
 .blank:hover{ background: #fff3e2; }
-.blank.empty{ color: #c4b3a0; letter-spacing: .12em; }
+.blank.empty{ background: #fdf3ee; border-bottom-style: dashed; }
 .blank.ok{ background: #e2f4e9; border-bottom-color: #2f8b76; }
 .blank.no{ background: #fde7e4; border-bottom-color: #c0392b; }
 .bank{ display: flex; flex-wrap: wrap; gap: 8px; }

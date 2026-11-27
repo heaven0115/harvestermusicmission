@@ -510,7 +510,7 @@
               cls += (w === item.answers[i] ? " ok" : " no");
             }
             html += '<span class="' + cls + '" data-blank="' + i + '" role="button" tabindex="0" aria-label="빈칸 ' + (i + 1) + '">' +
-              (w ? esc(w) : "____") + '</span>';
+              (w ? esc(w) : "&nbsp;") + '</span>';
           }
         });
         var bank = ex.bankOn
@@ -527,10 +527,7 @@
             '<button class="btn" type="button" data-act="blank-reset">↺ 다시</button>' +
             '<button class="btn btn-primary" type="button" data-act="blank-check">확인</button>' +
           '</div>' +
-          '<div class="blank-msg' + (ex.msgKind ? " " + ex.msgKind : "") + '" id="blank-msg" aria-live="polite">' + esc(ex.msg || "") + '</div>' +
-          (state.revealed
-            ? '<div class="answer-box"><h4>정답 본문</h4><p class="lead" style="font-weight:700">' + esc(item.ref) + ' (개역개정)</p></div>'
-            : "");
+          '<div class="blank-msg' + (ex.msgKind ? " " + ex.msgKind : "") + '" id="blank-msg" aria-live="polite">' + esc(ex.msg || "") + '</div>';
       }
     }
   };
