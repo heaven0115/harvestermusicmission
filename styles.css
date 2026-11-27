@@ -707,7 +707,8 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .mini-bar{display:none;}
   .cal-title{font-size:17px;}
   .cal-cell{min-height:88px;padding:6px;gap:3px;}
-  .cal-sermon,.cal-chip{font-size:11px;padding:3px 5px;gap:4px;}
+  .cal-sermon,.cal-chip{font-size:11px;padding:3px 5px;gap:4px;min-width:0;overflow:hidden;}
+.cal-sermon span,.cal-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .cal-sermon .lbl-full,.cal-chip .lbl-full{display:none;}
   .cal-sermon .lbl-mini,.cal-chip .lbl-mini{display:inline;}
   .cal-mini em{display:none;}
@@ -1126,6 +1127,7 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   body.printing .doc.doc-ten .tm-q cite{font-size:12pt;}
   body.printing .doc.doc-ten .tm-key{break-inside:avoid;break-before:avoid;}
   body.printing .doc.doc-ten .tm-sec{margin:0 0 18pt;}
-  body.printing .doc.doc-ten .tm-foot{position:fixed;left:0;right:0;bottom:0;margin:0;padding:0;border:0;font-size:8.5pt;color:#8A968F;transform:translateY(9mm);}
+  body.printing .doc.doc-ten .tm-foot{position:fixed;left:0;right:0;bottom:0;margin:0;padding:0;border:0;font-size:8.5pt;color:#8A968F;}
   body.printing .doc.doc-ten p{orphans:2;widows:2;}
+  @page{size:A4;margin:16mm 15mm 20mm;}
 }
