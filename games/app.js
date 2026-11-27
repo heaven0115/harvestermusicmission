@@ -437,19 +437,23 @@
           return '<button class="tile' + (used ? " is-used" : "") + '" type="button" data-tile="' + i + '"' +
             (used ? ' disabled aria-disabled="true"' : "") + '>' + esc(ch) + '</button>';
         }).join("");
-        return '<div class="orders-hint">💡 ' + (ex.showHint ? esc(item.hint) : "힌트가 필요하면 아래 <b>힌트</b> 버튼을 누르세요.") + '</div>' +
-          '<div class="slots" aria-label="조합한 글자">' + slots + '</div>' +
-          '<div class="tiles">' + tiles + '</div>' +
-          '<div class="orders-actions">' +
-            '<button class="btn" type="button" data-act="undo">⌫ 한 글자</button>' +
-            '<button class="btn" type="button" data-act="clear">↺ 다시</button>' +
-            '<button class="btn" type="button" data-act="hint">💡 힌트</button>' +
-            '<button class="btn btn-primary" type="button" data-act="check">확인</button>' +
+        return '<div class="orders">' +
+          '<div class="orders-main">' +
+            '<div class="orders-hint">💡 ' + (ex.showHint ? esc(item.hint) : "힌트가 필요하면 아래 <b>힌트</b> 버튼을 누르세요.") + '</div>' +
+            '<div class="slots" aria-label="조합한 글자">' + slots + '</div>' +
+            '<div class="orders-actions">' +
+              '<button class="btn" type="button" data-act="undo">⌫ 한 글자</button>' +
+              '<button class="btn" type="button" data-act="clear">↺ 다시</button>' +
+              '<button class="btn" type="button" data-act="hint">💡 힌트</button>' +
+              '<button class="btn btn-primary" type="button" data-act="check">확인</button>' +
+            '</div>' +
+            '<div class="orders-msg' + (ex.msgKind ? " " + ex.msgKind : "") + '" id="orders-msg" aria-live="polite">' + esc(ex.msg || "") + '</div>' +
+            (state.revealed
+              ? '<div class="answer-box"><h4>숨은 지령</h4><p class="answer-line">' + esc(item.answer) + '</p><p class="ref">' + esc(item.note) + '</p></div>'
+              : "") +
           '</div>' +
-          '<div class="orders-msg' + (ex.msgKind ? " " + ex.msgKind : "") + '" id="orders-msg" aria-live="polite">' + esc(ex.msg || "") + '</div>' +
-          (state.revealed
-            ? '<div class="answer-box"><h4>숨은 지령</h4><p class="answer-line">' + esc(item.answer) + '</p><p class="ref">' + esc(item.note) + '</p></div>'
-            : "");
+          '<div class="orders-board"><div class="tiles">' + tiles + '</div></div>' +
+        '</div>';
       },
       after: function () { /* delegation handles it */ }
     },
