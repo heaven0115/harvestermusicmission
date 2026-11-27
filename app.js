@@ -949,7 +949,7 @@
       '<span class="arc-actions-right">' +
       '<button type="button" class="btn-line" id="arcBig">큰 글씨 (18pt)</button>' +
       '<button type="button" class="btn-line" id="arcCopy">내용 복사</button>' +
-      '<button type="button" class="btn-solid" id="arcPrint">인쇄 / PDF 저장</button>' +
+      '<button type="button" class="btn-solid" id="arcPrint">' + (isStandaloneApp() ? 'PDF로 저장' : '인쇄 / PDF 저장') + '</button>' +
       '</span></div>' +
       '<article class="arc-doc">' +
       '<p class="arc-kicker">' + esc(when) + esc(svcLine) + '</p>' +
@@ -991,11 +991,24 @@
   function printArchiveDoc() {
     var it = ARC.index.items.filter(function (x) { return x.id === ARC.selected; })[0];
     if (!it) return;
+    var art = document.querySelector('.arc-doc');
+    var btn = document.getElementById('arcPrint');
+    var big = !!document.querySelector('.arc-reader.arc-big');
+    var asPdf = function () {
+      if (!art) { toast('원고를 찾지 못했습니다'); return; }
+      pdfExport({ docEl: art, host: art.parentNode, before: art, strip: ['.arc-gen'], extraClass: big ? 'arc-big' : '', btn: btn });
+    };
+    if (isStandaloneApp() || typeof window.print !== 'function') { asPdf(); return; }
     document.body.classList.add('arc-print');
-    setTimeout(function () {
-      try { window.print(); } catch (e) {}
-      setTimeout(function () { document.body.classList.remove('arc-print'); }, 900);
-    }, 60);
+    var cleanup = function () {
+      window.removeEventListener('afterprint', cleanup);
+      document.removeEventListener('afterprint', cleanup);
+      document.body.classList.remove('arc-print');
+    };
+    window.addEventListener('afterprint', cleanup);
+    document.addEventListener('afterprint', cleanup);
+    setTimeout(cleanup, 60000);
+    try { window.print(); } catch (e) { cleanup(); asPdf(); }
   }
 
   /* ---------------- render ---------------- */
@@ -2022,6 +2035,281 @@
     else loadFullDocs(function (docs) { paint(!!docs); });
   }
 
+  /* ================= 인쇄 · PDF 파일로 저장 =================
+     아이패드·아이폰에서 홈 화면에 추가해 쓰는 웹앱(PWA standalone)은
+     window.print() · window.open() 이 브라우저 차원에서 막혀 인쇄 창이 뜨지 않습니다.
+     그래서 화면에 보이는 문서를 그대로 그려(html2canvas) A4 쪽으로 나누어
+     PDF 파일로 만들어 저장·공유할 수 있게 합니다. 일반 브라우저에서는
+     예전처럼 window.print() 를 그대로 씁니다. */
+  var PDF_PAGE_W = 680;   /* A4 본문 폭 180mm (96dpi) */
+  var PDF_PAGE_H = 990;   /* A4 본문 높이 263mm (96dpi) */
+  var PDF_LIBS = {};
+  var pdfBusy = false;
+
+  function isStandaloneApp() {
+    try {
+      if (window.navigator && window.navigator.standalone === true) return true;
+      if (!window.matchMedia) return false;
+      var qs = ['(display-mode: standalone)', '(display-mode: fullscreen)', '(display-mode: minimal-ui)'];
+      for (var i = 0; i < qs.length; i++) {
+        try { if (window.matchMedia(qs[i]).matches) return true; } catch (e) {}
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function pdfLoadScript(key, url) {
+    if (PDF_LIBS[key]) return PDF_LIBS[key];
+    PDF_LIBS[key] = new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = url;
+      s.async = true;
+      s.onload = function () { resolve(true); };
+      s.onerror = function () { delete PDF_LIBS[key]; reject(new Error('라이브러리 연결 실패')); };
+      document.head.appendChild(s);
+    });
+    return PDF_LIBS[key];
+  }
+
+  function ensurePdfLibs() {
+    var jobs = [];
+    if (!window.html2canvas) jobs.push(pdfLoadScript('h2c', 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'));
+    if (!(window.jspdf && window.jspdf.jsPDF)) jobs.push(pdfLoadScript('jspdf', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js'));
+    return Promise.all(jobs).then(function () {
+      if (!window.html2canvas) throw new Error('PDF 도구를 불러오지 못했습니다');
+      if (!(window.jspdf && window.jspdf.jsPDF)) throw new Error('PDF 도구를 불러오지 못했습니다');
+    });
+  }
+
+  function pdfFontsReady() {
+    return new Promise(function (resolve) {
+      var done = false;
+      var go = function () { if (!done) { done = true; resolve(); } };
+      try {
+        if (document.fonts && document.fonts.ready && document.fonts.ready.then) document.fonts.ready.then(go, go);
+        else go();
+      } catch (e) { go(); }
+      setTimeout(go, 3000);
+    });
+  }
+
+  /* 쪽 경계 — 글줄이나 상자 한가운데가 잘리지 않도록 문단 끝에서 자른다 */
+  function pdfPageCuts(docEl, total, pageH) {
+    var base = docEl.getBoundingClientRect().top;
+    var ends = [total];
+    var nodes = docEl.querySelectorAll('p,li,tr,div,h1,h2,h3,h4,h5,section,table,ul,ol,blockquote,figure');
+    for (var i = 0; i < nodes.length; i++) {
+      var r = nodes[i].getBoundingClientRect();
+      if (!r.height) continue;
+      var b = Math.round(r.bottom - base);
+      if (b > 0 && b < total) ends.push(b);
+    }
+    ends.sort(function (a, b) { return a - b; });
+    var cuts = [0];
+    var start = 0;
+    var guard = 0;
+    while (start < total - 4 && guard < 300) {
+      guard += 1;
+      var target = start + pageH;
+      if (target >= total - 4) { cuts.push(total); break; }
+      var pick = 0;
+      for (var j = 0; j < ends.length; j++) {
+        var v = ends[j];
+        if (v > target) break;
+        if (v >= start + pageH * 0.42) pick = v;
+      }
+      if (!pick) pick = target;   /* 한 덩어리가 한 쪽보다 길면 그대로 자른다 */
+      cuts.push(pick);
+      start = pick;
+    }
+    if (cuts[cuts.length - 1] !== total) cuts.push(total);
+    return cuts;
+  }
+
+  function pdfRenderPages(docEl, cuts, onStep) {
+    var pages = [];
+    var idx = 0;
+    var totalPages = cuts.length - 1;
+    function step() {
+      if (idx >= totalPages) return Promise.resolve(pages);
+      var start = cuts[idx];
+      if (onStep) onStep(idx + 1, totalPages);
+      var page = document.createElement('div');
+      page.className = 'pdf-page';
+      page.style.cssText = 'position:relative;width:' + PDF_PAGE_W + 'px;height:' + PDF_PAGE_H +
+        'px;overflow:hidden;background:#fff;';
+      var inner = document.createElement('div');
+      inner.style.cssText = 'position:absolute;left:0;top:' + (-start) + 'px;width:' + PDF_PAGE_W + 'px;background:#fff;';
+      inner.appendChild(docEl.cloneNode(true));
+      page.appendChild(inner);
+      document.body.appendChild(page);
+      return window.html2canvas(page, {
+        scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+        width: PDF_PAGE_W, height: PDF_PAGE_H,
+        windowWidth: 1024, windowHeight: 1200, scrollX: 0, scrollY: 0
+      }).then(function (canvas) {
+        pages.push(canvas);
+        if (page.parentNode) page.parentNode.removeChild(page);
+        idx += 1;
+        return step();
+      }, function (err) {
+        if (page.parentNode) page.parentNode.removeChild(page);
+        throw err;
+      });
+    }
+    return step();
+  }
+
+  function pdfBuild(canvases) {
+    var JsPDF = window.jspdf.jsPDF;
+    var pdf = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+    var left = 15, top = 16, bw = 180, bh = PDF_PAGE_H * (180 / PDF_PAGE_W);
+    for (var i = 0; i < canvases.length; i++) {
+      if (i) pdf.addPage();
+      pdf.addImage(canvases[i].toDataURL('image/jpeg', 0.95), 'JPEG', left, top, bw, bh, 'p' + i, 'FAST');
+    }
+    return pdf;
+  }
+
+  function pdfFileName(docEl) {
+    var h = docEl.querySelector('.doc-title') || docEl.querySelector('.arc-doc-title');
+    var t = h ? String(h.textContent || '') : '';
+    t = t.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+    if (!t) t = '설교원고';
+    var d = new Date();
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + t + '.pdf';
+  }
+
+  function pdfNote(host, before) {
+    var el = host.querySelector('[data-pdf-note]');
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'pdf-note';
+    el.setAttribute('data-pdf-note', '');
+    el.innerHTML = '<span data-pdf-note-txt></span>' +
+      '<button type="button" class="btn-solid" data-pdf-save hidden>PDF 저장 / 공유</button>' +
+      '<button type="button" class="btn-line" data-pdf-again hidden>다시 만들기</button>';
+    if (before && before.parentNode === host) host.insertBefore(el, before);
+    else host.appendChild(el);
+    return el;
+  }
+
+  function pdfDownload(blob, name) {
+    try {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        if (a.parentNode) a.parentNode.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 4000);
+      toast('PDF를 저장했습니다 · ' + name);
+    } catch (e) {
+      toast('PDF를 저장하지 못했습니다 — 공유 버튼을 이용해 주세요');
+    }
+  }
+
+  function pdfSaveBlob(blob, name) {
+    var file = null;
+    try { file = new File([blob], name, { type: 'application/pdf' }); } catch (e) { file = null; }
+    var can = false;
+    if (file && navigator.share && navigator.canShare) {
+      try { can = navigator.canShare({ files: [file] }); } catch (e) { can = false; }
+    }
+    if (can) {
+      navigator.share({ files: [file], title: name }).then(function () {
+        toast('PDF를 내보냈습니다 · ' + name);
+      }, function (err) {
+        if (err && err.name === 'AbortError') return;
+        pdfDownload(blob, name);
+      });
+      return;
+    }
+    pdfDownload(blob, name);
+  }
+
+  /* o: { docEl, host, before, btn, strip:[선택자], extraClass } */
+  function pdfExport(o) {
+    if (pdfBusy) { toast('PDF를 만드는 중입니다 — 조금만 기다려 주세요'); return; }
+    var docEl = o.docEl;
+    if (!docEl) { toast('문서를 찾지 못했습니다'); return; }
+    var host = o.host || docEl.parentNode;
+    var note = pdfNote(host, o.before || null);
+    var txt = note.querySelector('[data-pdf-note-txt]');
+    var saveBtn = note.querySelector('[data-pdf-save]');
+    var againBtn = note.querySelector('[data-pdf-again]');
+    var btn = o.btn || null;
+    var btnHTML = btn ? btn.innerHTML : '';
+    var name = pdfFileName(docEl);
+    var standalone = isStandaloneApp();
+    var stage = null;
+    pdfBusy = true;
+    note.hidden = false;
+    note.className = 'pdf-note';
+    saveBtn.hidden = true;
+    againBtn.hidden = true;
+    txt.textContent = 'PDF를 만드는 준비 중…';
+    if (btn) { btn.disabled = true; btn.innerHTML = 'PDF 만드는 중…'; }
+    var cleanStage = function () {
+      if (stage && stage.parentNode) stage.parentNode.removeChild(stage);
+      stage = null;
+    };
+    var restore = function () {
+      pdfBusy = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+    };
+
+    ensurePdfLibs().then(pdfFontsReady).then(function () {
+      stage = document.createElement('div');
+      stage.className = 'pdf-stage';
+      var clone = docEl.cloneNode(true);
+      var strip = o.strip || [];
+      for (var i = 0; i < strip.length; i++) {
+        var junk = clone.querySelectorAll(strip[i]);
+        for (var j = 0; j < junk.length; j++) if (junk[j].parentNode) junk[j].parentNode.removeChild(junk[j]);
+      }
+      if (o.extraClass) clone.className += ' ' + o.extraClass;
+      stage.appendChild(clone);
+      document.body.appendChild(stage);
+      return new Promise(function (resolve) { setTimeout(resolve, 40); }).then(function () {
+        var h = Math.ceil(clone.getBoundingClientRect().height);
+        if (!h) throw new Error('문서 높이를 재지 못했습니다');
+        return pdfRenderPages(clone, pdfPageCuts(clone, h, PDF_PAGE_H), function (i, n) {
+          txt.textContent = 'PDF 만드는 중… ' + i + '/' + n + '쪽';
+        });
+      });
+    }).then(function (pages) {
+      cleanStage();
+      var blob = pdfBuild(pages).output('blob');
+      var kb = Math.round(blob.size / 1024);
+      var sizeTxt = kb >= 1024 ? (kb / 1024).toFixed(1) + 'MB' : kb + 'KB';
+      restore();
+      note.className = 'pdf-note ok';
+      txt.textContent = 'PDF ' + pages.length + '쪽 · ' + sizeTxt +
+        (standalone ? '이 준비되었습니다. 아래 「PDF 저장 / 공유」를 누르면 파일로 저장하거나 보낼 수 있습니다.'
+                    : '을 만들었습니다. 저장되지 않았다면 「PDF 저장 / 공유」를 눌러 주세요.');
+      saveBtn.hidden = false;
+      againBtn.hidden = false;
+      saveBtn.onclick = function () { pdfSaveBlob(blob, name); };
+      againBtn.onclick = function () { pdfExport(o); };
+      if (!standalone) pdfDownload(blob, name);
+      toast('PDF ' + pages.length + '쪽을 만들었습니다 · ' + name);
+    })['catch'](function (err) {
+      cleanStage();
+      restore();
+      note.className = 'pdf-note err';
+      txt.textContent = 'PDF를 만들지 못했습니다 — 인터넷 연결을 확인하고 다시 시도해 주세요.' +
+        (err && err.message ? ' (' + err.message + ')' : '');
+      againBtn.hidden = false;
+      againBtn.onclick = function () { pdfExport(o); };
+    });
+  }
+
   /* ---- 문서 모달 (교재 · 기도문) ---- */
   function openDocModal(o) {
     var root = document.getElementById('modalRoot');
@@ -2033,7 +2321,8 @@
       '<div class="doc-bar-t"><strong>' + esc(o.title) + '</strong><span>' + esc(o.sub) + '</span></div>' +
       '<div class="doc-bar-b">' +
       '<button type="button" class="btn-line" data-doc-size>큰 글씨 (18pt)</button>' +
-      '<button type="button" class="btn-solid" data-doc-print>인쇄 / PDF 저장</button>' +
+      '<button type="button" class="btn-solid" data-doc-print>' + (isStandaloneApp() ? 'PDF로 저장' : '인쇄 / PDF 저장') + '</button>' +
+      (isStandaloneApp() ? '' : '<button type="button" class="btn-line" data-doc-pdf>PDF 파일</button>') +
       '<button type="button" class="btn-line" data-doc-copy>내용 복사</button>' +
       '<button type="button" class="btn-line" data-doc-close>닫기</button>' +
       '</div></div>' +
@@ -2065,12 +2354,32 @@
     back.querySelector('[data-doc-copy]').addEventListener('click', function () {
       copyText(liveDoc().innerText, o.copyLabel || '내용');
     });
-    back.querySelector('[data-doc-print]').addEventListener('click', function () {
+    var printBtn = back.querySelector('[data-doc-print]');
+    var pdfBtn = back.querySelector('[data-doc-pdf]');
+    var pdfOpts = function (b) {
+      return { docEl: liveDoc(), host: back.querySelector('.modal'), before: body, btn: b };
+    };
+    if (pdfBtn) pdfBtn.addEventListener('click', function () { pdfExport(pdfOpts(pdfBtn)); });
+    printBtn.addEventListener('click', function () {
+      /* 홈 화면 웹앱(PWA)은 인쇄 창 자체가 열리지 않으므로 PDF 파일로 만든다 */
+      if (isStandaloneApp()) { pdfExport(pdfOpts(printBtn)); return; }
+      if (typeof window.print !== 'function') {
+        pdfExport(pdfOpts(printBtn));
+        toast('이 화면에서는 인쇄 창이 열리지 않아 PDF로 저장합니다');
+        return;
+      }
+      /* iOS Safari는 setTimeout 뒤의 window.print()를 무시하므로 클릭 안에서 바로 호출한다 */
       document.body.classList.add('printing');
-      setTimeout(function () {
-        try { window.print(); } catch (e) {}
-        setTimeout(function () { document.body.classList.remove('printing'); }, 900);
-      }, 80);
+      var cleanup = function () {
+        window.removeEventListener('afterprint', cleanup);
+        document.removeEventListener('afterprint', cleanup);
+        document.body.classList.remove('printing');
+      };
+      window.addEventListener('afterprint', cleanup);
+      document.addEventListener('afterprint', cleanup);
+      setTimeout(cleanup, 60000);
+      try { window.print(); }
+      catch (e) { cleanup(); pdfExport(pdfOpts(printBtn)); }
     });
     return back;
   }

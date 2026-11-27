@@ -873,14 +873,15 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 /* ---------- 교재 · 기도문 문서 모달 ---------- */
 .doc-back{padding:18px;}
 .doc-modal{width:min(880px,100%);max-height:92vh;border-radius:14px;}
-.doc-bar{display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:13px 18px;border-bottom:1px solid var(--line);background:var(--sage-soft);}
+.doc-bar{position:relative;z-index:3;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:13px 18px;border-bottom:1px solid var(--line);background:var(--sage-soft);}
 .doc-bar-t{display:flex;flex-direction:column;gap:2px;min-width:0;}
 .doc-bar-t strong{font-size:14px;font-weight:800;letter-spacing:-.02em;}
 .doc-bar-t span{font-size:12px;color:var(--muted);}
-.doc-bar-b{display:flex;gap:6px;flex-wrap:wrap;}
-.doc-bar-b .btn-line,.doc-bar-b .btn-solid{font-size:12.5px;padding:7px 11px;}
+.doc-bar-b{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;min-width:0;}
+.doc-bar-b .btn-line,.doc-bar-b .btn-solid{display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;padding:7px 11px;min-height:40px;line-height:1.25;touch-action:manipulation;}
+.doc-bar-b [hidden]{display:none!important;}
 .doc-bar-b .btn-line.on{border-color:var(--forest);background:var(--sage);color:var(--forest);}
-.doc-body{overflow-y:auto;padding:0;background:#fff;}
+.doc-body{overflow-y:auto;padding:0;background:#fff;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch;}
 .doc{padding:34px 40px 44px;font-size:11.5pt;line-height:1.78;color:#1A2620;font-family:"Pretendard Variable",Pretendard,"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;word-break:keep-all;}
 .doc-lg{font-size:18pt;line-height:1.8;}
 .doc-head{padding-bottom:15px;border-bottom:2px solid var(--forest);margin-bottom:22px;}
@@ -919,8 +920,9 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .doc-row{display:block;}
   .doc-row .k{display:block;flex:none;}
   .doc-title{font-size:1.45em;}
-  .doc-bar{padding:11px 14px;}
-  .doc-bar-b .btn-line,.doc-bar-b .btn-solid{font-size:12px;padding:7px 9px;}
+  .doc-bar{padding:11px 14px;padding-top:calc(11px + env(safe-area-inset-top, 0px));}
+  .doc-bar-b{width:100%;justify-content:space-between;}
+  .doc-bar-b .btn-line,.doc-bar-b .btn-solid{flex:1 1 calc(50% - 3px);font-size:12.5px;padding:8px 10px;min-height:44px;}
 }
 
 /* ---------- 말씀 묵상카드 모달 ---------- */
@@ -968,6 +970,39 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   body.printing .doc-block,body.printing .doc-pray,body.printing .doc-verse{break-inside:avoid;}
   body.printing .doc-sec > h2{break-after:avoid;}
   @page{size:A4;margin:16mm 15mm;}
+}
+
+/* ---------- PDF 파일 만들기 (아이패드 홈 화면 웹앱 대비) ---------- */
+.pdf-stage{position:fixed;left:-20000px;top:0;width:680px;background:#fff;pointer-events:none;z-index:0;}
+.pdf-stage .doc{width:680px;padding:0;background:#fff;font-size:10.5pt;line-height:1.72;}
+.pdf-stage .doc.doc-lg{font-size:13pt;}
+.pdf-stage .doc.doc-ten{padding:0;font-size:18pt;line-height:1.72;}
+.pdf-stage .doc.doc-ten .tm-title{font-size:25pt;line-height:1.3;margin:6pt 0 10pt;}
+.pdf-stage .doc.doc-ten .tm-kicker{font-size:10pt;}
+.pdf-stage .doc.doc-ten .tm-lead{font-size:14pt;}
+.pdf-stage .doc.doc-ten .tm-meta{font-size:11pt;}
+.pdf-stage .doc.doc-ten .tm-h{font-size:17pt;}
+.pdf-stage .doc.doc-ten .tm-box-h{font-size:14pt;}
+.pdf-stage .doc.doc-ten .tm-q cite{font-size:12pt;}
+.pdf-stage .doc.doc-ten .tm-foot{position:static;margin-top:14pt;padding-top:6pt;border-top:1px solid #E2EAE5;font-size:8.5pt;color:#8A968F;text-align:center;}
+.pdf-stage .arc-doc{width:680px;max-width:none;margin:0;padding:0;background:#fff;}
+.pdf-stage .arc-doc-title{font-size:17pt;}
+.pdf-stage .arc-kicker{font-size:9.5pt;}
+.pdf-stage .arc-doc-ref{font-size:10pt;padding-bottom:10px;margin-bottom:14px;}
+.pdf-stage .arc-body p{font-size:11.2pt;line-height:1.85;margin-bottom:.72em;color:#111;}
+.pdf-stage .arc-big .arc-body p{font-size:18pt;line-height:1.8;}
+
+.pdf-note{display:flex;flex:0 0 auto;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid #E4DCC4;background:#FFFDF4;font-size:12.5px;color:#5A4A22;}
+.pdf-note[hidden]{display:none!important;}
+.pdf-note.ok{background:#F2F8F3;border-bottom-color:#D7E7DB;color:#1F5B3F;}
+.pdf-note.err{background:#FDF3F1;border-bottom-color:#F0D8D2;color:#8A3B2A;}
+.pdf-note span{flex:1 1 200px;min-width:0;line-height:1.55;font-weight:600;}
+.pdf-note button[hidden]{display:none!important;}
+.pdf-note .btn-solid,.pdf-note .btn-line{display:inline-flex;align-items:center;justify-content:center;font-size:12.5px;padding:9px 13px;min-height:42px;}
+@media (max-width:720px){
+  .pdf-note{font-size:12px;padding:10px 12px;}
+  .pdf-note span{flex:1 1 100%;}
+  .pdf-note .btn-solid,.pdf-note .btn-line{flex:1 1 auto;min-height:44px;}
 }
 
 /* ---------- 과거 설교 아카이브 (과거 설교 탭) ---------- */
