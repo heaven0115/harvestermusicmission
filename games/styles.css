@@ -528,6 +528,7 @@ a{ color: inherit; }
   body.has-panel .panel{ transform: none; width: var(--panel-w); }
   body.has-panel .scrim{ display: none !important; }
   body.has-panel .dock{ right: var(--panel-w); }
+  body.has-panel .panel-close{ display: none; }
 }
 .panel-inner{ padding: 18px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 .panel-head{ display: flex; align-items: center; gap: 8px; }
