@@ -2131,6 +2131,15 @@
       if (!r.height) continue;
       out.push([Math.round(r.top - base) - 4, Math.round(r.bottom - base) + 96]);
     }
+    /* 문단과 본문 읽기 한 절은 쪼개지 않는다(강단에서 읽기 좋게) */
+    var ps = docEl.querySelectorAll('p,.tm-v,li,blockquote');
+    for (var j = 0; j < ps.length; j++) {
+      var pr = ps[j].getBoundingClientRect();
+      if (!pr.height) continue;
+      var top = Math.round(pr.top - base), bot = Math.round(pr.bottom - base);
+      if (bot - top < 4) continue;
+      out.push([top - 2, bot + 2]);
+    }
     return out;
   }
   function pdfBlocked(list, y) {
@@ -2177,16 +2186,22 @@
     }
     if (run >= minGap) bands.push({ mid: limit + Math.round(run / 2), width: run });
     if (!bands.length) return h;
-    bands.sort(function (a, b) { return (b.width - a.width) || (a.mid - b.mid); });
-    for (var k = 0; k < bands.length; k++) {
-      var pos = start + bands[k].mid / scale;
-      if (pos > start + pageH * 0.45 && !pdfBlocked(keep, pos)) return pdfClearTail(bands[k].mid, inkRows, anyRows, scale);
+    /* 쪽을 꽉 채우도록 아래쪽 빈 줄을 먼저 보고, 가까운 것들 중에서는 넓은
+       빈 줄(문단 사이)을 고른다 */
+    var lowest = 0;
+    for (var n = 0; n < bands.length; n++) if (bands[n].mid > lowest) lowest = bands[n].mid;
+    var nearLimit = lowest - Math.round(60 * scale);
+    var near = bands.filter(function (b) { return b.mid >= nearLimit; });
+    near.sort(function (a, b) { return (b.width - a.width) || (b.mid - a.mid); });
+    for (var k = 0; k < near.length; k++) {
+      var pos = start + near[k].mid / scale;
+      if (pos > start + pageH * 0.45 && !pdfBlocked(keep, pos)) return pdfClearTail(near[k].mid, inkRows, anyRows, scale);
     }
-    /* 제목과 겹치지 않는 자리가 없으면, 글자가 잘리지 않는 쪽 끝에 가장 가까운
-       빈 줄에서 끊는다(제목만 남는 것보다 글자가 잘리지 않는 것이 우선) */
-    var best = bands[0];
-    for (var k2 = 1; k2 < bands.length; k2++) if (bands[k2].mid > best.mid) best = bands[k2];
-    return pdfClearTail(best.mid, inkRows, anyRows, scale);
+    /* 문단 안이라도 글자가 잘리는 것보다는 낫다 — 쪽 끝에 가장 가까운 빈 줄 */
+    for (var k2 = 0; k2 < bands.length; k2++) {
+      if (bands[k2].mid === lowest) return pdfClearTail(bands[k2].mid, inkRows, anyRows, scale);
+    }
+    return pdfClearTail(lowest, inkRows, anyRows, scale);
   }
 
   function pdfCropCanvas(canvas, keepCssPx, pageW) {
@@ -2343,7 +2358,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127y';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127z';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
