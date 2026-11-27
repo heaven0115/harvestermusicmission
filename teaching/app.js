@@ -262,7 +262,7 @@ function loadState() {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.sermons)) return cleanStateText(migrateState(parsed));
+      if (parsed && Array.isArray(parsed.sermons)) return repairPerfectState(cleanStateText(migrateState(parsed)));
     }
   } catch (e) {
     console.warn('저장된 자료를 읽지 못했습니다.', e);
@@ -940,6 +940,82 @@ function fixMissingArrayBrackets(str) {
   );
 }
 
+/* ---------- 괄호 없는 값 나열 복구 ----------
+   ChatGPT가 종종 `"items": { … }, { … }, { … }`처럼 배열 대괄호를 빼고
+   객체를 쉼표로 죽 나열합니다. 어떤 키든 그런 나열을 찾아 [ ]로 감쌉니다. */
+function matchJsonBraceEnd(s, start) {
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === '{' || ch === '[') { depth++; continue; }
+    if (ch === '}' || ch === ']') {
+      depth--;
+      if (depth === 0) return i;
+      if (depth < 0) return -1;
+    }
+  }
+  return -1;
+}
+
+function wrapBareJsonRuns(str) {
+  const s = String(str || '');
+  const inserts = [];
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch !== ':') continue;
+    let j = i + 1;
+    while (j < s.length && /\s/.test(s[j])) j++;
+    if (s[j] !== '{') continue;
+    const starts = [];
+    let k = j;
+    let endPos = -1;
+    while (k < s.length && s[k] === '{') {
+      const close = matchJsonBraceEnd(s, k);
+      if (close < 0) break;
+      starts.push(k);
+      let n = close + 1;
+      while (n < s.length && /\s/.test(s[n])) n++;
+      if (s[n] === ',') {
+        let m = n + 1;
+        while (m < s.length && /\s/.test(s[m])) m++;
+        if (s[m] === '{') { k = m; continue; }
+      }
+      endPos = close;
+      break;
+    }
+    if (starts.length >= 2 && endPos > 0) {
+      inserts.push({ pos: starts[0], text: '[' });
+      inserts.push({ pos: endPos + 1, text: ']' });
+      i = endPos;
+    }
+  }
+  if (!inserts.length) return s;
+  inserts.sort(function (a, b) { return b.pos - a.pos; });
+  let out = s;
+  inserts.forEach(function (ins) {
+    out = out.slice(0, ins.pos) + ins.text + out.slice(ins.pos);
+  });
+  return out;
+}
+
 function tryParseJsonCandidate(raw) {
   if (!raw) return null;
   const base = String(raw).replace(/^\uFEFF/, '');
@@ -947,7 +1023,7 @@ function tryParseJsonCandidate(raw) {
     .replace(/:\s*,/g, ': null,')
     .replace(/:\s*}/g, ': null}')
     .replace(/,\s*([}\]])/g, '$1');
-  const escapedSafe = escapeControlInJsonStrings(mdFixed)
+  const escapedSafe = wrapBareJsonRuns(escapeControlInJsonStrings(mdFixed))
     .replace(/,\s*([}\]])/g, '$1')
     .replace(/\bTrue\b/g, 'true')
     .replace(/\bFalse\b/g, 'false')
@@ -955,15 +1031,19 @@ function tryParseJsonCandidate(raw) {
   const smartBase = normalizeMarkdownEscapesOutsideStrings(base.replace(/[\u201C\u201D]/g, '"'))
     .replace(/:\s*,/g, ': null,')
     .replace(/:\s*}/g, ': null}');
-  const smartFixed = fixMissingArrayBrackets(escapeControlInJsonStrings(smartBase))
+  const smartFixed = fixMissingArrayBrackets(wrapBareJsonRuns(escapeControlInJsonStrings(smartBase)))
     .replace(/,\s*([}\]])/g, '$1')
     .replace(/\bTrue\b/g, 'true')
     .replace(/\bFalse\b/g, 'false')
     .replace(/\bNone\b/g, 'null');
+  const smartWrapped = wrapBareJsonRuns(escapeControlInJsonStrings(smartBase))
+    .replace(/,\s*([}\]])/g, '$1');
   const candidates = [
     base,
     escapedSafe,
     repairJsonBrackets(escapedSafe),
+    smartWrapped,
+    repairJsonBrackets(smartWrapped),
     smartFixed,
     repairJsonBrackets(smartFixed)
   ];
@@ -1160,6 +1240,136 @@ function normalizeWeak(raw) {
 }
 
 /* ---------- 100점 보완 원고 파싱 ---------- */
+
+/* JSON이 날것으로 남았는지 판별 (스마트 따옴표 포함) */
+function looksLikeJsonBlob(text) {
+  if (!text) return false;
+  const s = String(text).replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+  if (!/"\s*(?:items|title|text|summary|how|item)\s*"\s*:/.test(s)) return false;
+  return s.indexOf('{') !== -1;
+}
+
+/* 값 문자열의 끝인지 확인: 뒤에 `, "다음키":` 또는 `}` `, {` `, [`가 오면 끝으로 본다. */
+function jsonishValueBoundary(s, i) {
+  const tail = s.slice(i + 1);
+  if (!tail.trim()) return true;
+  return /^\s*(?:,\s*"[^"\\\n]{1,40}"\s*:|,\s*[\[{]|\})/.test(tail.slice(0, 200));
+}
+
+/* 따옴표로 시작하는 문자열을 읽는다. 문자열 안의 실제 줄바꿈도 그대로 담는다. */
+function readJsonishString(s, start) {
+  let i = start + 1;
+  let out = '';
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === '\\') {
+      const next = s[i + 1];
+      if (next === 'n') out += '\n';
+      else if (next === 't') out += '\t';
+      else if (next === 'r') out += '\r';
+      else if (next === '"') out += '"';
+      else if (next === '\\') out += '\\';
+      else if (next === '/') out += '/';
+      else if (next === 'u') {
+        const hex = s.slice(i + 2, i + 6);
+        if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+          out += String.fromCharCode(parseInt(hex, 16));
+          i += 6;
+          continue;
+        }
+        out += 'u';
+      } else out += (next === undefined ? '' : next);
+      i += 2;
+      continue;
+    }
+    if (ch === '"') {
+      if (jsonishValueBoundary(s, i)) return { value: out, end: i + 1 };
+      out += '"';
+      i++;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return { value: out, end: s.length };
+}
+
+function jsonishKeyString(s, keys) {
+  for (let k = 0; k < keys.length; k++) {
+    let re;
+    try { re = new RegExp('"' + keys[k] + '"\\s*:\\s*"'); } catch (e) { continue; }
+    const m = re.exec(s);
+    if (!m) continue;
+    const res = readJsonishString(s, m.index + m[0].length - 1);
+    if (res && String(res.value).trim()) return String(res.value);
+  }
+  return '';
+}
+
+function jsonishItemRows(s) {
+  const rows = [];
+  const startM = /"items"\s*:\s*/i.exec(s);
+  if (!startM) return rows;
+  let region = s.slice(startM.index + startM[0].length);
+  const sumM = /"summary"\s*:/i.exec(region);
+  if (sumM) region = region.slice(0, sumM.index);
+  const nameRe = /"item"\s*:\s*"/gi;
+  let m;
+  while ((m = nameRe.exec(region)) !== null) {
+    const nameRes = readJsonishString(region, m.index + m[0].length - 1);
+    const name = String(nameRes.value || '').trim();
+    let how = '';
+    let endAt = nameRes.end;
+    const after = region.slice(nameRes.end, nameRes.end + 240);
+    const howM = /"how"\s*:\s*"/i.exec(after);
+    if (howM) {
+      const howRes = readJsonishString(region, nameRes.end + howM.index + howM[0].length - 1);
+      how = String(howRes.value || '').trim();
+      endAt = Math.max(endAt, howRes.end);
+    }
+    const key = itemKey(name);
+    if (name || how) rows.push({ item: key || null, name: key ? itemKo(key) : name, how: how });
+    nameRe.lastIndex = Math.max(nameRe.lastIndex, endAt);
+  }
+  return rows;
+}
+
+/* JSON 파싱이 실패해도 title/text/items 값을 문자열에서 직접 뽑아낸다. */
+function extractPerfectJsonish(raw) {
+  const s = String(raw || '').replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+  const out = { title: '', text: '', summary: '', items: [] };
+  if (s.indexOf('{') === -1) return out;
+  out.title = jsonishKeyString(s, ['title', '제목']);
+  out.text = jsonishKeyString(s, ['text', 'manuscript', 'sermon_text', '설교원고', '설교_원고', '원고', '본문']);
+  out.summary = jsonishKeyString(s, ['summary', '총평', '보완 요약']);
+  out.items = jsonishItemRows(s);
+  if (looksLikeJsonBlob(out.text)) out.text = '';
+  if (looksLikeJsonBlob(out.title)) out.title = '';
+  return out;
+}
+
+/* 저장된 100점 원고에 날것 JSON이 섞여 있으면 순수 원고로 되살린다. */
+function repairPerfect(pf) {
+  if (!pf) return;
+  const text = String(pf.text || '');
+  const badTitle = looksLikeJsonBlob(pf.title);
+  if (!looksLikeJsonBlob(text) && !badTitle) return;
+  const j = extractPerfectJsonish(text || String(pf.title || ''));
+  if (j.text && !looksLikeJsonBlob(j.text)) pf.text = tidyPerfectText(cleanLiteralNewlines(j.text));
+  const curTitle = String(pf.title || '').trim();
+  if (j.title && (!curTitle || badTitle || /원고|보완/.test(curTitle))) pf.title = cleanLiteralNewlines(j.title);
+  if (!pf.summary && j.summary) pf.summary = cleanLiteralNewlines(j.summary);
+  if ((!pf.items || !pf.items.length) && j.items.length) pf.items = j.items;
+}
+
+function repairPerfectState(s) {
+  (s.sermons || []).forEach(function (sermon) {
+    const pf = sermon && sermon.analysis && sermon.analysis.perfect;
+    if (pf) repairPerfect(pf);
+  });
+  return s;
+}
+
 function perfectOf(s) {
   return (s && s.analysis && s.analysis.perfect) || null;
 }
@@ -1213,8 +1423,18 @@ function normalizePerfectItems(raw) {
       );
     });
   } else if (list && typeof list === 'object') {
+    const singleKeys = ['item', 'name', '항목', '항목명', 'how', 'note', 'note_text', '설명', '보완'];
+    const isSingleEntry = singleKeys.some(function (k) { return Object.prototype.hasOwnProperty.call(list, k); });
+    if (isSingleEntry) {
+      push(
+        pick(list, ['item', 'name', '항목', '항목명']),
+        pick(list, ['how', 'note', 'change', 'fix', 'detail', 'description', '설명', '보완'])
+      );
+      return rows;
+    }
     Object.keys(list).forEach(function (name) {
       const v = list[name];
+      if (!name || name === '_note' || name === '_설명') return;
       if (typeof v === 'string' || typeof v === 'number') push(name, v);
       else if (v && typeof v === 'object') push(name, pick(v, ['how', 'note', '설명', 'text']));
     });
@@ -1299,6 +1519,22 @@ function normalizePerfect(raw, sermon) {
     out.items = normalizePerfectItems(obj);
   }
 
+  // JSON 구조가 남은 날것 응답(파싱 실패·부분 실패)은 문자열에서 직접 뽑아냅니다.
+  // 원고 text에 "items"나 JSON 기호가 절대 섞이지 않도록 하는 방어선입니다.
+  const rawStr = typeof raw === 'string' ? raw : '';
+  const jsonish = rawStr ? extractPerfectJsonish(rawStr) : null;
+  if (jsonish && jsonish.text) {
+    const needText = !out.text || looksLikeJsonBlob(out.text) || out.text.replace(/\s/g, '').length < 40;
+    if (needText) {
+      out.text = jsonish.text;
+      if (jsonish.title) out.title = jsonish.title;
+      if (jsonish.summary && !out.summary) out.summary = jsonish.summary;
+      if (jsonish.items.length && !out.items.length) out.items = jsonish.items;
+    } else if (!out.items.length && jsonish.items.length) {
+      out.items = jsonish.items;
+    }
+  }
+
   if (!out.text) {
     const plain = parsePerfectPlain(typeof raw === 'string' ? raw : '', sermon);
     out.text = plain.text;
@@ -1306,6 +1542,9 @@ function normalizePerfect(raw, sermon) {
     if (!out.summary) out.summary = plain.summary;
     if (!out.items.length) out.items = plain.items;
   }
+
+  // 마지막 방어: 그래도 JSON 찌꺼기가 남아 있으면 원고로 쓰지 않습니다.
+  if (looksLikeJsonBlob(out.text)) out.text = '';
 
   out.text = tidyPerfectText(cleanLiteralNewlines(out.text));
   out.title = cleanLiteralNewlines(out.title);
