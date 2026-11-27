@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>교회 레크레이션 게임 · 9종</title>
+<meta name="description" content="교회 수련회·야유회·절기 행사에 바로 쓰는 레크레이션 게임 9종. 타이머, 점수판, 정답 공개가 한 화면에 있습니다.">
+<meta name="theme-color" content="#fdf7ee">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23f7d8ae'/%3E%3Ctext x='32' y='45' font-size='34' text-anchor='middle' font-family='sans-serif'%3E%F0%9F%8E%AE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css?v=20261127a">
+</head>
+<body>
+<a class="skip" href="#view">본문으로 건너뛰기</a>
+
+<div class="app" id="app">
+  <div class="topstack">
+    <header class="appbar">
+      <div class="appbar-inner">
+        <button class="ibtn back" id="btn-back" type="button" title="게임 목록 (Esc)" hidden>←</button>
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">🎮</span>
+          <div class="brand-text">
+            <h1 id="app-title">교회 레크레이션 게임</h1>
+            <p id="app-sub">9가지 게임 · 312문제</p>
+          </div>
+        </div>
+        <div class="appbar-actions">
+          <button class="ibtn" id="btn-sound" type="button" title="효과음 켜기/끄기" aria-pressed="true">🔊</button>
+          <button class="ibtn" id="btn-edit" type="button" title="문제 편집">✎</button>
+          <button class="ibtn" id="btn-panel" type="button" title="점수판">🏆</button>
+          <button class="ibtn" id="btn-fs" type="button" title="전체화면 (F)">⛶</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="timerbar" id="timerbar" hidden>
+      <div class="timer-inner">
+        <div class="timer-clock" id="timer-clock">
+          <span id="timer-time">00:30</span>
+          <small>타이머</small>
+        </div>
+        <div class="timer-track"><i id="timer-fill"></i></div>
+        <div class="timer-btns">
+          <button class="btn btn-timer" id="timer-toggle" type="button">▶ 시작</button>
+          <button class="ibtn" id="timer-reset" type="button" title="리셋">⟲</button>
+          <div class="presets" role="group" aria-label="타이머 시간">
+            <button class="chip" type="button" data-sec="15">15초</button>
+            <button class="chip" type="button" data-sec="30">30초</button>
+            <button class="chip" type="button" data-sec="60">60초</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="view" id="view" tabindex="-1"></main>
+
+  <footer class="dock" id="dock" hidden>
+    <div class="dock-inner" id="dock-inner"></div>
+  </footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" aria-label="팀 점수판"></aside>
+<div class="modal" id="modal" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="data.js?v=20261127a"></script>
+<script src="app.js?v=20261127a"></script>
+</body>
+</html>
