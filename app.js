@@ -2202,6 +2202,8 @@
          (한두 줄만큼은 쪽 높이를 조금 넘겨도 된다) */
       var box = closeBox(pick, Math.min(start + pageH + 30, pick + 80));
       if (box) pick = Math.min(total, box + 2);   /* 테두리 한 줄까지 넘겨 다음 쪽 위에 선이 남지 않게 */
+      /* 경계선이 다음 쪽 위에 1px 비치지 않도록 2px 내려 시작한다 */
+      if (pick < total) pick = Math.min(total, pick + 2);
       cuts.push(pick);
       start = pick;
     }
