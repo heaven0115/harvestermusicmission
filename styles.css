@@ -122,15 +122,17 @@ ol,ul{list-style:none;}
   display:flex;align-items:center;gap:16px;
   padding:0 34px;background:#fff;
   position:sticky;top:0;z-index:30;
+  min-width:0;
 }
+.topbar-actions .lbl{display:inline;}
 .menu-btn{display:none;border:0;background:transparent;color:var(--ink-soft);padding:8px;border-radius:10px;}
 .menu-btn svg{width:24px;height:24px;}
 .menu-btn:hover{background:var(--sage-soft);}
-.crumbs{display:flex;align-items:center;gap:14px;font-size:15px;color:#8A968F;letter-spacing:-.01em;white-space:nowrap;min-width:0;overflow:hidden;}
+.crumbs{display:flex;align-items:center;gap:14px;font-size:15px;color:#8A968F;letter-spacing:-.01em;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;}
 .crumbs > span,.crumbs > strong{white-space:nowrap;}
 .crumbs i{font-style:normal;color:#C3CCC7;}
 .crumbs strong{color:var(--forest-ink);font-weight:600;}
-.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:10px;flex:0 0 auto;}
+.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:10px;flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end;min-width:0;}
 .save-state{font-size:13.5px;color:#93A09A;margin-right:6px;white-space:nowrap;}
 .ghost{
   display:inline-flex;align-items:center;gap:7px;
@@ -259,10 +261,11 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
 .status-field select[data-status="추가 확인 필요"]{color:var(--amber);}
 .status-field select[data-status="시작 전"]{color:#7C8A83;}
 
-.detail-body{display:grid;grid-template-columns:296px 1fr;border-top:1px solid var(--line);}
-.outline-pane{background:#FBFDFB;border-right:1px solid var(--line);padding:22px 18px 26px;}
+.detail-body{display:grid;grid-template-columns:296px minmax(0,1fr);border-top:1px solid var(--line);min-width:0;}
+.detail-body > *{min-width:0;}
+.outline-pane{background:#FBFDFB;border-right:1px solid var(--line);padding:22px 18px 26px;min-width:0;}
 .pane-title{font-size:13px;font-weight:700;color:#7C8A83;letter-spacing:-.01em;padding:0 8px 14px;}
-.outline-list{display:flex;flex-direction:column;gap:5px;}
+.outline-list{display:flex;flex-direction:column;gap:5px;min-width:0;}
 .outline-item{
   display:flex;align-items:center;gap:11px;width:100%;text-align:left;
   border:0;background:transparent;padding:10px 10px;border-radius:9px;
@@ -801,6 +804,12 @@ select.status-select:focus{outline:none;border-color:#A9C7B5;box-shadow:0 0 0 3p
   .day-item.entry{flex-wrap:wrap;}
   .entry-acts{margin-left:auto;}
   .entry-acts button{padding:5px 8px;font-size:12.5px;}
+}
+@media (max-width:460px){
+  .topbar-actions .lbl{display:none;}
+  .topbar .ghost.small{padding:8px;gap:0;}
+  .topbar{gap:8px;padding:0 12px;}
+  .crumbs{font-size:13px;gap:7px;}
 }
 @media (max-width:420px){
   .status-grid{grid-template-columns:1fr;}

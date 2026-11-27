@@ -2,18 +2,26 @@
 <html lang="ko"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow">
 <title>MOBILE CHECK</title>
 <style>
-  body{margin:0;font:13px/1.5 -apple-system,system-ui,sans-serif;background:#eef2ef;color:#123}
-  .row{display:flex;gap:12px;align-items:flex-start;padding:10px}
+  body{margin:0;font:13px/1.5 system-ui,sans-serif;background:#eef2ef;color:#123}
+  #out{position:fixed;left:0;top:0;right:0;max-height:40vh;overflow:auto;background:#fff;padding:8px 12px;border-bottom:2px solid #1F5B3F;z-index:9;font:12px/1.45 ui-monospace,monospace;white-space:pre-wrap}
+  .row{display:flex;gap:10px;align-items:flex-start;padding:42vh 10px 10px}
   .cell{border:1px solid #cfd8d2;background:#fff}
-  .cell h3{margin:0;padding:6px 8px;font-size:12px;background:#dfe9e3}
+  .cell h3{margin:0;padding:5px 7px;font-size:11.5px;background:#dfe9e3}
   iframe{border:0;display:block}
-  #out{position:fixed;left:0;top:0;right:0;background:#fff;padding:6px 10px;border-bottom:2px solid #1F5B3F;z-index:5;font:12px/1.45 ui-monospace,monospace;white-space:pre-wrap}
 </style></head>
 <body>
-<div id="out">측정 중…</div>
+<div id="out">측정 준비…</div>
 <div class="row" id="row"></div>
 <script>
 const sizes = [375, 390, 430, 768, 820, 1024];
+const tabs = [
+  { id: 'library', name: '설교 서재' },
+  { id: 'archive', name: '과거 설교' },
+  { id: 'schedule', name: '일정' },
+  { id: 'board', name: '주간 보드' },
+  { id: 'progress', name: '진행률' },
+  { id: 'review', name: '연결 및 검토' }
+];
 const row = document.getElementById('row');
 const frames = [];
 sizes.forEach(w => {
@@ -23,56 +31,49 @@ sizes.forEach(w => {
   h.textContent = w + 'px';
   const f = document.createElement('iframe');
   f.width = w; f.height = w < 500 ? 812 : 900;
-  f.src = 'index.html?__mq=' + w;
+  f.src = 'index.html?__mq=' + w + '&t=' + Date.now();
   cell.appendChild(h); cell.appendChild(f); row.appendChild(cell);
-  frames.push({ w: w, f: f, h: h });
+  frames.push({ w, f, h });
 });
 
-function audit(doc, w) {
+function audit(doc, win) {
   const de = doc.documentElement;
-  const inner = doc.defaultView.innerWidth;
+  const inner = win.innerWidth;
   const sw = Math.max(de.scrollWidth, doc.body.scrollWidth);
-  const bad = [];
   const clipped = [];
   doc.querySelectorAll('*').forEach(el => {
-    const cs0 = doc.defaultView.getComputedStyle(el);
-    if ((cs0.overflowX === 'hidden' || cs0.overflowX === 'clip') && el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 0) {
-      clipped.push({
-        sel: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.') : ''),
-        clientW: el.clientWidth, scrollW: el.scrollWidth
-      });
-    }
-    const r = el.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) return;
-    if (r.right > inner + 1) {
-      const cs = doc.defaultView.getComputedStyle(el);
-      if (cs.position === 'fixed' || cs.position === 'absolute') return;
-      bad.push({
-        sel: el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : ''),
-        right: Math.round(r.right), w: Math.round(r.width),
-        minW: cs.minWidth
-      });
+    const cs = win.getComputedStyle(el);
+    if ((cs.overflowX === 'hidden' || cs.overflowX === 'clip') && el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 2) {
+      const tag = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') +
+        (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.') : '');
+      clipped.push(tag + ' ' + el.clientWidth + '<' + el.scrollWidth);
     }
   });
-  bad.sort((a, b) => b.right - a.right);
-  return { w: w, inner: inner, sw: sw, over: sw - inner, bad: bad.slice(0, 8), clipped: clipped.slice(0, 8) };
+  return { over: sw - inner, clipped: clipped.slice(0, 4) };
 }
 
-setTimeout(() => {
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+(async () => {
+  await wait(2600);
   const lines = [];
-  frames.forEach(({ w, f, h }) => {
-    let doc;
-    try { doc = f.contentDocument; } catch (e) { lines.push(w + ': 접근 불가'); return; }
-    if (!doc || !doc.body) { lines.push(w + ': 로드 안 됨'); return; }
-    const a = audit(doc, w);
-    h.textContent = w + 'px · scrollWidth ' + a.sw + ' / inner ' + a.inner + (a.over > 0 ? ' · 넘침 ' + a.over + 'px' : ' · OK');
-    h.style.background = a.over > 0 ? '#f7d9d4' : '#d8ecd9';
-    lines.push(w + 'px → scrollWidth=' + a.sw + ' innerWidth=' + a.inner + ' over=' + a.over);
-    a.bad.forEach(b => lines.push('   넘침 ' + b.sel + '  right=' + b.right + ' w=' + b.w + ' minW=' + b.minW));
-    a.clipped.forEach(c => lines.push('   잘림 ' + c.sel + '  clientW=' + c.clientW + ' scrollW=' + c.scrollW));
-  });
+  for (const fr of frames) {
+    const doc = fr.f.contentDocument, win = fr.f.contentWindow;
+    if (!doc) { lines.push(fr.w + ' 접근 불가'); continue; }
+    const bad = [];
+    for (const t of tabs) {
+      const nav = doc.querySelector('.nav-item[data-tab="' + t.id + '"]');
+      if (nav) nav.click();
+      await wait(420);
+      const a = audit(doc, win);
+      if (a.over > 0 || a.clipped.length) bad.push(t.name + ' [넘침 ' + a.over + '] ' + a.clipped.join(' | '));
+    }
+    lines.push(fr.w + 'px → ' + (bad.length ? '\n   ' + bad.join('\n   ') : '모든 탭 OK'));
+    fr.h.textContent = fr.w + 'px · ' + (bad.length ? '문제 ' + bad.length + '건' : 'OK');
+    fr.h.style.background = bad.length ? '#f7d9d4' : '#d8ecd9';
+  }
   document.getElementById('out').textContent = lines.join('\n');
   window.__AUDIT = lines.join('\n');
-}, 2500);
+})();
 </script>
 </body></html>

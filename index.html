@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=20261127d">
+<link rel="stylesheet" href="styles.css?v=20261127e">
 </head>
 <body>
 
@@ -79,11 +79,11 @@
         <span class="save-state" id="saveState">브라우저에 자동 저장</span>
         <button type="button" class="ghost small" id="exportBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-3.6-3.6M12 15l3.6-3.6M5 19h14"/></svg>
-          JSON 백업
+          <span class="lbl">JSON 백업</span>
         </button>
         <button type="button" class="ghost small" id="importBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5m0 0L8.4 8.6M12 5l3.6 3.6M5 19h14"/></svg>
-          JSON 불러오기
+          <span class="lbl">JSON 불러오기</span>
         </button>
         <input type="file" id="importFile" accept="application/json,.json" hidden>
       </div>
