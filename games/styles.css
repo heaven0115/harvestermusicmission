@@ -443,7 +443,7 @@ a{ color: inherit; }
 }
 .blank{
   display: inline-block; vertical-align: baseline;
-  min-width: 2.6em; padding: 0 10px; margin: 0 3px;
+  min-width: 2.3em; padding: 0 5px; margin: 0 1px;
   border-bottom: 3px dashed color-mix(in srgb, var(--tone) 55%, #b9a58f);
   background: transparent; border-radius: 4px;
   font-weight: 800; color: #2b2119;
