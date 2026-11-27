@@ -2149,14 +2149,11 @@
       if (target >= total - 4) { cuts.push(total); break; }
       var from = start + pageH * 0.42;
       var pick = pickIn(ends, from, target);      /* 문단 끝에서 자르는 것을 우선 */
-      if (!pick) {
-        pick = pickIn(lines, from, target);
-        if (pick) {
-          var box = closeBox(pick, Math.min(start + pageH, pick + 70));
-          if (box) pick = box;
-        }
-      }
+      if (!pick) pick = pickIn(lines, from, target);
       if (!pick) pick = target;                   /* 그래도 없으면 그대로 자른다 */
+      /* 상자 끝이 바로 뒤에 있으면 상자째 닫아 다음 쪽에 조각이 남지 않게 한다 */
+      var box = closeBox(pick, Math.min(start + pageH, pick + 80));
+      if (box) pick = box;
       cuts.push(pick);
       start = pick;
     }
@@ -2175,6 +2172,7 @@
       if (onStep) onStep(idx + 1, totalPages);
       var page = document.createElement('div');
       page.className = 'pdf-page pdf-sheet';
+      page.setAttribute('aria-hidden', 'true');
       page.style.cssText = 'position:relative;width:' + PDF_PAGE_W + 'px;height:' + hPx +
         'px;overflow:hidden;background:#fff;';
       var inner = document.createElement('div');
@@ -2307,6 +2305,7 @@
     ensurePdfLibs().then(pdfFontsReady).then(function () {
       stage = document.createElement('div');
       stage.className = 'pdf-stage pdf-sheet';
+      stage.setAttribute('aria-hidden', 'true');
       var clone = docEl.cloneNode(true);
       var strip = o.strip || [];
       for (var i = 0; i < strip.length; i++) {
