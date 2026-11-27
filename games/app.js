@@ -652,12 +652,15 @@
   }
 
   /* 줄줄이 말해요처럼 문제마다 권장 시간이 다른 게임은,
-     사용자가 직접 시간을 고르지 않았을 때만 문제의 시간을 따라갑니다. */
+     사용자가 직접 시간을 고르지 않았을 때만 문제의 시간을 따라갑니다.
+     새 문제로 넘어가면 타이머는 정해 둔 시간으로 되돌립니다(돌아가는 중이면 그대로). */
   function syncItemTimer() {
-    if (state.game && state.game.id === "relay" && !Timer.custom) {
+    if (!state.game) return;
+    if (state.game.id === "relay" && !Timer.custom) {
       var it = state.items[state.idx];
       Timer.apply(Number(it && it.sec) || 15, false);
     }
+    if (!Timer.running) Timer.reset();
   }
 
   function next() {
