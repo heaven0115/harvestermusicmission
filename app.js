@@ -928,7 +928,7 @@
       '<div class="gen-head"><strong>자료 자동 생성</strong><span>이 원고를 읽어 PPT·교재·기도문·말씀카드까지 만들어 드립니다</span></div>' +
       '<div class="gen-actions">' +
       '<button type="button" class="gen-btn" id="arcGenPpt"><span class="ico">📊</span><span class="tx"><strong>PPT 만들기 (.pptx)</strong><small>표지부터 기도·찬송까지</small></span></button>' +
-      '<button type="button" class="gen-btn" id="arcGenStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 복사</small></span></button>' +
+      '<button type="button" class="gen-btn" id="arcGenStudy"><span class="ico">📖</span><span class="tx"><strong>성경공부 교재 만들기</strong><small>인쇄 · PDF · 워드 · 복사</small></span></button>' +
       '<button type="button" class="gen-btn" id="arcGenPrayer"><span class="ico">🙏</span><span class="tx"><strong>기도문 만들기</strong><small>예배 · 소그룹용</small></span></button>' +
       '<button type="button" class="gen-btn" id="arcGenCard"><span class="ico">🖼️</span><span class="tx"><strong>말씀 묵상카드 만들기</strong><small>정사각 1080 · PNG 저장</small></span></button>' +
       '</div></div></div>';
@@ -950,6 +950,7 @@
       '<button type="button" class="btn-line" id="arcBig">큰 글씨 (18pt)</button>' +
       '<button type="button" class="btn-line" id="arcCopy">내용 복사</button>' +
       '<button type="button" class="btn-solid" id="arcPrint">' + (isStandaloneApp() ? 'PDF로 저장' : '인쇄 / PDF 저장') + '</button>' +
+      '<button type="button" class="btn-line" id="arcWord">워드로 저장</button>' +
       '</span></div>' +
       '<article class="arc-doc">' +
       '<p class="arc-kicker">' + esc(when) + esc(svcLine) + '</p>' +
@@ -1127,6 +1128,11 @@
       copyText(head + '\n\n' + body, '설교 원고');
     });
     if ($('arcPrint')) $('arcPrint').addEventListener('click', printArchiveDoc);
+    if ($('arcWord')) $('arcWord').addEventListener('click', function () {
+      docxExport(document.querySelector('.arc-doc'), this, {
+        kind: 'doc', subject: '설교 원고', suffix: '원고', strip: ['.arc-gen', '.pdf-note']
+      });
+    });
     if ($('arcGenPpt')) $('arcGenPpt').addEventListener('click', function () { generateArcPptx(this); });
     if ($('arcGenStudy')) $('arcGenStudy').addEventListener('click', openArcStudy);
     if ($('arcGenPrayer')) $('arcGenPrayer').addEventListener('click', openArcPrayer);
@@ -2023,7 +2029,8 @@
       title: (s.title || '설교 원고') + ' · 원고 전체',
       sub: (s.passage || '본문 미정') + ' · ' + (s.date || '') + ' · 표지부터 Ⅷ까지',
       html: '<div class="doc"><p class="doc-note">원고 전체를 불러오는 중입니다…</p></div>',
-      copyLabel: '설교 원고'
+      copyLabel: '설교 원고',
+      word: { kind: 'doc', subject: '설교 원고 전체', suffix: '원고전체' }
     });
     var body = back.querySelector('.doc-body');
     var paint = function (ok) {
@@ -2381,7 +2388,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127ad';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127ae';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
@@ -2444,14 +2451,15 @@
     return out;
   }
 
-  function docxFileName(docEl, ext) {
+  function docxFileName(docEl, ext, suffix) {
     var h = docEl.querySelector('.doc-title') || docEl.querySelector('.tm-title') || docEl.querySelector('.arc-doc-title');
     var t = h ? String(h.textContent || '') : '';
     t = t.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
     if (!t) t = '설교원고';
     var d = new Date();
     var p = function (n) { return (n < 10 ? '0' : '') + n; };
-    return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + t + '.' + ext;
+    return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_' + t +
+      (suffix ? '_' + suffix : '') + '.' + ext;
   }
 
   function docxDownload(blob, name) {
@@ -2492,26 +2500,266 @@
     docxDownload(blob, name);
   }
 
-  function docxExport(docEl, btn) {
+  /* ---- 교재 · 기도문 · 원고 전체의 화면(DOM)을 워드 문단으로 ----
+     화면에 보이는 그대로 옮긴다: 표지(kicker·제목·본문 정보), 절 제목, 본문,
+     절별 본문, 인용, 적용, 나눔 질문, 목록, 기도, 아멘, 꼬리말, 표.
+     본문은 18pt(노안 대비)로 두고 작은 줄만 단계적으로 줄인다. */
+  function docInline(el, bySrc) {
+    var runs = [];
+    var add = function (t, bold, color) {
+      if (!t) return;
+      t = String(t).replace(/\u00a0/g, ' ').replace(/\s+/g, ' ');
+      if (!t) return;
+      var isBold = !!bold, col = color || '';
+      var last = runs[runs.length - 1];
+      if (last && !last.image && !!last.bold === isBold && (last.color || '') === col) {
+        last.text += t;
+        return;
+      }
+      var r = { text: t };
+      if (isBold) r.bold = true;
+      if (col) r.color = col;
+      runs.push(r);
+    };
+    var walk = function (node) {
+      var kids = node.childNodes || [];
+      for (var i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (k.nodeType === 3) { add(k.nodeValue); continue; }
+        if (k.nodeType !== 1) continue;
+        var tag = k.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+        if (tag === 'BR') { add(' '); continue; }
+        if (tag === 'IMG') {
+          var src = k.getAttribute('src') || '';
+          var info = bySrc ? (bySrc[src] || (k.src ? bySrc[k.src] : null)) : null;
+          if (info) runs.push({ image: info.id, cx: info.cx, cy: info.cy });
+          continue;
+        }
+        if (tag === 'B' || tag === 'STRONG') { add(k.textContent, true); continue; }
+        if (tag === 'I' || tag === 'EM' || tag === 'SPAN' || tag === 'A' || tag === 'SMALL') {
+          if (!k.children || !k.children.length) { add(k.textContent); continue; }
+        }
+        walk(k);
+      }
+    };
+    walk(el);
+    if (runs.length) {
+      if (!runs[0].image) runs[0].text = runs[0].text.replace(/^\s+/, '');
+      var tail = runs[runs.length - 1];
+      if (!tail.image) tail.text = tail.text.replace(/\s+$/, '');
+    }
+    return runs.filter(function (r) { return r.image || (r.text && r.text.length); });
+  }
+
+  function docDocxBlocks(root, bySrc) {
+    var out = [];
+    var B = 36;   /* 18pt 본문 */
+    var has = function (el, n) { return !!(el && el.classList && el.classList.contains(n)); };
+    var flat = function (el) { return String(el.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim(); };
+    var push = function (b) {
+      if (!b) return;
+      var body = String(b.text == null ? '' : b.text).trim();
+      if (!b.table && !(b.runs && b.runs.length) && !body && !b.borderTop && !b.borderBottom) return;
+      out.push(b);
+    };
+    var blk = function (el, opt) {
+      var b = { size: opt.size || B, text: '' };
+      for (var k in opt) b[k] = opt[k];
+      b.runs = docInline(el, bySrc);
+      if (!b.runs.length) return;
+      push(b);
+    };
+    var tableBlock = function (tbl) {
+      var rows = [], trs = tbl.querySelectorAll('tr');
+      for (var i = 0; i < trs.length; i++) {
+        var cells = [], tds = trs[i].children;
+        for (var j = 0; j < tds.length; j++) {
+          var c = tds[j];
+          var span = +(c.getAttribute('colspan') || 1);
+          if (span < 1) span = 1;
+          cells.push({ text: flat(c), bold: c.tagName === 'TH' });
+          for (var s = 1; s < span; s++) cells.push({ text: '' });
+        }
+        if (cells.length) rows.push(cells);
+      }
+      if (!rows.length) return;
+      var head = !!(trs[0] && trs[0].children && trs[0].children.length && trs[0].children[0].tagName === 'TH');
+      push({ table: { rows: rows, header: head, size: 26 } });
+    };
+    var walk = function (el) {
+      var kids = el.children;
+      for (var i = 0; i < kids.length; i++) {
+        var n = kids[i];
+        var tag = n.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+        if (has(n, 'arc-gen') || has(n, 'gen-bar') || has(n, 'doc-bar') || has(n, 'arc-actions') || has(n, 'pdf-note')) continue;
+        if (tag === 'TABLE') { tableBlock(n); continue; }
+        if (tag === 'UL' || tag === 'OL') {
+          var lis = n.children;
+          for (var j = 0; j < lis.length; j++) {
+            var lr = docInline(lis[j], bySrc);
+            if (!lr.length) continue;
+            lr.unshift({ text: (tag === 'OL' ? (j + 1) + '. ' : '· ') });
+            push({ runs: lr, text: '', size: B, indent: 300, after: 60 });
+          }
+          continue;
+        }
+        if (has(n, 'doc-title') || has(n, 'arc-doc-title') || tag === 'H1') {
+          blk(n, { size: 52, bold: true, align: 'center', color: '12251A', after: 80, keepNext: true });
+          continue;
+        }
+        if (has(n, 'doc-kicker') || has(n, 'arc-kicker')) { blk(n, { size: 20, bold: true, color: '1F5B3F', after: 40 }); continue; }
+        if (has(n, 'doc-meta') || has(n, 'doc-sub') || has(n, 'arc-doc-ref')) {
+          blk(n, { size: 22, align: 'center', color: '5C6B63', after: 180 });
+          continue;
+        }
+        if (has(n, 'doc-foot')) {
+          blk(n, { size: 17, color: '7C8A83', align: 'center', borderTop: true, before: 240, after: 40 });
+          continue;
+        }
+        if (tag === 'H2') {
+          blk(n, { size: 30, bold: true, color: '1F5B3F', borderBottom: true, before: 260, after: 120, keepNext: true });
+          continue;
+        }
+        if (tag === 'H3' || has(n, 'doc-h2') || has(n, 'doc-h3')) {
+          blk(n, { size: 26, bold: true, color: '23372C', before: 200, after: 80, keepNext: true });
+          continue;
+        }
+        if (has(n, 'doc-pt')) { blk(n, { size: 28, bold: true, after: 60, keepNext: true }); continue; }
+        if (has(n, 'doc-pray') || has(n, 'doc-block')) {
+          var ks = n.children;
+          for (var m = 0; m < ks.length; m++) {
+            var c2 = ks[m];
+            if (c2.tagName === 'H3' || has(c2, 'ph')) {
+              blk(c2, { size: 26, bold: true, color: '1F5B3F', before: 160, after: 60, keepNext: true });
+            } else if (has(c2, 'doc-apply')) {
+              blk(c2, { size: 26, color: '1F5B3F', shade: 'F3F8F4', indent: 240, before: 60, after: 100 });
+            } else if (has(c2, 'doc-pt')) {
+              blk(c2, { size: 28, bold: true, indent: 240, after: 60 });
+            } else if (c2.tagName === 'P' || c2.tagName === 'DIV') {
+              blk(c2, { size: B, indent: 240, after: 80 });
+            } else {
+              walk(c2);
+            }
+          }
+          continue;
+        }
+        if (has(n, 'doc-row')) {
+          var kk = n.querySelector('.k'), vv = n.querySelector('.v');
+          var rr = [];
+          if (kk) rr.push({ text: flat(kk) + '  ', bold: true, color: '3C4B43' });
+          if (vv) rr.push({ text: flat(vv) });
+          if (rr.length) push({ runs: rr, size: 28, text: '', after: 60 });
+          continue;
+        }
+        if (has(n, 'doc-verse')) {
+          var num = n.querySelector('b'), body = n.querySelector('span');
+          var runs = [];
+          if (num) runs.push({ text: flat(num) + '  ', bold: true, color: '1F5B3F' });
+          if (body) runs.push({ text: flat(body) });
+          if (runs.length) push({ runs: runs, size: 34, text: '', after: 80 });
+          continue;
+        }
+        if (has(n, 'doc-quote')) { blk(n, { size: 30, shade: 'F8FBF9', indent: 300, before: 60, after: 120 }); continue; }
+        if (has(n, 'doc-apply')) { blk(n, { size: 26, color: '1F5B3F', shade: 'F3F8F4', indent: 240, after: 100 }); continue; }
+        if (has(n, 'doc-q')) { blk(n, { size: 34, after: 60 }); continue; }
+        if (has(n, 'doc-amen')) { blk(n, { size: B, bold: true, align: 'right', before: 120, after: 200 }); continue; }
+        if (has(n, 'doc-note') || has(n, 'arc-note')) { blk(n, { size: 24, color: '55655C', after: 100 }); continue; }
+        if (has(n, 'doc-v')) { blk(n, { size: 34, indent: 300, after: 80 }); continue; }
+        if (tag === 'P') { blk(n, { size: B, after: 140 }); continue; }
+        if (tag === 'HR') { push({ text: '', size: 4, line: 240, after: 160, borderBottom: true, borderColor: '24332B' }); continue; }
+        if (n.children && n.children.length) walk(n);
+      }
+    };
+    walk(root);
+    return out;
+  }
+
+  /* 원고 안의 그림(히브리어 낱말 그림 등)을 .docx 안에 그대로 넣는다. */
+  var DOCX_IMG_H = 233000;   /* 18pt 높이(EMU) */
+  function collectDocxImages(root) {
+    var els = root.querySelectorAll ? root.querySelectorAll('img') : [];
+    var list = [], key = {};
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var src = el.getAttribute('src') || '';
+      if (!src || key[src]) continue;
+      var r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+      var h = (r && r.height) || el.naturalHeight || 0;
+      var w = (r && r.width) || el.naturalWidth || 0;
+      if (!h) h = 18;
+      if (!w) w = h;
+      var info = { src: src, w: w, h: h };
+      list.push(info);
+      key[src] = info;
+      try {
+        var abs = new URL(src, document.baseURI).href;
+        if (abs && !key[abs]) key[abs] = info;
+      } catch (e) {}
+    }
+    if (!list.length) return Promise.resolve({ images: [], bySrc: key });
+    return Promise.all(list.map(function (im) {
+      return fetch(im.src).then(function (res) {
+        if (!res.ok) throw new Error('그림 ' + res.status);
+        return res.arrayBuffer();
+      }).then(function (buf) {
+        im.data = new Uint8Array(buf);
+        var m = /\.([a-z0-9]+)(?:[?#]|$)/i.exec(im.src);
+        im.ext = (m ? m[1] : 'png').toLowerCase();
+        if (im.ext === 'jpeg') im.ext = 'jpg';
+        if (im.ext !== 'png' && im.ext !== 'jpg' && im.ext !== 'gif') im.ext = 'png';
+      })['catch'](function () { im.failed = true; });
+    })).then(function () {
+      var ok = list.filter(function (im) { return im.data && im.data.length; });
+      var bySrc = {};
+      var all = Object.keys(key);
+      ok.forEach(function (im, i) {
+        im.id = 'img' + (i + 1);
+        im.cy = DOCX_IMG_H;
+        im.cx = Math.max(1, Math.round(DOCX_IMG_H * im.w / im.h));
+      });
+      all.forEach(function (s) {
+        if (key[s] && ok.indexOf(key[s]) > -1) bySrc[s] = key[s];
+      });
+      return { images: ok, bySrc: bySrc };
+    });
+  }
+
+  /* o: { kind: 'ten' | 'doc', subject, suffix, strip:[선택자] } */
+  function docxExport(docEl, btn, o) {
+    o = o || {};
     if (!docEl) { toast('문서를 찾지 못했습니다'); return; }
     var label = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '워드 만드는 중…'; }
     var restore = function () { if (btn) { btn.disabled = false; btn.innerHTML = label; } };
+    var kind = o.kind || (docEl.querySelector('.tm-title') ? 'ten' : 'doc');
     ensureDocxLib().then(function () {
-      var h = docEl.querySelector('.tm-title') || docEl.querySelector('.doc-title');
-      var title = h ? String(h.textContent || '').trim() : '설교 원고';
-      var blocks = tenDocxBlocks(docEl);
-      if (!blocks.length) throw new Error('문서 내용을 읽지 못했습니다');
-      var bytes = window.DocxLite.makeDocx({
-        title: title,
-        subject: '10분 설교 원고',
-        creator: '사역의 한 주',
-        blocks: blocks
+      var root = docEl;
+      if (o.strip && o.strip.length) {
+        root = docEl.cloneNode(true);
+        for (var i = 0; i < o.strip.length; i++) {
+          var junk = root.querySelectorAll(o.strip[i]);
+          for (var j = 0; j < junk.length; j++) if (junk[j].parentNode) junk[j].parentNode.removeChild(junk[j]);
+        }
+      }
+      return collectDocxImages(root).then(function (pic) {
+        var blocks = (kind === 'ten') ? tenDocxBlocks(root) : docDocxBlocks(root, pic.bySrc);
+        if (!blocks.length) throw new Error('문서 내용을 읽지 못했습니다');
+        var h = root.querySelector('.tm-title') || root.querySelector('.arc-doc-title') || root.querySelector('.doc-title');
+        var title = h ? String(h.textContent || '').trim() : '설교 원고';
+        var bytes = window.DocxLite.makeDocx({
+          title: title,
+          subject: o.subject || '10분 설교 원고',
+          creator: '사역의 한 주',
+          blocks: blocks,
+          images: pic.images
+        });
+        var name = docxFileName(root, 'docx', o.suffix);
+        var blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        restore();
+        docxSave(blob, name);
       });
-      var name = docxFileName(docEl, 'docx');
-      var blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-      restore();
-      docxSave(blob, name);
     })['catch'](function (err) {
       restore();
       toast('워드를 만들지 못했습니다 — ' + (err && err.message ? err.message : '다시 시도해 주세요'));
@@ -2650,7 +2898,9 @@
     var pdfOpts = function (b) {
       return { docEl: liveDoc(), host: back.querySelector('.modal'), before: body, btn: b };
     };
-    if (wordBtn) wordBtn.addEventListener('click', function () { docxExport(liveDoc(), wordBtn); });
+    if (wordBtn) wordBtn.addEventListener('click', function () {
+      docxExport(liveDoc(), wordBtn, (o.word && typeof o.word === 'object') ? o.word : {});
+    });
     if (pdfBtn) pdfBtn.addEventListener('click', function () { pdfExport(pdfOpts(pdfBtn)); });
     printBtn.addEventListener('click', function () {
       /* 홈 화면 웹앱(PWA)은 인쇄 창 자체가 열리지 않으므로 PDF 파일로 만든다 */
@@ -2824,9 +3074,10 @@
     stashEditor(s);
     openDocModal({
       title: '성경공부 교재 미리보기',
-      sub: (s.passage || '본문') + ' · 인쇄하거나 PDF로 저장할 수 있습니다',
+      sub: (s.passage || '본문') + ' · 인쇄하거나 PDF·워드로 저장할 수 있습니다',
       html: studyHTML(s),
-      copyLabel: '성경공부 교재'
+      copyLabel: '성경공부 교재',
+      word: { kind: 'doc', subject: '성경공부 교재', suffix: '교재' }
     });
     markStatus('study', '성경공부 교재를 만들었습니다 · 상태를 완료로 바꿨습니다');
   }
@@ -2836,9 +3087,10 @@
     stashEditor(s);
     openDocModal({
       title: '기도문 미리보기',
-      sub: (s.passage || '본문') + ' · 예배·소그룹용 기도문',
+      sub: (s.passage || '본문') + ' · 예배·소그룹용 기도문 · PDF·워드로 저장할 수 있습니다',
       html: prayerHTML(s),
-      copyLabel: '기도문'
+      copyLabel: '기도문',
+      word: { kind: 'doc', subject: '기도문', suffix: '기도문' }
     });
     markStatus('prayer', '기도문을 만들었습니다 · 상태를 완료로 바꿨습니다');
   }
@@ -3444,7 +3696,7 @@
       sub: (s.passage || '본문') + ' · 강단 낭독용 10분 압축 원고 · 인쇄하거나 PDF·워드로 저장할 수 있습니다',
       html: tenDoc(tenModel(s)),
       copyLabel: '10분 설교 원고',
-      word: true
+      word: { kind: 'ten', subject: '10분 설교 원고' }
     });
     toast('10분 설교 원고를 만들었습니다 — 큰 글씨·인쇄·복사 그대로 쓰실 수 있습니다');
   }
@@ -4119,9 +4371,10 @@
     if (!m) return;
     openDocModal({
       title: '성경공부 교재 미리보기',
-      sub: (m.passage || '본문') + ' · 과거 설교 원고에서 만든 교재',
+      sub: (m.passage || '본문') + ' · 과거 설교 원고에서 만든 교재 · PDF·워드로 저장',
       html: studyDoc(m),
-      copyLabel: '성경공부 교재'
+      copyLabel: '성경공부 교재',
+      word: { kind: 'doc', subject: '성경공부 교재', suffix: '교재' }
     });
   }
   function openArcPrayer() {
@@ -4129,9 +4382,10 @@
     if (!m) return;
     openDocModal({
       title: '기도문 미리보기',
-      sub: (m.passage || '본문') + ' · 예배·소그룹용 기도문',
+      sub: (m.passage || '본문') + ' · 예배·소그룹용 기도문 · PDF·워드로 저장',
       html: prayerDoc(m),
-      copyLabel: '기도문'
+      copyLabel: '기도문',
+      word: { kind: 'doc', subject: '기도문', suffix: '기도문' }
     });
   }
   function openArcCard() {
