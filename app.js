@@ -2,6 +2,7 @@
   'use strict';
 
   var DEFAULT = window.MINISTRY_DATA;
+  var FULL_VER = '20261127a';
   var DB_KEY = 'ministry-weekly-v1';
   var UI_KEY = 'ministry-weekly-ui-v1';
   var SECTIONS = DEFAULT.sections;
@@ -341,6 +342,10 @@
         '<select data-field="' + f.id + '" data-status="' + esc(v) + '">' + opts + '</select></label>';
     }).join('') + '</div>';
 
+    var fullBtn = '<div class="full-bar"><div class="full-bar-t"><strong>원고 전체 보기</strong>' +
+      '<span>표지부터 Ⅷ. 게시 제목까지 원본 워드 원고 그대로 이어서 읽습니다</span></div>' +
+      '<button type="button" class="btn-solid" id="openFullDoc">📄 원고 전체 보기</button></div>';
+
     var gen = '<div class="gen-bar">' +
       '<div class="gen-head"><strong>자료 자동 생성</strong><span>효석패턴6 여덟 구성을 읽어 PPT·교재·기도문·말씀카드까지 만들어 드립니다</span></div>' +
       '<div class="gen-actions">' +
@@ -365,14 +370,16 @@
       '</div></div>' +
       '<div class="delete-row"><button type="button" class="danger-ghost" id="deleteSermon">이 설교 삭제</button>' +
       '<span>휴지통으로 이동하며 언제든 복원할 수 있습니다.</span></div>' +
-      fields + statuses + gen +
+      fields + statuses + fullBtn + gen +
       '<div class="detail-body">' +
       '<div class="outline-pane"><div class="pane-title">효석패턴6 · 고정 구성</div>' + outline + '</div>' +
       '<div class="editor-pane">' +
       '<div class="editor-head"><h2 id="sectionTitle">' + esc(currentSection().name) + '</h2>' +
       '<label class="check"><input type="checkbox" id="reviewCheck"' + ((s.reviewed && s.reviewed[ui.section]) ? ' checked' : '') + '> 검토 완료</label></div>' +
       '<div class="editor" id="editor" contenteditable="true" spellcheck="false" data-placeholder="이 구성은 아직 비어 있습니다. 여기에 준비 내용을 적어 두세요."></div>' +
-      '<div class="editor-foot"><span id="charCount"></span><span>' + esc(s.passage || '본문 미정') + ' · ' + esc(s.date) + '</span></div>' +
+      '<div class="editor-foot"><span id="charCount"></span>' +
+      '<button type="button" class="foot-link" id="openFullDocFoot">원고 전체 보기 →</button>' +
+      '<span>' + esc(s.passage || '본문 미정') + ' · ' + esc(s.date) + '</span></div>' +
       '</div></div></div>';
   }
   function currentSection() {
@@ -1044,6 +1051,8 @@
     if ($('genStudy')) $('genStudy').addEventListener('click', openStudyDoc);
     if ($('genPrayer')) $('genPrayer').addEventListener('click', openPrayerDoc);
     if ($('genCard')) $('genCard').addEventListener('click', openCardModal);
+    if ($('openFullDoc')) $('openFullDoc').addEventListener('click', function () { openFullDoc(sermonById(ui.selectedId)); });
+    if ($('openFullDocFoot')) $('openFullDocFoot').addEventListener('click', function () { openFullDoc(sermonById(ui.selectedId)); });
     var arcYearSel = $('arcYear');
     if (arcYearSel) arcYearSel.addEventListener('change', function () {
       ui.arcYear = arcYearSel.value; saveUi(); render();
@@ -1918,6 +1927,99 @@
     });
   }
 
+  /* ---- 원고 전체(표지 ~ Ⅷ) ---- */
+  var fullState = 'idle', fullQueue = [];
+  function fullDocs() { return (window.MINISTRY_FULL && window.MINISTRY_FULL.docs) || null; }
+  function loadFullDocs(cb) {
+    var docs = fullDocs();
+    if (docs) { cb(docs); return; }
+    fullQueue.push(cb);
+    if (fullState === 'loading' || fullState === 'error') return;
+    fullState = 'loading';
+    var sc = document.createElement('script');
+    sc.src = 'full.js?v=' + FULL_VER;
+    sc.onload = function () {
+      fullState = fullDocs() ? 'done' : 'error';
+      var q = fullQueue; fullQueue = [];
+      q.forEach(function (fn) { fn(fullDocs()); });
+    };
+    sc.onerror = function () {
+      fullState = 'error';
+      var q = fullQueue; fullQueue = [];
+      q.forEach(function (fn) { fn(null); });
+    };
+    document.head.appendChild(sc);
+  }
+  /* 원본 워드 원고가 없거나 불러오지 못할 때: 여덟 구성을 순서대로 이어 붙입니다. */
+  function fallbackBlocks(s) {
+    var out = [['sub', esc(s.passage || '') + '  ·  ' + esc(s.date || '')]];
+    SECTIONS.forEach(function (sec) {
+      var t = secText(s, sec.id);
+      if (!t) return;
+      out.push(['sec', esc(sec.no + '. ' + sec.name)]);
+      String(t).split(/\n{2,}/).forEach(function (b) {
+        var v = b.trim();
+        if (v) out.push(['p', esc(v)]);
+      });
+    });
+    return out;
+  }
+  function fullDocHTML(s) {
+    var docs = fullDocs();
+    var doc = docs && docs[s.id];
+    var blocks = (doc && doc.blocks && doc.blocks.length) ? doc.blocks : fallbackBlocks(s);
+    var out = '<div class="doc full-doc">';
+    if (!doc) out += '<p class="doc-note">원본 워드 원고가 없어 여덟 구성을 순서대로 이어 붙였습니다.</p>';
+    var open = false;
+    blocks.forEach(function (b) {
+      var k = b[0], v = b[1];
+      if (k === 'table') {
+        out += '<table class="doc-table">' + v.map(function (row, i) {
+          var tag = i === 0 ? 'th' : 'td';
+          return '<tr>' + row.map(function (c) { return '<' + tag + '>' + c + '</' + tag + '>'; }).join('') + '</tr>';
+        }).join('') + '</table>';
+        return;
+      }
+      if (k === 'sec') {
+        if (open) out += '</section>';
+        out += '<section class="doc-sec"><h2>' + v + '</h2>';
+        open = true;
+        return;
+      }
+      if (!open) { out += '<section class="doc-sec">'; open = true; }
+      if (k === 'title') out += '<h1 class="doc-title">' + v + '</h1>';
+      else if (k === 'sub') out += '<p class="doc-sub">' + v + '</p>';
+      else if (k === 'meta') out += '<p class="doc-pt">' + v + '</p>';
+      else if (k === 'h') out += '<h3 class="doc-h2">' + v + '</h3>';
+      else if (k === 'sh') out += '<p class="doc-h3">' + v + '</p>';
+      else if (k === 'v') out += '<p class="doc-v">' + v + '</p>';
+      else if (k === 'bullet') out += '<p class="doc-v">' + v + '</p>';
+      else out += '<p>' + v + '</p>';
+    });
+    if (open) out += '</section>';
+    out += '<p class="doc-foot">' + esc(s.passage || '') + '  ·  ' + esc(s.date || '') +
+      (doc && doc.source ? '  ·  ' + esc(doc.source) : '') + '  ·  세리토스장로교회</p>';
+    return out + '</div>';
+  }
+  function openFullDoc(s) {
+    if (!s) return;
+    stashEditor(s);
+    var back = openDocModal({
+      title: (s.title || '설교 원고') + ' · 원고 전체',
+      sub: (s.passage || '본문 미정') + ' · ' + (s.date || '') + ' · 표지부터 Ⅷ까지',
+      html: '<div class="doc"><p class="doc-note">원고 전체를 불러오는 중입니다…</p></div>',
+      copyLabel: '설교 원고'
+    });
+    var body = back.querySelector('.doc-body');
+    var paint = function (ok) {
+      body.innerHTML = fullDocHTML(s);
+      if (ok) toast('원고 전체를 열었습니다 — 큰 글씨·인쇄·복사를 그대로 쓰실 수 있습니다');
+      else toast('원고 전체 파일을 불러오지 못해 여덟 구성을 이어 붙였습니다');
+    };
+    if (fullDocs()) paint(true);
+    else loadFullDocs(function (docs) { paint(!!docs); });
+  }
+
   /* ---- 문서 모달 (교재 · 기도문) ---- */
   function openDocModal(o) {
     var root = document.getElementById('modalRoot');
@@ -1948,13 +2050,14 @@
     back.addEventListener('click', function (e) { if (e.target === back) close(); });
     back.querySelector('[data-doc-close]').addEventListener('click', close);
     var sizeBtn = back.querySelector('[data-doc-size]');
+    var liveDoc = function () { return body.querySelector('.doc') || doc; };
     sizeBtn.addEventListener('click', function () {
-      var big = doc.classList.toggle('doc-lg');
+      var big = liveDoc().classList.toggle('doc-lg');
       sizeBtn.textContent = big ? '기본 글씨' : '큰 글씨 (18pt)';
       sizeBtn.classList.toggle('on', big);
     });
     back.querySelector('[data-doc-copy]').addEventListener('click', function () {
-      copyText(doc.innerText, o.copyLabel || '내용');
+      copyText(liveDoc().innerText, o.copyLabel || '내용');
     });
     back.querySelector('[data-doc-print]').addEventListener('click', function () {
       document.body.classList.add('printing');
