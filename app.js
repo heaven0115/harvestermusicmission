@@ -2202,8 +2202,13 @@
       if (bands[n].mid > lowest) lowest = bands[n].mid;
       if (bands[n].width > widest) widest = bands[n].width;
     }
-    /* 글줄 사이(좁은 빈 줄)보다 문단·절 사이(넓은 빈 줄)에서 끊는다 */
-    var wideLimit = Math.max(minGap, Math.round(widest * 0.55));
+    /* 글줄 사이(좁은 빈 줄)보다 문단·절 사이(넓은 빈 줄)에서 끊는다.
+       한 쪽 안 빈 줄 폭의 가운뎃값을 기준으로 '넓은' 줄을 가려낸다. */
+    var widths = [];
+    for (var w2 = 0; w2 < bands.length; w2++) widths.push(bands[w2].width);
+    widths.sort(function (a, b) { return a - b; });
+    var median = widths.length ? widths[Math.floor(widths.length / 2)] : minGap;
+    var wideLimit = Math.max(minGap, Math.round(median * 1.15));
     var nearLimit = lowest - Math.round(70 * scale);
     var near = bands.filter(function (b) { return b.mid >= nearLimit && b.width >= wideLimit; });
     near.sort(function (a, b) { return (b.mid - a.mid); });
@@ -2376,7 +2381,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127ab';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127ac';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
