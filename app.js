@@ -2811,7 +2811,7 @@
     m.points.forEach(function (p) {
       h += '<section class="tm-sec">';
       h += '<h2 class="tm-h">' + tenEsc(p.ord) + ', ' + tenEsc(p.title) +
-        (p.ref ? ' (' + tenEsc(p.ref) + ')' : '') + '</h2>';
+        (p.ref ? ' <span class="tm-ref">(' + tenEsc(p.ref) + ')</span>' : '') + '</h2>';
       h += p.paras.map(function (t) { return '<p>' + tenEsc(t) + '</p>'; }).join('');
       if (p.key) h += '<p class="tm-key">' + tenEsc(p.key) + '</p>';
       h += '</section>';
