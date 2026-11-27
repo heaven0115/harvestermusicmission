@@ -2211,6 +2211,33 @@
     return cuts;
   }
 
+  /* html2canvas 가 그릴 사본에서 쪽 경계를 잰다(사본은 창 폭·글꼴이 달라
+     화면과 몇 픽셀씩 어긋날 수 있고, 그 오차가 쪽 끝 글줄을 잘라 낸다). */
+  function pdfMeasureCuts(el, fallbackH) {
+    return new Promise(function (resolve) {
+      var settled = false;
+      var done = function (v) { if (!settled) { settled = true; resolve(v); } };
+      try {
+        return window.html2canvas(el, {
+          scale: 0.06, backgroundColor: '#ffffff', logging: false,
+          width: PDF_PAGE_W, windowWidth: 1024, windowHeight: 1200, scrollX: 0, scrollY: 0,
+          onclone: function (doc, cloned) {
+            try {
+              var target = cloned || el;
+              if (!target || !target.querySelector || !target.querySelector('h1,p,div')) {
+                var found = doc && doc.querySelector('.doc-ten, .doc, .arc-doc');
+                if (found) target = found;
+              }
+              var h = Math.ceil(target.getBoundingClientRect().height) || fallbackH;
+              var cuts = (h > 0) ? pdfPageCuts(target, h, PDF_PAGE_H) : null;
+              done({ cuts: cuts, height: h });
+            } catch (e) { done(null); }
+          }
+        }).then(function () { done(null); }, function () { done(null); });
+      } catch (e) { done(null); }
+    });
+  }
+
   function pdfRenderPages(docEl, cuts, onStep) {
     var pages = [];
     var idx = 0;
@@ -2331,7 +2358,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127q';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127v';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
@@ -2352,13 +2379,19 @@
       var kids = el.children;
       for (var i = 0; i < kids.length; i++) {
         var n = kids[i];
-        if (n.tagName === 'SECTION' || n.tagName === 'BLOCKQUOTE') { walk(n); continue; }
+        if (n.tagName === 'SECTION') { walk(n); continue; }
+        if (has(n, 'tm-q') || n.tagName === 'BLOCKQUOTE') {
+          var q = n.querySelector('p'), c = n.querySelector('cite');
+          if (q) out.push({ text: T(q), size: 34, bold: true, color: '2A2418', shade: 'FAF6EC', indent: 240, before: 120, after: 60 });
+          if (c) out.push({ text: T(c), size: 22, color: '6B5C42', indent: 240, after: 160 });
+          continue;
+        }
         if (n.tagName === 'HR') {
           out.push({ text: '', size: 4, line: 240, after: 200, borderBottom: true, borderColor: '24332B' });
           continue;
         }
         if (n.tagName === 'H1' || has(n, 'tm-title')) {
-          out.push({ text: T(n), size: 46, bold: true, align: 'center', color: '12251A', line: 300, after: 140, keepNext: true });
+          out.push({ text: T(n), size: 50, bold: true, align: 'center', color: '12251A', line: 300, after: 140, keepNext: true });
           continue;
         }
         if (has(n, 'tm-kicker')) { out.push({ text: T(n), size: 20, bold: true, color: '6E7C75', align: 'center', after: 60 }); continue; }
@@ -2375,12 +2408,6 @@
               { text: body ? T(body) : T(n) }
             ]
           });
-          continue;
-        }
-        if (has(n, 'tm-q')) {
-          var q = n.querySelector('p'), c = n.querySelector('cite');
-          if (q) out.push({ text: T(q), size: 34, bold: true, color: '2A2418', shade: 'FAF6EC', indent: 240, before: 120, after: 60 });
-          if (c) out.push({ text: T(c), size: 22, color: '6B5C42', indent: 240, after: 160 });
           continue;
         }
         if (has(n, 'tm-key') || has(n, 'tm-trans')) { out.push({ text: T(n), size: 36, bold: true, before: 120, after: 120, keepNext: true }); continue; }
@@ -2515,8 +2542,14 @@
       return new Promise(function (resolve) { setTimeout(resolve, 40); }).then(function () {
         var h = Math.ceil(clone.getBoundingClientRect().height);
         if (!h) throw new Error('문서 높이를 재지 못했습니다');
-        return pdfRenderPages(clone, pdfPageCuts(clone, h, PDF_PAGE_H), function (i, n) {
-          txt.textContent = 'PDF 만드는 중… ' + i + '/' + n + '쪽';
+        /* 쪽 경계는 화면(DOM)이 아니라 html2canvas 가 다시 그리는 사본의 배치에서
+           잰다. 두 배치가 미세하게 다르면 쪽 끝에서 글줄이 반쯤 잘리고 다음 쪽에
+           같은 줄이 겹쳐 보이기 때문이다. */
+        return pdfMeasureCuts(clone, h).then(function (m) {
+          var cuts = (m && m.cuts && m.cuts.length > 1) ? m.cuts : pdfPageCuts(clone, h, PDF_PAGE_H);
+          return pdfRenderPages(clone, cuts, function (i, n) {
+            txt.textContent = 'PDF 만드는 중… ' + i + '/' + n + '쪽';
+          });
         });
       });
     }).then(function (pages) {
