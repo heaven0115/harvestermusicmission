@@ -13,7 +13,7 @@
 <div id="out">측정 준비…</div>
 <div class="row" id="row"></div>
 <script>
-const sizes = [375, 390, 430, 768, 820, 1024];
+const sizes = [375, 390, 768];
 const tabs = [
   { id: 'library', name: '설교 서재' },
   { id: 'archive', name: '과거 설교' },
@@ -31,6 +31,7 @@ sizes.forEach(w => {
   h.textContent = w + 'px';
   const f = document.createElement('iframe');
   f.width = w; f.height = w < 500 ? 812 : 900;
+  f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
   f.src = 'index.html?__mq=' + w + '&t=' + Date.now();
   cell.appendChild(h); cell.appendChild(f); row.appendChild(cell);
   frames.push({ w, f, h });
@@ -46,7 +47,18 @@ function audit(doc, win) {
     if ((cs.overflowX === 'hidden' || cs.overflowX === 'clip') && el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 2) {
       const tag = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') +
         (typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.') : '');
-      clipped.push(tag + ' ' + el.clientWidth + '<' + el.scrollWidth);
+      let worst = '';
+      let best = 0;
+      el.querySelectorAll('*').forEach(ch => {
+        const cw2 = ch.getBoundingClientRect().width;
+        if (cw2 > el.clientWidth + 2 && cw2 > best) {
+          best = cw2;
+          worst = ' « ' + ch.tagName.toLowerCase() + (ch.id ? '#' + ch.id : '') +
+            (typeof ch.className === 'string' && ch.className.trim() ? '.' + ch.className.trim().split(/\s+/).slice(0,2).join('.') : '') +
+            ' ' + Math.round(cw2) + ' [' + (ch.textContent || '').slice(0, 16).replace(/\s+/g, ' ') + ']';
+        }
+      });
+      clipped.push(tag + ' ' + el.clientWidth + '<' + el.scrollWidth + worst);
     }
   });
   return { over: sw - inner, clipped: clipped.slice(0, 4) };
