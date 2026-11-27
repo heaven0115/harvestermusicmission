@@ -4595,14 +4595,14 @@
     blocks.push({ t: 'passage', size: ps, h: Math.round(ps * 1.5), gap: Math.round(14 * scale), text: d.passage });
     blocks.push({ t: 'rule', h: 1, gap: Math.round(36 * scale), w: Math.round(76 * scale) });
 
-    var ts = Math.round(61 * scale), tl;
+    var ts = Math.round(58 * scale), tl;
     for (;;) {
       ctx.font = '700 ' + ts + 'px ' + CARD_SERIF;
       tl = wrapText(ctx, d.title, CW);
       if (tl.length <= 3 || ts <= 30) break;
       ts -= Math.max(1, Math.round(ts * 0.06));
     }
-    blocks.push({ t: 'title', size: ts, lines: tl, lh: ts * 1.36, h: Math.round(tl.length * ts * 1.36), gap: Math.round(32 * scale) });
+    blocks.push({ t: 'title', size: ts, lines: tl, lh: ts * 1.34, h: Math.round(tl.length * ts * 1.34), gap: Math.round(32 * scale) });
 
     if (d.verses.length) {
       var vs = Math.round(38 * scale), padY = Math.round(46 * scale), padX = Math.round(38 * scale), vGap = Math.round(28 * scale);
