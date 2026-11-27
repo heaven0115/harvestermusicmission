@@ -2093,10 +2093,15 @@
     });
   }
 
-  /* 쪽 경계 — 글줄이나 상자 한가운데가 잘리지 않도록 문단 끝에서 자른다.
-     제목(소제목) 바로 뒤나 인용·강조 상자 안에서는 자르지 않는다. */
-  function pdfPageCuts(docEl, total, pageH) {
-    var base = docEl.getBoundingClientRect().top;
+  /* ---- 쪽 경계 재기 ----
+     글줄이나 상자 한가운데가 잘리지 않도록 문단 끝에서 자른다. 제목(소제목)
+     바로 뒤나 인용·강조 상자 안에서는 자르지 않는다. 잰 결과는 그 자리에서
+     함께 쓰이도록 html2canvas 가 그리는 사본에서 재는 것을 원칙으로 한다
+     (화면 배치와 사본 배치가 몇 픽셀 어긋나면 쪽 끝에서 글줄이 반쯤 잘린다). */
+  function pdfMeasureDoc(docEl) {
+    var rect0 = docEl.getBoundingClientRect();
+    var base = rect0.top;
+    var total = Math.ceil(rect0.height) || 0;
     var ends = [];
     var lines = [];
     var keep = [];            /* 이 구간 안에서는 자르지 않는다 [위, 아래] */
@@ -2107,8 +2112,6 @@
       var b = Math.round(r.bottom - base);
       if (b > 0 && b < total) ends.push(b);
     }
-    /* 제목은 통째로 한 쪽에 두고 뒤로 두어 줄을 더 붙이며,
-       인용·강조 상자(.tm-q 등)는 쪼개지 않는다 */
     function tagOf(el) {
       var c = (typeof el.className === 'string' ? el.className : '');
       return (/^H[1-6]$/.test(el.tagName)) || /(^|\s)(tm-h|tm-box-h|tm-title|doc-h2|doc-h3)(\s|$)/.test(c);
@@ -2149,17 +2152,26 @@
         }
       }
     } catch (e) {}
+    ends = uniqSorted(ends);
+    lines = uniqSorted(lines);
     function uniqSorted(arr) {
       arr.sort(function (a, b) { return a - b; });
       var out = [];
       for (var q = 0; q < arr.length; q++) if (!out.length || out[out.length - 1] !== arr[q]) out.push(arr[q]);
       return out;
     }
-    ends = uniqSorted(ends);
-    lines = uniqSorted(lines);
-    var safeEnds = ends.filter(function (y) { return !blocked(y); });
-    var safeLines = lines.filter(function (y) { return !blocked(y); });
+    return {
+      total: total, ends: ends, lines: lines, blocked: blocked,
+      safeEnds: ends.filter(function (y) { return !blocked(y); }),
+      safeLines: lines.filter(function (y) { return !blocked(y); })
+    };
+  }
 
+  /* start(문서 위쪽에서 잰 위치) 뒤 첫 쪽의 끝 위치 */
+  function pdfNextCut(m, start, total, pageH) {
+    if (!m || !m.total) return Math.min(total, start + pageH);
+    var target = start + pageH;
+    if (target >= total - 4) return total;
     var pickIn = function (arr, from, to) {
       var found = 0;
       for (var j = 0; j < arr.length; j++) {
@@ -2170,83 +2182,56 @@
     };
     /* 글줄에서 잘랐을 때 상자 끝이 바로 뒤에 있으면 상자째 닫아 준다 */
     var closeBox = function (v, limit) {
-      for (var j = 0; j < ends.length; j++) {
-        if (ends[j] <= v) continue;      /* 지금 지점보다 뒤에 끝나는 상자만 */
-        if (ends[j] > limit) return 0;
-        if (blocked(ends[j])) return 0;
-        return ends[j];
+      for (var j = 0; j < m.ends.length; j++) {
+        if (m.ends[j] <= v) continue;
+        if (m.ends[j] > limit) return 0;
+        if (m.blocked(m.ends[j])) return 0;
+        return m.ends[j];
       }
       return 0;
     };
+    var from = start + pageH * 0.42;
+    var pick = pickIn(m.safeEnds, from, target);        /* 문단 끝에서 자르는 것을 우선 */
+    if (!pick) pick = pickIn(m.safeLines, from, target);
+    if (!pick) pick = pickIn(m.ends, start + pageH * 0.3, target);
+    if (!pick) pick = pickIn(m.lines, start + pageH * 0.3, target);
+    if (!pick || pick <= start + 8) pick = target;
+    if (m.blocked(pick)) {                              /* 제목·강조 상자 안이면 그 앞으로 */
+      var back = pickIn(m.safeEnds, start + pageH * 0.25, pick - 2);
+      if (!back) back = pickIn(m.safeLines, start + pageH * 0.25, pick - 2);
+      if (back) pick = back;
+    }
+    var box = closeBox(pick, Math.min(start + pageH + 30, pick + 80));
+    if (box) pick = Math.min(total, box + 2);   /* 테두리 한 줄까지 넘겨 다음 쪽 위에 선이 남지 않게 */
+    if (pick < total) pick = Math.min(total, pick + 2);   /* 경계선이 다음 쪽 위에 비치지 않게 */
+    return Math.max(start + 8, Math.min(total, pick));
+  }
 
-    var cuts = [0];
+  /* 쪽 하나를 그려서, 그 사본에서 잰 경계까지만 남긴다(그림과 계량이 같은 사본) */
+  function pdfCropCanvas(canvas, keepCssPx, pageW) {
+    var scale = canvas.width / pageW;
+    var h = Math.max(1, Math.min(canvas.height, Math.round(keepCssPx * scale)));
+    if (h >= canvas.height - 1) return canvas;
+    var out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = h;
+    try {
+      out.getContext('2d').drawImage(canvas, 0, 0);
+    } catch (e) { return canvas; }
+    return out;
+  }
+
+  function pdfRenderPages(docEl, onStep) {
+    var pages = [];
     var start = 0;
     var guard = 0;
-    while (start < total - 4 && guard < 300) {
-      guard += 1;
-      var target = start + pageH;
-      if (target >= total - 4) { cuts.push(total); break; }
-      var from = start + pageH * 0.42;
-      var pick = pickIn(safeEnds, from, target);        /* 문단 끝에서 자르는 것을 우선 */
-      if (!pick) pick = pickIn(safeLines, from, target);
-      if (!pick) pick = pickIn(ends, start + pageH * 0.3, target);
-      if (!pick) pick = pickIn(lines, start + pageH * 0.3, target);
-      if (!pick || pick <= start + 8) pick = target;     /* 그래도 없으면 그대로 자른다 */
-      /* 고른 지점이 제목·강조 상자 안이면 그 앞 문단 끝으로 물러난다 */
-      if (blocked(pick)) {
-        var back = pickIn(safeEnds, start + pageH * 0.25, pick - 2);
-        if (!back) back = pickIn(safeLines, start + pageH * 0.25, pick - 2);
-        if (back) pick = back;
-      }
-      /* 상자 끝이 바로 뒤에 있으면 상자째 닫아 다음 쪽에 조각이 남지 않게 한다
-         (한두 줄만큼은 쪽 높이를 조금 넘겨도 된다) */
-      var box = closeBox(pick, Math.min(start + pageH + 30, pick + 80));
-      if (box) pick = Math.min(total, box + 2);   /* 테두리 한 줄까지 넘겨 다음 쪽 위에 선이 남지 않게 */
-      /* 경계선이 다음 쪽 위에 1px 비치지 않도록 2px 내려 시작한다 */
-      if (pick < total) pick = Math.min(total, pick + 2);
-      cuts.push(pick);
-      start = pick;
-    }
-    if (cuts[cuts.length - 1] !== total) cuts.push(total);
-    return cuts;
-  }
-
-  /* html2canvas 가 그릴 사본에서 쪽 경계를 잰다(사본은 창 폭·글꼴이 달라
-     화면과 몇 픽셀씩 어긋날 수 있고, 그 오차가 쪽 끝 글줄을 잘라 낸다). */
-  function pdfMeasureCuts(el, fallbackH) {
-    return new Promise(function (resolve) {
-      var settled = false;
-      var done = function (v) { if (!settled) { settled = true; resolve(v); } };
-      try {
-        return window.html2canvas(el, {
-          scale: 0.06, backgroundColor: '#ffffff', logging: false,
-          width: PDF_PAGE_W, windowWidth: 1024, windowHeight: 1200, scrollX: 0, scrollY: 0,
-          onclone: function (doc, cloned) {
-            try {
-              var target = cloned || el;
-              if (!target || !target.querySelector || !target.querySelector('h1,p,div')) {
-                var found = doc && doc.querySelector('.doc-ten, .doc, .arc-doc');
-                if (found) target = found;
-              }
-              var h = Math.ceil(target.getBoundingClientRect().height) || fallbackH;
-              var cuts = (h > 0) ? pdfPageCuts(target, h, PDF_PAGE_H) : null;
-              done({ cuts: cuts, height: h });
-            } catch (e) { done(null); }
-          }
-        }).then(function () { done(null); }, function () { done(null); });
-      } catch (e) { done(null); }
-    });
-  }
-
-  function pdfRenderPages(docEl, cuts, onStep) {
-    var pages = [];
-    var idx = 0;
-    var totalPages = cuts.length - 1;
+    var total = Math.ceil(docEl.getBoundingClientRect().height) || 1;
+    var fallback = null;
     function step() {
-      if (idx >= totalPages) return Promise.resolve(pages);
-      var start = cuts[idx];
-      var hPx = Math.max(1, Math.min(PDF_PAGE_H, cuts[idx + 1] - start));
-      if (onStep) onStep(idx + 1, totalPages);
+      guard += 1;
+      if (guard > 300 || start >= total - 4) return Promise.resolve(pages);
+      var hPx = Math.max(1, Math.min(PDF_PAGE_H, total - start));
+      if (onStep) onStep(pages.length + 1, Math.max(pages.length + 1, Math.ceil(total / PDF_PAGE_H)));
       var page = document.createElement('div');
       page.className = 'pdf-page pdf-sheet';
       page.setAttribute('aria-hidden', 'true');
@@ -2257,14 +2242,30 @@
       inner.appendChild(docEl.cloneNode(true));
       page.appendChild(inner);
       document.body.appendChild(page);
+      var cut = 0;
       return window.html2canvas(page, {
         scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
         width: PDF_PAGE_W, height: hPx,
-        windowWidth: 1024, windowHeight: 1200, scrollX: 0, scrollY: 0
+        windowWidth: 1024, windowHeight: 1200, scrollX: 0, scrollY: 0,
+        onclone: function (doc, cloned) {
+          try {
+            var d = null;
+            if (cloned && cloned.querySelector) d = cloned.querySelector('.doc, .arc-doc');
+            if (!d && doc) d = doc.querySelector('.pdf-page .doc, .pdf-page .arc-doc, .pdf-stage .doc');
+            if (!d) return;
+            var m = pdfMeasureDoc(d);
+            if (m.total > 0) total = m.total;   /* 사본이 잰 문서 높이를 기준으로 쪽을 센다 */
+            cut = pdfNextCut(m, start, total, PDF_PAGE_H);
+          } catch (e) { cut = 0; }
+        }
       }).then(function (canvas) {
-        pages.push(canvas);
         if (page.parentNode) page.parentNode.removeChild(page);
-        idx += 1;
+        if (!cut || cut <= start + 8) {
+          if (!fallback) fallback = pdfMeasureDoc(docEl);
+          cut = pdfNextCut(fallback, start, total, PDF_PAGE_H);
+        }
+        pages.push(pdfCropCanvas(canvas, Math.min(cut - start, hPx), PDF_PAGE_W));
+        start = cut;
         return step();
       }, function (err) {
         if (page.parentNode) page.parentNode.removeChild(page);
@@ -2358,7 +2359,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127v';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127w';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
@@ -2382,7 +2383,7 @@
         if (n.tagName === 'SECTION') { walk(n); continue; }
         if (has(n, 'tm-q') || n.tagName === 'BLOCKQUOTE') {
           var q = n.querySelector('p'), c = n.querySelector('cite');
-          if (q) out.push({ text: T(q), size: 34, bold: true, color: '2A2418', shade: 'FAF6EC', indent: 240, before: 120, after: 60 });
+          if (q) out.push({ text: T(q), size: 36, bold: true, color: '2A2418', shade: 'FAF6EC', indent: 240, before: 120, after: 60 });
           if (c) out.push({ text: T(c), size: 22, color: '6B5C42', indent: 240, after: 160 });
           continue;
         }
@@ -2542,14 +2543,11 @@
       return new Promise(function (resolve) { setTimeout(resolve, 40); }).then(function () {
         var h = Math.ceil(clone.getBoundingClientRect().height);
         if (!h) throw new Error('문서 높이를 재지 못했습니다');
-        /* 쪽 경계는 화면(DOM)이 아니라 html2canvas 가 다시 그리는 사본의 배치에서
-           잰다. 두 배치가 미세하게 다르면 쪽 끝에서 글줄이 반쯤 잘리고 다음 쪽에
+        /* 쪽 경계는 화면(DOM)이 아니라 html2canvas 가 다시 그리는 사본에서 잰다.
+           두 배치가 미세하게 다르면 쪽 끝에서 글줄이 반쯤 잘리고 다음 쪽에
            같은 줄이 겹쳐 보이기 때문이다. */
-        return pdfMeasureCuts(clone, h).then(function (m) {
-          var cuts = (m && m.cuts && m.cuts.length > 1) ? m.cuts : pdfPageCuts(clone, h, PDF_PAGE_H);
-          return pdfRenderPages(clone, cuts, function (i, n) {
-            txt.textContent = 'PDF 만드는 중… ' + i + '/' + n + '쪽';
-          });
+        return pdfRenderPages(clone, function (i, n) {
+          txt.textContent = 'PDF 만드는 중… ' + i + '/' + n + '쪽';
         });
       });
     }).then(function (pages) {
