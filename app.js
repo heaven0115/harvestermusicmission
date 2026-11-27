@@ -2098,6 +2098,7 @@
     var base = docEl.getBoundingClientRect().top;
     var ends = [];
     var lines = [];
+    var heads = [];
     var nodes = docEl.querySelectorAll('p,li,tr,div,h1,h2,h3,h4,h5,section,table,ul,ol,blockquote,figure');
     for (var i = 0; i < nodes.length; i++) {
       var r = nodes[i].getBoundingClientRect();
@@ -2107,7 +2108,13 @@
     }
     /* 문단보다 큰 상자 안에서는 글줄 단위로 자른다 */
     try {
-      var walker = document.createTreeWalker(docEl, 4, null, false);
+      var hs = docEl.querySelectorAll('h1,h2,h3,h4,h5,.tm-h,.doc-h2,.doc-h3');
+    for (var q = 0; q < hs.length; q++) {
+      var hr = hs[q].getBoundingClientRect();
+      if (!hr.height) continue;
+      heads.push({ top: Math.round(hr.top - base), bottom: Math.round(hr.bottom - base) });
+    }
+    var walker = document.createTreeWalker(docEl, 4, null, false);
       var tn;
       while ((tn = walker.nextNode())) {
         if (!tn.nodeValue || !/\S/.test(tn.nodeValue)) continue;
@@ -2155,6 +2162,13 @@
          (한두 줄만큼은 쪽 높이를 조금 넘겨도 된다) */
       var box = closeBox(pick, Math.min(start + pageH + 30, pick + 80));
       if (box) pick = Math.min(total, box + 2);   /* 테두리 한 줄까지 넘겨 다음 쪽 위에 선이 남지 않게 */
+      /* 제목만 쪽 끝에 남으면 제목째 다음 쪽으로 넘긴다 */
+      for (var t = 0; t < heads.length; t++) {
+        if (Math.abs(heads[t].bottom - pick) <= 3 && heads[t].top > start + pageH * 0.25) {
+          pick = heads[t].top;
+          break;
+        }
+      }
       cuts.push(pick);
       start = pick;
     }
