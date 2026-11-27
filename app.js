@@ -2151,8 +2151,9 @@
       var pick = pickIn(ends, from, target);      /* 문단 끝에서 자르는 것을 우선 */
       if (!pick) pick = pickIn(lines, from, target);
       if (!pick) pick = target;                   /* 그래도 없으면 그대로 자른다 */
-      /* 상자 끝이 바로 뒤에 있으면 상자째 닫아 다음 쪽에 조각이 남지 않게 한다 */
-      var box = closeBox(pick, Math.min(start + pageH, pick + 80));
+      /* 상자 끝이 바로 뒤에 있으면 상자째 닫아 다음 쪽에 조각이 남지 않게 한다
+         (한두 줄만큼은 쪽 높이를 조금 넘겨도 된다) */
+      var box = closeBox(pick, Math.min(start + pageH + 30, pick + 80));
       if (box) pick = box;
       cuts.push(pick);
       start = pick;
