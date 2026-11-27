@@ -8,7 +8,8 @@
     scores: "churchGames.scores.v1",
     sound: "churchGames.sound.v1",
     custom: "churchGames.custom.v1",
-    preset: "churchGames.preset.v1"
+    preset: "churchGames.preset.v1",
+    presetByGame: "churchGames.timerByGame.v1"
   };
   var TEAMS = ["A", "B", "C", "D"];
 
@@ -90,20 +91,95 @@
   })();
 
   /* ---------------------------------------------------------------- timer */
+  var TIMER_MIN = 5;
+  var TIMER_MAX = 600;
+  function clampSec(sec) {
+    var n = Math.round(Number(sec));
+    if (!isFinite(n) || isNaN(n)) return 30;
+    return Math.max(TIMER_MIN, Math.min(TIMER_MAX, n));
+  }
+  function secLabel(sec) {
+    var s = Math.round(sec);
+    if (s < 60) return s + "초";
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return m + "분" + (r ? " " + r + "초" : "");
+  }
+  function timerMap() {
+    var m = read(LS.presetByGame, null);
+    return (m && typeof m === "object") ? m : {};
+  }
   var Timer = {
-    duration: read(LS.preset, 30) || 30,
-    remaining: read(LS.preset, 30) || 30,
+    duration: clampSec(read(LS.preset, 30)),
+    remaining: clampSec(read(LS.preset, 30)),
     endAt: 0,
     running: false,
     handle: null,
     lastBeep: -1,
-    set: function (sec) {
-      this.duration = Math.max(5, Math.min(600, sec));
-      write(LS.preset, this.duration);
-      this.reset();
-      $$("#timerbar [data-sec]").forEach(function (b) {
-        b.classList.toggle("is-on", Number(b.dataset.sec) === Timer.duration);
+    gameId: null,
+    custom: false,
+    /* 화면의 숫자 입력칸·칩·게임 안 시작 버튼 글자를 지금 시간에 맞춥니다. */
+    syncUI: function () {
+      var chips = $$("#timerbar [data-sec]");
+      var matched = false;
+      chips.forEach(function (b) {
+        var on = Number(b.dataset.sec) === Timer.duration;
+        if (on) matched = true;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
       });
+      var input = $("#timer-input");
+      if (input && document.activeElement !== input && input.value !== String(Timer.duration)) {
+        input.value = String(Timer.duration);
+      }
+      var custom = $(".timer-custom");
+      if (custom && !matched) custom.classList.add("is-on");
+      else if (custom) custom.classList.remove("is-on");
+      $$("[data-timer-label]").forEach(function (el) {
+        el.textContent = "⏱ " + secLabel(Timer.duration) + " 시작";
+      });
+      /* 게임 화면 안의 시간 표시(줄줄이 말해요 배지·부제)도 함께 맞춥니다. */
+      var g = state && state.game;
+      if (g && VIEWS && VIEWS[g.id] && (g.id === "relay" || g.id === "charades")) {
+        var it = state.items[state.idx];
+        var subEl = $("#stage-sub");
+        if (subEl && it) subEl.textContent = VIEWS[g.id].sub(it);
+        var badge = $("#relay-sec");
+        if (badge) badge.textContent = secLabel(Timer.duration) + " 안에";
+      }
+    },
+    /* 시간만 바꿉니다. 돌아가는 중이면 남은 시간은 그대로 둡니다. */
+    apply: function (sec, remember) {
+      this.duration = clampSec(sec);
+      if (!this.running) this.remaining = this.duration;
+      if (remember !== false && this.gameId) {
+        var map = timerMap();
+        map[this.gameId] = this.duration;
+        write(LS.presetByGame, map);
+        this.custom = true;
+      }
+      write(LS.preset, this.duration);
+      this.syncUI();
+      this.paint();
+    },
+    set: function (sec, remember) {
+      this.running = false;
+      this.stopLoop();
+      this.apply(sec, remember);
+      this.remaining = this.duration;
+      this.lastBeep = -1;
+      this.paint();
+    },
+    nudge: function (delta) {
+      this.set(this.duration + delta);
+    },
+    /* 게임을 열 때: 그 게임에서 마지막에 고른 시간이 있으면 그대로 씁니다. */
+    loadForGame: function (gameId, fallbackSec) {
+      this.gameId = gameId || null;
+      var map = timerMap();
+      var saved = (gameId && typeof map[gameId] === "number") ? map[gameId] : null;
+      this.custom = saved !== null;
+      this.set(saved === null ? fallbackSec : saved, false);
     },
     reset: function () {
       this.running = false;
@@ -223,7 +299,7 @@
         '<p class="hero-sub">' + GAMES.length + '가지 게임 · ' + totalItems() + '문제 · 타이머 · 팀 점수판 · 정답 공개까지 한 화면에</p>' +
         '<div class="hero-tips">' +
           '<span><b>⛶ 전체화면</b> 프로젝터에 크게</span>' +
-          '<span><b>⏱ 타이머</b> 15·30·60초</span>' +
+          '<span><b>⏱ 타이머</b> 원하는 시간으로</span>' +
           '<span><b>🏆 점수판</b> A~D팀 자동 저장</span>' +
         '</div>' +
       '</section>' +
@@ -233,7 +309,7 @@
         '<ul>' +
           '<li>게임을 고르면 바로 시작됩니다. <b>→</b> 다음 문제, <b>←</b> 이전 문제, <b>정답 보기</b>로 답을 공개하세요.</li>' +
           '<li>프로젝터에서는 오른쪽 위 <b>⛶</b>로 전체화면을 켜면 글씨가 더 커집니다. (<b>F</b> 키)</li>' +
-          '<li>타이머는 <b>15초·30초·60초</b> 중 고르고 <b>▶ 시작</b>. 스페이스바로도 시작/멈춤이 됩니다.</li>' +
+          '<li>타이머 시간은 위쪽 <b>15초·30초·60초·2분</b> 단추나 <b>−10초/+10초</b>, <b>초 칸에 직접 입력</b>해서 정합니다(5초~10분). 시간은 게임마다 기억됩니다. <b>▶ 시작</b> 또는 스페이스바로 시작/멈춤.</li>' +
           '<li><b>🏆 점수판</b>에서 팀별 점수를 더하고 빼면 이 기기에 자동 저장됩니다.</li>' +
           '<li><b>✎ 문제 편집</b>에서 우리 교회에 맞는 문제를 더하거나 고칠 수 있습니다. (이 브라우저에 저장)</li>' +
         '</ul>' +
@@ -262,7 +338,8 @@
     $("#app-sub").textContent = (isCustom(game) ? "내가 만든 문제 · " : "") + state.items.length + "문제";
     document.title = game.title + " · 교회 레크레이션";
     $("#view").className = "view view-game tone-" + game.tone;
-    Timer.set(game.id === "charades" ? 60 : (game.id === "relay" ? (state.items[0].sec || 15) : 30));
+    var relaySec = Number(state.items[0] && state.items[0].sec) || 15;
+    Timer.loadForGame(game.id, game.id === "charades" ? 60 : (game.id === "relay" ? relaySec : 30));
     renderGame();
     renderPanel();
     window.scrollTo({ top: 0 });
@@ -324,7 +401,7 @@
 
     /* 2. 줄줄이 말해요 */
     relay: {
-      sub: function (item) { return item.topic + " · " + item.sec + "초"; },
+      sub: function (item) { return item.topic + " · " + secLabel(Timer.duration); },
       body: function (item) {
         var ex = state.extra;
         if (typeof ex.relayCount !== "number") ex.relayCount = 0;
@@ -333,7 +410,7 @@
             item.hint.split(",").map(function (a) { return '<span class="chip answer">' + esc(a.trim()) + '</span>'; }).join("") +
             '</div></div>'
           : "";
-        return '<span class="badge badge-lg">' + item.sec + '초 안에</span>' +
+        return '<span class="badge badge-lg" id="relay-sec">' + esc(secLabel(Timer.duration)) + ' 안에</span>' +
           '<div class="giant-prompt">' + esc(item.topic) + '</div>' +
           '<p class="lead">팀원이 돌아가며 하나씩! 막히면 거기서 끝납니다.</p>' +
           '<div class="counter">' +
@@ -341,7 +418,7 @@
             '<div><b id="relay-count">' + ex.relayCount + '</b><span>개</span></div>' +
             '<button type="button" data-act="cnt-plus" aria-label="개수 늘리기">+</button>' +
           '</div>' +
-          '<div class="charade-actions"><button class="btn btn-primary btn-lg" type="button" data-act="start-timer" data-sec="' + item.sec + '">⏱ ' + item.sec + '초 시작</button></div>' +
+          '<div class="charade-actions"><button class="btn btn-primary btn-lg" type="button" data-act="start-timer" data-timer-label>⏱ ' + secLabel(Timer.duration) + ' 시작</button></div>' +
           answers;
       }
     },
@@ -399,7 +476,7 @@
 
     /* 6. 몸으로 말해요 */
     charades: {
-      sub: function (item) { return item.cat + " · 60초"; },
+      sub: function (item) { return item.cat + " · " + secLabel(Timer.duration); },
       body: function (item) {
         var ex = state.extra;
         if (typeof ex.ok !== "number") ex.ok = 0;
@@ -414,7 +491,7 @@
           '<div class="charade-actions">' +
             '<button class="btn btn-ok btn-lg" type="button" data-act="ok">✅ 성공 (+1)</button>' +
             '<button class="btn btn-pass btn-lg" type="button" data-act="pass">⏭ 패스</button>' +
-            '<button class="btn btn-primary btn-lg" type="button" data-act="start-timer" data-sec="60">⏱ 60초 시작</button>' +
+            '<button class="btn btn-primary btn-lg" type="button" data-act="start-timer" data-timer-label>⏱ ' + secLabel(Timer.duration) + ' 시작</button>' +
           '</div>';
       }
     },
@@ -549,7 +626,7 @@
         '<section class="stage tone-' + game.tone + '">' +
           '<header class="stage-head">' +
             '<span class="stage-emoji" aria-hidden="true">' + game.emoji + '</span>' +
-            '<div class="stage-titles"><h2>' + esc(game.title) + '</h2><p>' + esc(view.sub(item)) + '</p></div>' +
+            '<div class="stage-titles"><h2>' + esc(game.title) + '</h2><p id="stage-sub">' + esc(view.sub(item)) + '</p></div>' +
             '<span class="stage-count">' + (state.idx + 1) + ' / ' + state.items.length + '</span>' +
           '</header>' +
           '<div class="stage-body">' + view.body(item) + '</div>' +
@@ -574,12 +651,22 @@
       '</button>';
   }
 
+  /* 줄줄이 말해요처럼 문제마다 권장 시간이 다른 게임은,
+     사용자가 직접 시간을 고르지 않았을 때만 문제의 시간을 따라갑니다. */
+  function syncItemTimer() {
+    if (state.game && state.game.id === "relay" && !Timer.custom) {
+      var it = state.items[state.idx];
+      Timer.apply(Number(it && it.sec) || 15, false);
+    }
+  }
+
   function next() {
     if (!state.game) return;
     state.revealed = false;
     state.extra = {};
     state.idx = state.idx + 1;
     if (state.idx >= state.items.length) { state.idx = 0; toast("마지막 문제였습니다. 처음으로 돌아갑니다."); }
+    syncItemTimer();
     Sound.click();
     renderGame();
   }
@@ -589,6 +676,7 @@
     state.extra = {};
     state.idx = state.idx - 1;
     if (state.idx < 0) { state.idx = state.items.length - 1; toast("마지막 문제로 이동했습니다."); }
+    syncItemTimer();
     Sound.click();
     renderGame();
   }
@@ -598,6 +686,7 @@
     state.idx = 0;
     state.revealed = false;
     state.extra = {};
+    syncItemTimer();
     Sound.pop();
     toast("문제 순서를 섞었습니다.");
     renderGame();
@@ -687,7 +776,8 @@
         toast(el.dataset.team + "팀 +1점!");
         return;
       case "start-timer":
-        Timer.set(Number(el.dataset.sec || 30));
+        if (el.dataset.sec) Timer.set(Number(el.dataset.sec));
+        else Timer.reset();
         Timer.start();
         return;
       case "cnt-plus":
@@ -1084,7 +1174,43 @@
   $("#timer-toggle").addEventListener("click", function () { if (state.game) Timer.toggle(); });
   $("#timer-reset").addEventListener("click", function () { Timer.reset(); Sound.click(); });
   $$("#timerbar [data-sec]").forEach(function (b) {
-    b.addEventListener("click", function () { Timer.set(Number(b.dataset.sec)); });
+    b.addEventListener("click", function () { Timer.set(Number(b.dataset.sec)); Sound.click(); });
+  });
+  $$("#timerbar [data-step]").forEach(function (b) {
+    b.addEventListener("click", function () { Timer.nudge(Number(b.dataset.step)); Sound.click(); });
+  });
+
+  /* 시간 직접 입력: 엔터·입력칸 밖 누름·값 변경 시 바로 적용 (5~600초) */
+  var timerInput = $("#timer-input");
+  function commitTimerInput() {
+    if (!timerInput) return;
+    var digits = String(timerInput.value).replace(/[^0-9]/g, "");
+    var v = digits ? parseInt(digits, 10) : NaN;
+    if (!digits || !isFinite(v)) { Timer.syncUI(); return; }
+    var target = clampSec(v);
+    if (target !== v) {
+      toast("타이머는 " + TIMER_MIN + "초부터 " + TIMER_MAX + "초(10분)까지입니다.");
+    }
+    if (target === Timer.duration) { Timer.syncUI(); return; }
+    Timer.set(target);
+    Sound.click();
+  }
+  if (timerInput) {
+    timerInput.addEventListener("input", function () {
+      this.value = String(this.value).replace(/[^0-9]/g, "").slice(0, 3);
+    });
+    timerInput.addEventListener("keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter") { e.preventDefault(); commitTimerInput(); this.blur(); }
+    });
+    timerInput.addEventListener("change", commitTimerInput);
+    timerInput.addEventListener("blur", commitTimerInput);
+    timerInput.addEventListener("focus", function () { this.select(); });
+  }
+  $("#timer-clock").addEventListener("click", function () {
+    if (!timerInput) return;
+    timerInput.focus();
+    timerInput.select();
   });
   $("#btn-back").addEventListener("click", function () { location.hash = "#/"; });
   $("#btn-sound").addEventListener("click", function () {
@@ -1124,6 +1250,7 @@
     $("#btn-sound").textContent = Sound.isOn() ? "🔊" : "🔇";
     $("#btn-sound").setAttribute("aria-pressed", Sound.isOn() ? "true" : "false");
     Timer.paint();
+    Timer.syncUI();
     renderPanel();
     window.addEventListener("hashchange", route);
     route();

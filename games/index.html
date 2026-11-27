@@ -9,7 +9,7 @@
 <meta name="theme-color" content="#fdf7ee">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23f7d8ae'/%3E%3Ctext x='32' y='45' font-size='34' text-anchor='middle' font-family='sans-serif'%3E%F0%9F%8E%AE%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20261127j">
+<link rel="stylesheet" href="styles.css?v=20261127k">
 </head>
 <body>
 <a class="skip" href="#view">본문으로 건너뛰기</a>
@@ -37,18 +37,29 @@
 
     <div class="timerbar" id="timerbar" hidden>
       <div class="timer-inner">
-        <div class="timer-clock" id="timer-clock">
-          <span id="timer-time">00:30</span>
-          <small>타이머</small>
+        <div class="timer-main">
+          <button class="timer-clock" id="timer-clock" type="button" title="시간을 직접 입력하려면 누르세요 (5초~600초)" aria-label="타이머 시간 직접 입력">
+            <span id="timer-time">00:30</span>
+            <small>타이머 ✎</small>
+          </button>
+          <div class="timer-track"><i id="timer-fill"></i></div>
+          <div class="timer-btns">
+            <button class="btn btn-timer" id="timer-toggle" type="button">▶ 시작</button>
+            <button class="ibtn" id="timer-reset" type="button" title="리셋">⟲</button>
+          </div>
         </div>
-        <div class="timer-track"><i id="timer-fill"></i></div>
-        <div class="timer-btns">
-          <button class="btn btn-timer" id="timer-toggle" type="button">▶ 시작</button>
-          <button class="ibtn" id="timer-reset" type="button" title="리셋">⟲</button>
-          <div class="presets" role="group" aria-label="타이머 시간">
+        <div class="timer-set" role="group" aria-label="타이머 시간 설정">
+          <button class="chip chip-step" type="button" data-step="-10" aria-label="10초 줄이기">−10초</button>
+          <label class="timer-custom" for="timer-input">
+            <input id="timer-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" value="30" autocomplete="off" enterkeyhint="done" aria-label="타이머 시간 직접 입력 (초, 5초~600초)">
+            <span>초</span>
+          </label>
+          <button class="chip chip-step" type="button" data-step="10" aria-label="10초 늘리기">+10초</button>
+          <div class="presets" role="group" aria-label="빠른 선택">
             <button class="chip" type="button" data-sec="15">15초</button>
             <button class="chip" type="button" data-sec="30">30초</button>
             <button class="chip" type="button" data-sec="60">60초</button>
+            <button class="chip" type="button" data-sec="120">2분</button>
           </div>
         </div>
       </div>
@@ -67,7 +78,7 @@
 <div class="modal" id="modal" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="data.js?v=20261127j"></script>
-<script src="app.js?v=20261127j"></script>
+<script src="data.js?v=20261127k"></script>
+<script src="app.js?v=20261127k"></script>
 </body>
 </html>

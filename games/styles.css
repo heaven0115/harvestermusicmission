@@ -107,10 +107,18 @@ a{ color: inherit; }
 }
 .timer-inner{
   max-width: 1500px; margin: 0 auto;
-  display: flex; align-items: center; gap: clamp(8px, 1.4vw, 18px);
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 6px clamp(8px, 1.2vw, 16px);
   padding: 7px clamp(12px, 2vw, 24px);
 }
-.timer-clock{ display: flex; align-items: baseline; gap: 7px; flex: none; }
+.timer-main{ display: flex; align-items: center; gap: clamp(8px, 1.2vw, 16px); flex: 1 1 320px; min-width: 0; }
+.timer-clock{
+  display: flex; align-items: baseline; gap: 7px; flex: none;
+  border: 0; background: none; padding: 2px 6px 2px 2px; margin: 0;
+  border-radius: 10px; cursor: pointer; transition: background .15s ease;
+}
+.timer-clock:hover{ background: #fff3e0; }
+.timer-clock:active{ transform: scale(.98); }
 .timer-clock span{
   font-variant-numeric: tabular-nums;
   font-size: clamp(1.35rem, 2.6vw, 2rem);
@@ -127,6 +135,27 @@ a{ color: inherit; }
 .timer-track i{ display: block; height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, #7fc9b4, #2f8b76); transition: width .18s linear, background .3s; }
 .timerbar.is-low .timer-track i{ background: linear-gradient(90deg, #f2a08f, #c0392b); }
 .timer-btns{ display: flex; align-items: center; gap: 6px; flex: none; }
+
+/* 시간 설정 묶음: −10초 · 초 입력 · +10초 · 빠른 선택 칩 */
+.timer-set{ display: flex; align-items: center; gap: 5px; flex: 0 0 auto; min-width: 0; }
+.chip-step{ font-variant-numeric: tabular-nums; font-weight: 700; color: #5c4a36; padding: 5px 9px; }
+.chip-step:hover{ background: #fff2df; }
+.timer-custom{
+  display: flex; align-items: center; gap: 1px;
+  border: 1.5px solid #d9c9b4; background: #fffdf8; border-radius: 12px;
+  padding: 2px 7px 2px 3px; transition: border-color .15s, box-shadow .15s;
+}
+.timer-custom:focus-within{ border-color: #2f8b76; box-shadow: 0 0 0 3px rgba(47, 139, 118, .16); }
+.timer-custom.is-on{ border-color: #33291f; }
+.timer-custom input{
+  width: 3.2ch; border: 0; background: none; outline: none;
+  text-align: right; font-family: inherit; font-weight: 800;
+  font-size: .95rem; color: var(--ink); padding: 3px 1px;
+  font-variant-numeric: tabular-nums; -moz-appearance: textfield;
+}
+.timer-custom input::-webkit-outer-spin-button,
+.timer-custom input::-webkit-inner-spin-button{ -webkit-appearance: none; margin: 0; }
+.timer-custom span{ font-size: .7rem; font-weight: 700; color: var(--ink-soft); }
 .btn-timer{
   border: 1px solid #d9c9b4; background: #fffdf8; border-radius: 12px;
   padding: 7px 14px; font-weight: 700; font-size: .88rem; cursor: pointer;
@@ -138,6 +167,7 @@ a{ color: inherit; }
 .chip{
   border: 1px solid var(--line); background: #fffdf8; border-radius: 99px;
   padding: 5px 11px; font-size: .8rem; font-weight: 600; cursor: pointer; color: var(--ink-soft);
+  white-space: nowrap;
 }
 .chip:hover{ background: #fff6e8; color: var(--ink); }
 .chip.is-on{ background: #33291f; border-color: #33291f; color: #fff8ee; }
@@ -620,10 +650,16 @@ body.is-fs .pitch-ch{ font-size: clamp(2rem, 5.6vw, 5rem); }
   .brand-mark{ width: 38px; height: 38px; font-size: 19px; }
   .appbar-actions{ gap: 4px; }
   .ibtn{ width: 38px; height: 38px; border-radius: 12px; }
-  .timer-inner{ gap: 8px; }
+  .timer-inner{ flex-direction: column; align-items: stretch; gap: 5px; padding: 6px 10px 7px; }
+  .timer-main{ width: 100%; flex: 1 1 auto; gap: 8px; }
   .timer-clock small{ display: none; }
   .timer-track{ display: none; }
-  .presets{ display: none; }
+  .timer-set{ width: 100%; justify-content: space-between; gap: 4px; flex-wrap: wrap; row-gap: 4px; }
+  .presets{ display: flex; gap: 3px; flex: 1; justify-content: flex-end; }
+  .chip{ padding: 5px 8px; font-size: .74rem; }
+  .chip-step{ padding: 5px 8px; }
+  .timer-custom{ padding: 2px 6px 2px 3px; }
+  .timer-custom input{ font-size: .9rem; }
   .btn-timer{ min-width: 68px; padding: 7px 10px; }
   .stage-body{ min-height: 44vh; }
   .stage-howto{ font-size: .78rem; }
@@ -638,9 +674,10 @@ body.is-fs .pitch-ch{ font-size: clamp(2rem, 5.6vw, 5rem); }
   .modal-card{ max-height: 92vh; }
 }
 @media (max-width: 420px){
-  .presets{ display: none; }
   .brand-text p{ display: none; }
   .dock .ibtn{ width: 42px; height: 42px; }
+  .chip{ padding: 5px 7px; font-size: .72rem; }
+  .timer-clock span{ font-size: 1.45rem; }
 }
 
 @media (prefers-reduced-motion: reduce){
