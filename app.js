@@ -2106,19 +2106,19 @@
       ctx = canvas.getContext('2d');
       data = ctx.getImageData(0, 0, w, h).data;
     } catch (e) { return null; }
-    var rows = new Uint8Array(h);
+    var ink = new Uint8Array(h);   /* 글자(어두운 픽셀) */
+    var any = new Uint8Array(h);   /* 글자·테두리·바탕색(흰색이 아닌 픽셀) */
     var stepX = w > 900 ? 2 : 1;
     for (var y = 0; y < h; y++) {
       var off = y * w * 4;
       for (var x = 0; x < w; x += stepX) {
         var p = off + x * 4;
-        if (data[p] < PDF_INK_LEVEL || data[p + 1] < PDF_INK_LEVEL || data[p + 2] < PDF_INK_LEVEL) {
-          rows[y] = 1;
-          break;
-        }
+        var r = data[p], g = data[p + 1], b = data[p + 2];
+        if (r < 250 || g < 250 || b < 250) any[y] = 1;
+        if (r < PDF_INK_LEVEL || g < PDF_INK_LEVEL || b < PDF_INK_LEVEL) { ink[y] = 1; break; }
       }
     }
-    return rows;
+    return { ink: ink, any: any };
   }
 
   /* 제목 바로 뒤에서 자르지 않도록, 제목 자리를 미리 재 둔다(문서 위 기준 CSS px) */
@@ -2142,12 +2142,27 @@
   }
 
   /* 그려진 쪽에서 다음 쪽 시작 지점(이 쪽 안의 CSS px)을 찾는다 */
+  /* 끊는 자리 바로 뒤에 상자 테두리나 바탕색 조각만 남아 있으면, 그 조각까지
+     이 쪽에 두고 끊는다(다음 쪽 위에 선 한 줄이 비치는 일을 막는다). */
+  function pdfClearTail(mid, inkRows, anyRows, scale) {
+    var h = inkRows.length;
+    var nextInk = mid;
+    while (nextInk < h && !inkRows[nextInk]) nextInk += 1;
+    var lastLight = -1;
+    for (var i = mid; i < nextInk; i++) if (anyRows[i]) lastLight = i;
+    if (lastLight < mid) return mid;
+    if ((lastLight - mid) > Math.round(40 * scale)) return mid;   /* 긴 바탕색은 그대로 둔다 */
+    return Math.min(nextInk, lastLight + Math.max(1, Math.round(2 * scale)));
+  }
+
   function pdfCutRow(rows, scale, start, pageH, keep) {
-    var h = rows.length;
+    var inkRows = rows.ink || rows;
+    var anyRows = rows.any || rows;
+    var h = inkRows.length;
     if (!h) return h;
-    var minGap = Math.max(6, Math.round(7 * scale));      /* 글줄 사이 최소 빈 줄 */
+    var minGap = Math.max(5, Math.round(6 * scale));      /* 글줄 사이 최소 빈 줄 */
     var y = h - 1;
-    while (y >= 0 && !rows[y]) y--;
+    while (y >= 0 && !inkRows[y]) y--;
     var lastInk = y;
     if (lastInk < 0) return h;                             /* 빈 쪽 */
     if (lastInk < h - minGap) return h;                    /* 아래가 비어 있으면 그대로 */
@@ -2156,7 +2171,7 @@
     var bands = [];
     var run = 0;
     for (var i = lastInk; i >= limit; i--) {
-      if (!rows[i]) { run += 1; continue; }
+      if (!inkRows[i]) { run += 1; continue; }
       if (run >= minGap) bands.push({ mid: i + Math.round(run / 2), width: run });
       run = 0;
     }
@@ -2165,9 +2180,13 @@
     bands.sort(function (a, b) { return (b.width - a.width) || (a.mid - b.mid); });
     for (var k = 0; k < bands.length; k++) {
       var pos = start + bands[k].mid / scale;
-      if (pos > start + pageH * 0.45 && !pdfBlocked(keep, pos)) return bands[k].mid;
+      if (pos > start + pageH * 0.45 && !pdfBlocked(keep, pos)) return pdfClearTail(bands[k].mid, inkRows, anyRows, scale);
     }
-    return h;   /* 제목과 겹치지 않는 자리가 없으면 쪽을 꽉 채운다 */
+    /* 제목과 겹치지 않는 자리가 없으면, 글자가 잘리지 않는 쪽 끝에 가장 가까운
+       빈 줄에서 끊는다(제목만 남는 것보다 글자가 잘리지 않는 것이 우선) */
+    var best = bands[0];
+    for (var k2 = 1; k2 < bands.length; k2++) if (bands[k2].mid > best.mid) best = bands[k2];
+    return pdfClearTail(best.mid, inkRows, anyRows, scale);
   }
 
   function pdfCropCanvas(canvas, keepCssPx, pageW) {
@@ -2324,7 +2343,7 @@
     if (DOCX_LIB) return DOCX_LIB;
     DOCX_LIB = new Promise(function (resolve, reject) {
       var s = document.createElement('script');
-      s.src = 'teaching/vendor/docx-lite.js?v=20261127x';
+      s.src = 'teaching/vendor/docx-lite.js?v=20261127y';
       s.async = true;
       s.onload = function () {
         if (window.DocxLite && typeof window.DocxLite.makeDocx === 'function') resolve();
