@@ -443,16 +443,17 @@ a{ color: inherit; }
 }
 .blank{
   display: inline-block; vertical-align: baseline;
-  min-width: 2.9em; padding: 0 9px 2px; margin: 0 3px;
-  border-bottom: 3px solid var(--tone); background: var(--tone-soft);
-  border-radius: 7px 7px 3px 3px; font-weight: 800; color: #2b2119;
-  cursor: pointer; transition: background .15s; line-height: 1.35;
+  min-width: 2.6em; padding: 0 10px; margin: 0 3px;
+  border-bottom: 3px dashed color-mix(in srgb, var(--tone) 55%, #b9a58f);
+  background: transparent; border-radius: 4px;
+  font-weight: 800; color: #2b2119;
+  cursor: pointer; transition: background .15s, color .15s; line-height: 1.25;
   text-align: center;
 }
-.blank:hover{ background: #fff3e2; }
-.blank.empty{ background: #fdf3ee; border-bottom-style: dashed; }
-.blank.ok{ background: #e2f4e9; border-bottom-color: #2f8b76; }
-.blank.no{ background: #fde7e4; border-bottom-color: #c0392b; }
+.blank:hover{ background: #fff5e8; }
+.blank.empty{ color: transparent; }
+.blank.ok{ background: #e7f5ee; border-bottom: 3px solid #2f8b76; color: #1c6a52; }
+.blank.no{ background: #fdeceb; border-bottom: 3px solid #c0392b; color: #a83a2e; }
 .bank{ display: flex; flex-wrap: wrap; gap: 8px; }
 .bank button{
   border: 1px solid #e6d8c5; background: #fffdf8; border-radius: 12px;
