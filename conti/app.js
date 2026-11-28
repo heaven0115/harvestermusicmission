@@ -1084,29 +1084,7 @@
       restore.addEventListener('click', function () { jsonInput.click(); });
       jsonInput.addEventListener('change', function () {
         var f = jsonInput.files && jsonInput.files[0];
-        if (!f) return;
-        var reader = new FileReader();
-        reader.onload = function () {
-          try {
-            var data = JSON.parse(String(reader.result));
-            if (!data || !Array.isArray(data.songs)) throw new Error('형식 오류');
-            applyState(data);
-            selectedId = null;
-            undoStack.length = 0;
-            redoStack.length = 0;
-            pdfSession = null;
-            zoom = 1;
-            syncPage2Seg();
-            save();
-            renderSongTabs();
-            renderPanel();
-            updateUndoButtons();
-            toast('콘티를 불러왔습니다.');
-          } catch (e) {
-            toast('백업 파일을 읽지 못했습니다. 이 앱에서 저장한 JSON인지 확인해 주세요.');
-          }
-        };
-        reader.readAsText(f);
+        if (f) importContiFile(f);
         jsonInput.value = '';
       });
     }
@@ -1127,11 +1105,261 @@
       updateUndoButtons();
       toast('새 콘티를 시작했습니다.');
     });
+
+    var undoImport = $('#btnUndoImport');
+    if (undoImport) undoImport.addEventListener('click', restorePrev);
+  }
+
+  /* ---------- 콘티 파일 불러오기 · 공유 링크(preset) ---------- */
+  function songCount() {
+    return state.songs.filter(function (s) { return (s.title || '').trim() || s.image; }).length;
+  }
+
+  function afterImport(label) {
+    selectedId = null;
+    undoStack.length = 0;
+    redoStack.length = 0;
+    pdfSession = null;
+    zoom = 1;
+    syncPage2Seg();
+    save();
+    renderSongTabs();
+    renderPanel();
+    updateUndoButtons();
+    var n = songCount();
+    toast((label ? label + ' · ' : '') + (n ? n + '곡 콘티' : '빈 콘티') + '를 불러왔습니다.');
+  }
+
+  function importContiText(text, label) {
+    var data = null;
+    try { data = JSON.parse(text); } catch (e) { data = null; }
+    if (!data || !Array.isArray(data.songs)) {
+      toast('콘티 파일이 아닙니다. 이 앱의 [JSON으로 백업]으로 만든 .json 파일을 골라 주세요.');
+      return false;
+    }
+    stashPrev(text.length);
+    applyState(data);
+    afterImport(label);
+    return true;
+  }
+
+  /* 불러오기 전 콘티를 한 단계 남겨 둔다 (저장 공간이 모자라면 건너뛴다) */
+  var PREV_KEY = 'harvester-conti-prev-v1';
+  function stashPrev(incomingLength) {
+    if (!songCount()) return;
+    var prev = '';
+    try { prev = JSON.stringify(state); } catch (e) { return; }
+    try { localStorage.removeItem(PREV_KEY); } catch (e) { /* noop */ }
+    if (incomingLength && prev.length + incomingLength > 2400000) return;
+    try {
+      localStorage.setItem(PREV_KEY, prev);
+    } catch (e) {
+      try { localStorage.removeItem(PREV_KEY); } catch (e2) { /* noop */ }
+    }
+  }
+
+  function restorePrev() {
+    var raw = null;
+    try { raw = localStorage.getItem(PREV_KEY); } catch (e) { raw = null; }
+    if (!raw) { toast('되돌릴 직전 콘티가 없습니다.'); return; }
+    importContiText(raw, '직전 콘티');
+  }
+
+  function importContiFile(file) {
+    if (!file) return;
+    if (!/\.json$/i.test(file.name || '')) { toast('콘티 파일(.json)만 불러올 수 있습니다.'); return; }
+    busy(true, '콘티를 불러오는 중…');
+    var reader = new FileReader();
+    reader.onload = function () {
+      busy(false);
+      importContiText(String(reader.result), '');
+    };
+    reader.onerror = function () { busy(false); toast('파일을 읽지 못했습니다.'); };
+    reader.readAsText(file);
+  }
+
+  function presetUrl(raw) {
+    var v = String(raw || '').trim();
+    if (!v) return '';
+    if (/^https?:\/\//i.test(v)) return v;
+    v = v.replace(/^\.\//, '');
+    if (v.indexOf('/') >= 0 || /\.json$/i.test(v)) return v;
+    return 'presets/' + v + '.json';
+  }
+
+  function loadPreset(raw) {
+    var url = presetUrl(raw);
+    if (!url) return;
+    busy(true, '콘티를 불러오는 중…');
+    fetch(url, { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(function (text) {
+      busy(false);
+      if (!importContiText(text, '')) return;
+      try {
+        if (location.search) history.replaceState(null, '', location.pathname + location.hash);
+      } catch (e) { /* 주소 정리는 못 해도 불러오기는 됨 */ }
+    }).catch(function () {
+      busy(false);
+      toast('콘티 링크를 열지 못했습니다. 주소가 맞는지 확인해 주세요.');
+    });
+  }
+
+  /* ---------- 원드라이브 악보 서재 ---------- */
+  var libData = null;
+  var libLoading = false;
+  var libTimer = 0;
+
+  function libNorm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ''); }
+
+  function setLibStatus(text) {
+    var st = $('#libStatus');
+    if (st) st.textContent = text || '';
+  }
+
+  function loadLibrary() {
+    if (libData || libLoading) return;
+    libLoading = true;
+    setLibStatus('악보 목록을 불러오는 중…');
+    fetch('library.json', { cache: 'force-cache' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (!data || !Array.isArray(data.items)) throw new Error('형식');
+      data.byCode = {};
+      (data.folders || []).forEach(function (f) { data.byCode[f.c] = f; });
+      data.search = data.items.map(function (it) {
+        return { name: String(it[0] || ''), code: it[1], ext: String(it[2] || ''), n: libNorm(it[0]) };
+      });
+      libData = data;
+      libLoading = false;
+      var total = $('#libTotal');
+      if (total) total.textContent = '(' + data.search.length.toLocaleString('ko-KR') + '곡)';
+      var inp = $('.lib-input');
+      if (inp && inp.value.trim()) runLibSearch();
+      else setLibStatus('폴더 ' + (data.folders || []).length + '곳 · ' + data.search.length.toLocaleString('ko-KR') + '곡이 들어 있습니다. 곡명을 입력해 보세요.');
+    }).catch(function () {
+      libLoading = false;
+      setLibStatus('악보 목록을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.');
+    });
+  }
+
+  function runLibSearch() {
+    var inp = $('.lib-input');
+    var box = $('#libResults');
+    if (!inp || !box || !libData) return;
+    var q = libNorm(inp.value);
+    if (!q) {
+      box.innerHTML = '';
+      setLibStatus('곡명을 입력하면 원드라이브 악보 폴더에서 찾아 드립니다.');
+      return;
+    }
+    var hits = [];
+    for (var i = 0; i < libData.search.length && hits.length < 60; i++) {
+      if (libData.search[i].n.indexOf(q) >= 0) hits.push(libData.search[i]);
+    }
+    if (!hits.length) {
+      box.innerHTML = '';
+      setLibStatus('‘' + inp.value.trim() + '’는 원드라이브 악보 목록에 없습니다. 하베스터에게 물어보면 웹에서도 찾아 드립니다.');
+      return;
+    }
+    box.innerHTML = hits.map(function (it) {
+      var f = libData.byCode[it.code] || { n: it.code, p: '', k: null };
+      var path = f.p + '/' + it.name;
+      var badge = f.k || String(it.ext || '').toUpperCase();
+      return '<div class="lib-item"><div class="txt">' +
+        '<div class="nm">' + esc(String(it.name).replace(/\.[^.]+$/, '')) + '</div>' +
+        '<div class="mt"><span class="badge">' + esc(badge) + '</span>' +
+        '<span class="badge src">' + esc(f.n) + '</span>' + esc(path) + '</div>' +
+        '</div><button type="button" class="btn small ghost" data-copy="' + esc(path) + '">경로 복사</button></div>';
+    }).join('');
+    setLibStatus(hits.length + '곡 찾음' + (hits.length >= 60 ? ' · 앞 60곡만 보입니다. 더 정확한 곡명을 입력해 보세요.' : ''));
+  }
+
+  function copyText(t) {
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = t;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); toast('경로를 복사했습니다.'); }
+      catch (e) { toast('복사하지 못했습니다. 경로를 길게 눌러 복사해 주세요.'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function () { toast('경로를 복사했습니다.'); }, fallback);
+    } else fallback();
   }
 
   function syncPage2Seg() {
     $$('#page2Seg button').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-mode') === state.settings.page2);
+    });
+  }
+
+  /* ---------- 불러오기 도구 연결 ---------- */
+  function bindImportTools() {
+    var openBtn = $('#btnOpenConti');
+    var jsonInput = $('#jsonInput');
+    if (openBtn && jsonInput) {
+      openBtn.addEventListener('click', function () { jsonInput.click(); });
+    }
+
+    var libOpen = $('#btnLibOpen');
+    var libCard = $('#libraryCard');
+    if (libOpen && libCard) {
+      libOpen.addEventListener('click', function () {
+        libCard.open = true;
+        loadLibrary();
+        try { libCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { /* noop */ }
+        var inp = $('.lib-input');
+        if (inp) setTimeout(function () { try { inp.focus(); } catch (e) { /* noop */ } }, 260);
+      });
+    }
+    if (libCard) {
+      libCard.addEventListener('toggle', function () { if (libCard.open) loadLibrary(); });
+    }
+    var libInput = $('.lib-input');
+    if (libInput) {
+      libInput.addEventListener('input', function () {
+        clearTimeout(libTimer);
+        libTimer = setTimeout(runLibSearch, 120);
+      });
+    }
+    var libResults = $('#libResults');
+    if (libResults) {
+      libResults.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-copy]');
+        if (!b) return;
+        copyText(b.getAttribute('data-copy') || '');
+      });
+    }
+
+    var presetBtn = $('#btnPresetUrl');
+    var presetInput = $('#presetUrl');
+    if (presetBtn && presetInput) {
+      presetBtn.addEventListener('click', function () { loadPreset(presetInput.value); });
+      presetInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); loadPreset(presetInput.value); }
+      });
+    }
+
+    /* 화면에 .json 콘티 파일을 끌어다 놓기 */
+    ['dragover', 'drop'].forEach(function (ev) {
+      document.addEventListener(ev, function (e) {
+        var dt = e.dataTransfer;
+        if (!dt) return;
+        var f = dt.files && dt.files[0];
+        var isJson = /\.json$/i.test((f && f.name) || '') ||
+          (dt.types && Array.prototype.indexOf.call(dt.types, 'application/json') >= 0);
+        if (!isJson) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (ev === 'drop' && f) importContiFile(f);
+      }, true);
     });
   }
 
@@ -1142,6 +1370,7 @@
     renderPanel();
     bindPanelDelegates();
     bindManage();
+    bindImportTools();
     updateUndoButtons();
     syncPage2Seg();
     setSaveState('');
@@ -1240,6 +1469,13 @@
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(renderMarkers, 120);
     });
+
+    /* ?preset=20261128 또는 ?preset=<JSON 주소> 로 열면 그 콘티를 바로 불러온다 */
+    try {
+      var params = new URLSearchParams(location.search);
+      var preset = params.get('preset') || params.get('conti') || params.get('json');
+      if (preset) loadPreset(preset);
+    } catch (e) { /* 주소를 읽지 못하면 기본 콘티로 시작 */ }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

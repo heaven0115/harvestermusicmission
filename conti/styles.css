@@ -305,6 +305,55 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
 
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+/* ---------- 콘티 파일 불러오기 막대 ---------- */
+.quickbar {
+  display: flex; gap: 8px; margin-bottom: 10px;
+}
+.quickbar .btn { flex: 1 1 auto; }
+.quickbar #btnOpenConti { flex: 2 1 auto; }
+
+/* ---------- 악보 서재 ---------- */
+.library { margin-top: 0; }
+.library summary {
+  cursor: pointer; font-weight: 800; font-size: 14px; color: var(--ink-2);
+  list-style: none;
+}
+.library summary::-webkit-details-marker { display: none; }
+.library summary::after { content: ' ▾'; font-size: 11px; }
+.library[open] summary::after { content: ' ▴'; }
+.lib-total { font-weight: 700; font-size: 12px; color: #97918a; }
+.lib-body { margin-top: 10px; }
+.lib-input {
+  width: 100%; font-size: 16px; font-family: inherit; color: var(--ink);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 11px 12px; min-height: 46px;
+  background: #fff;
+}
+.lib-input:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px rgba(217,30,24,.12); }
+.lib-status { font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+.lib-results { margin-top: 4px; display: flex; flex-direction: column; }
+.lib-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 0; border-bottom: 1px solid #f0ece6;
+}
+.lib-item:last-child { border-bottom: 0; }
+.lib-item .txt { flex: 1 1 auto; min-width: 0; }
+.lib-item .nm { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-item .mt { font-size: 11.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-item .badge {
+  display: inline-block; font-size: 11px; font-weight: 800; color: #fff;
+  background: var(--red-dark); border-radius: 5px; padding: 1px 5px; margin-right: 5px;
+}
+.lib-item .badge.src { background: #807a72; font-weight: 700; }
+.lib-more { font-size: 12px; color: var(--ink-2); padding: 8px 0 0; }
+
+.preset-row { margin-top: 2px; }
+.preset-url {
+  flex: 1 1 220px; min-width: 0; font-size: 14px; font-family: inherit; color: var(--ink);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 9px 11px; min-height: 40px;
+  background: #fff;
+}
+.preset-url:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px rgba(217,30,24,.12); }
+
 /* ---------- 관리 ---------- */
 .manage {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
