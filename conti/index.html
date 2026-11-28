@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>찬양콘티 악보 — 세리토스 장로교회</title>
+<meta name="description" content="찬양 콘티 3곡을 앞면 2곡·뒷면 1곡으로 편집해 인쇄·PDF로 만드는 악보 편집기">
+<meta name="theme-color" content="#b3160f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="찬양콘티">
+<link rel="stylesheet" href="styles.css?v=20261128a">
+<script>
+  window.__contiErr = [];
+  window.addEventListener('error', function (e) { window.__contiErr.push(String((e && e.message) || e)); });
+  window.addEventListener('unhandledrejection', function (e) { window.__contiErr.push('rejection: ' + ((e.reason && e.reason.message) || e.reason)); });
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="logo">🎵</span><span class="brand-text">찬양콘티 악보</span></div>
+  <div class="top-actions">
+    <span class="save-state" id="saveState"></span>
+    <button id="btnUndo" class="icon-btn" type="button" title="실행 취소" aria-label="실행 취소">↶</button>
+    <button id="btnRedo" class="icon-btn" type="button" title="다시 실행" aria-label="다시 실행">↷</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" type="button" data-tab="edit" role="tab">편집</button>
+  <button class="tab" type="button" data-tab="print" role="tab">출력 미리보기</button>
+</nav>
+
+<main>
+  <section id="view-edit" class="view active">
+    <div class="song-tabs" id="songTabs"></div>
+    <div id="songPanel"></div>
+
+    <details class="manage">
+      <summary>콘티 관리 · 백업</summary>
+      <div class="manage-body">
+        <div class="row">
+          <button class="btn" id="btnBackup" type="button">JSON으로 백업</button>
+          <button class="btn" id="btnRestore" type="button">JSON 불러오기</button>
+          <input type="file" id="jsonInput" accept="application/json,.json" hidden>
+        </div>
+        <div class="row">
+          <button class="btn danger" id="btnReset" type="button">새 콘티 시작 (모두 지우기)</button>
+        </div>
+        <p class="note">작성 내용은 이 기기 브라우저에 자동 저장됩니다. 기기를 바꾸거나 기록을 지울 때는 JSON 백업을 먼저 저장해 두세요.</p>
+      </div>
+    </details>
+
+    <p class="footnote">앞면에 1번·2번, 뒷면에 3번이 인쇄됩니다 · 가로 US Letter(11 × 8.5in)</p>
+  </section>
+
+  <section id="view-print" class="view">
+    <div class="print-bar">
+      <div class="seg" id="page2Seg">
+        <button type="button" data-mode="left" class="active">3번 왼쪽(사진처럼)</button>
+        <button type="button" data-mode="full">3번 가운데 크게</button>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="btnPdf" type="button">📄 PDF로 저장</button>
+        <button class="btn" id="btnPrint" type="button">🖨 인쇄하기</button>
+      </div>
+      <div class="print-status" id="printStatus"></div>
+      <div id="pdfLinkHolder" class="pdf-link-holder"></div>
+    </div>
+    <div class="sheets" id="sheetWrap"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<div id="printRoot" aria-hidden="true"></div>
+<div id="busy" class="busy" hidden><div class="busy-box"><div class="spinner"></div><span id="busyText">처리 중…</span></div></div>
+
+<script src="app.js?v=20261128a" defer></script>
+</body>
+</html>
