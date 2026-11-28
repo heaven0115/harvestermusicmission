@@ -373,7 +373,8 @@ table.report [contenteditable="true"]:focus{
     box-shadow:none !important; margin:0 !important; transform:none !important;
   }
   table.report{width:100% !important}
-  tr{break-inside:avoid; page-break-inside:avoid}
+  /* 비고·사진 칸이 걸린 첫 날짜 행은 페이지를 넘어가도 되게 두고, 나머지 행은 쪼개지 않게 */
+  tr:not(.note-start){break-inside:avoid; page-break-inside:avoid}
   .pv-photo, .pv-photo img{break-inside:avoid; page-break-inside:avoid}
   tr.note td{min-height:0}
   table.report td[contenteditable="true"]:focus,

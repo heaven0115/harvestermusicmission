@@ -423,7 +423,7 @@
     html += '<tr class="sec"><td colspan="3">' + escHtml(SEC1) + '</td>' +
       '<td class="note-head">' + escHtml(SEC3_HEAD) + '</td></tr>';
     wk.days.forEach(function (d, i) {
-      html += '<tr class="day"><td>' + escHtml(dateLabel(wk, i)) + '</td><td></td>' +
+      html += '<tr class="day' + (i === 0 ? ' note-start' : '') + '"><td>' + escHtml(dateLabel(wk, i)) + '</td><td></td>' +
         '<td contenteditable="true" data-edit="day:' + i + '">' + escHtml(d.text).replace(/\n/g, '<br>') + '</td>';
       if (i === 0) { html += noteCellHtml(wk, noteSpan); }
       html += '</tr>';
