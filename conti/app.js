@@ -9,7 +9,7 @@
   var SONG_COUNT = 3;
   var PAGE = { w: 11, h: 8.5, margin: 0.35, gutter: 0.32 };
   var DPI = 240;
-  var MARKER_RATIO = 0.036; // 악보 폭 대비 표시 글자 크기
+  var MARKER_RATIO = 0.042; // 악보 폭 대비 표시 글자 크기
   var FONT = '"Helvetica Neue", Helvetica, Arial, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif';
   var COLORS = [
     { v: '#D91E18', n: '빨강' },
@@ -227,7 +227,7 @@
         return '<button type="button" class="chip" data-act="form-token" data-token="' + esc(t) + '">' + esc(t) + '</button>';
       }).join('') +
       '<button type="button" class="chip dash" data-act="form-token" data-token="-">−</button>' +
-      '<button type="button" class="chip dash" data-act="form-back">⌫ 지우기</button>' +
+      '<button type="button" class="chip dash" data-act="form-back">지우기</button>' +
       '</div>';
     html += '</div>';
 
@@ -1227,8 +1227,15 @@
       }
     });
 
+    function measureTopbar() {
+      var h = document.querySelector('.topbar');
+      if (h) document.documentElement.style.setProperty('--topH', h.offsetHeight + 'px');
+    }
+    measureTopbar();
+
     var resizeTimer = 0;
     window.addEventListener('resize', function () {
+      measureTopbar();
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(renderMarkers, 120);
     });

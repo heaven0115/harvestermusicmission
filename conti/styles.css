@@ -60,7 +60,7 @@ body { padding-bottom: calc(28px + var(--safe-b)); }
 /* ---------- 탭 ---------- */
 .tabs {
   position: sticky;
-  top: calc(54px + env(safe-area-inset-top, 0px));
+  top: var(--topH, 54px);
   z-index: 35;
   display: flex;
   gap: 6px;
@@ -179,6 +179,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
   border-radius: 999px; padding: 8px 12px;
   font-size: 14px; font-weight: 700; font-family: inherit;
   min-height: 38px;
+  white-space: nowrap;
 }
 .chip:active { transform: scale(.97); }
 .chip.on, .chip.active { background: var(--red); border-color: var(--red); color: #fff; }
@@ -259,8 +260,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
   white-space: nowrap;
   cursor: grab;
   touch-action: none;
-  padding: 2px 3px;
-  border-radius: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
   letter-spacing: -.01em;
 }
 .marker.selected {
@@ -289,6 +290,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
 /* ---------- 버튼 ---------- */
 .btn {
   appearance: none; cursor: pointer;
+  white-space: nowrap;
   font-family: inherit; font-size: 14.5px; font-weight: 800;
   padding: 11px 14px; min-height: 44px;
   border-radius: 11px; border: 1.5px solid var(--line);
@@ -317,7 +319,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
 .print-bar {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 12px; margin-bottom: 12px;
-  position: sticky; top: calc(54px + env(safe-area-inset-top, 0px) + 54px); z-index: 20;
+  position: sticky; top: calc(var(--topH, 54px) + 56px); z-index: 20;
   display: flex; flex-direction: column; gap: 10px;
 }
 .seg { display: flex; background: #f2efea; border-radius: 11px; padding: 3px; gap: 3px; }
@@ -325,6 +327,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
   flex: 1; appearance: none; border: 0; background: transparent; cursor: pointer;
   font-family: inherit; font-size: 13.5px; font-weight: 800; color: var(--ink-2);
   padding: 9px 6px; border-radius: 9px;
+  white-space: nowrap;
 }
 .seg button.active { background: #fff; color: var(--red-dark); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .print-bar .row .btn { flex: 1; }
