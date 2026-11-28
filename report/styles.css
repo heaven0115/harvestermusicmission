@@ -98,11 +98,11 @@ button.icon-btn{
 /* ---------- 레이아웃 ---------- */
 .layout{
   max-width:1560px; margin:0 auto; padding:12px 12px 40px;
-  display:grid; grid-template-columns:1fr; gap:14px;
+  display:grid; grid-template-columns:minmax(0,1fr); gap:14px;
 }
 .panel{
   background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
-  box-shadow:var(--shadow); padding:14px;
+  box-shadow:var(--shadow); padding:14px; min-width:0;
 }
 .panel-head h2{margin:0 0 3px; font-size:15.5px}
 .hint{margin:0; font-size:12.5px; color:var(--muted); line-height:1.4}
@@ -184,6 +184,7 @@ body[data-tab="preview"] .panel-preview{display:block}
 .paper-scroll{
   background:#e6eaf0; border:1px solid var(--line); border-radius:12px;
   padding:12px; overflow:auto; -webkit-overflow-scrolling:touch;
+  max-width:100%;
 }
 .paper-scale{transform-origin:top left; margin:0 auto}
 .paper{
