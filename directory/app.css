@@ -43,7 +43,8 @@ svg{display:block;flex:0 0 auto;width:20px;height:20px}
 
 /* ---------- tabs ---------- */
 .tabs{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40}
-.tabbar{display:flex;gap:6px;padding:9px 0}
+.tabbar{display:flex;gap:6px;padding:9px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabbar::-webkit-scrollbar{display:none}
 .tab{display:inline-flex;align-items:center;gap:8px;padding:11px 15px;border-radius:12px;font-size:15px;font-weight:700;color:#4B6157;background:var(--sage-soft);letter-spacing:-.02em;white-space:nowrap;transition:background .15s,color .15s;min-height:44px}
 .tab svg{width:19px;height:19px;color:#7D9188}
 .tab .lbl-short{display:none}
@@ -256,7 +257,7 @@ main{flex:1;padding:16px 0 40px}
 .dlg-card p{font-size:14.5px;color:var(--muted);line-height:1.6;margin-bottom:12px}
 .dlg-card textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:11px;padding:10px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace;line-height:1.45;resize:vertical;outline:none;background:#FAFCFA}
 .dlg-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.dlg-actions button{flex:1 1 130px;min-height:46px;border-radius:11px;font-size:15px;font-weight:800;background:var(--sage);color:var(--forest-deep)}
+.dlg-actions button{flex:1 1 130px;min-height:46px;border-radius:11px;font-size:15px;font-weight:800;background:var(--sage);color:var(--forest-deep);display:flex;align-items:center;justify-content:center;gap:7px}
 .dlg-actions button.primary{background:var(--forest);color:#fff}
 .dlg-actions button.ghost{background:#F2F5F3;color:var(--muted)}
 .filebtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border:1.5px dashed var(--sage-mid);border-radius:12px;background:var(--sage-soft);color:var(--forest-deep);font-size:15px;font-weight:800}
@@ -298,7 +299,7 @@ main{flex:1;padding:16px 0 40px}
   .tbtn{flex-direction:column;gap:3px;padding:7px 2px;font-size:11.5px;min-height:52px;justify-content:center;letter-spacing:-.02em}
   .tbtn svg{width:18px;height:18px}
   .tabs{position:fixed;top:auto;bottom:0;left:0;right:0;border-top:1px solid var(--line);border-bottom:0;box-shadow:0 -3px 16px rgba(22,32,46,.08);z-index:70;padding-bottom:env(safe-area-inset-bottom)}
-  .tabbar{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;padding:6px 0 5px}
+  .tabbar{display:grid;grid-template-columns:repeat(6,1fr);gap:2px;padding:6px 0 5px}
   .tab{flex-direction:column;gap:2px;padding:6px 2px;font-size:11.5px;min-height:52px;justify-content:center;background:transparent;border-radius:10px}
   .tab svg{width:21px;height:21px}
   .tab .lbl-full{display:none}
@@ -329,6 +330,56 @@ main{flex:1;padding:16px 0 40px}
   .bar-row .bv{grid-column:2;grid-row:1;font-size:13.5px}
   .bar-track{grid-column:1/-1;grid-row:2}
 }
+
+/* ---------- 전도회 · 청년부 ---------- */
+.jdgrid{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:760px){.jdgrid{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:1100px){.jdgrid{grid-template-columns:repeat(3,1fr)}}
+.jdcard{background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);overflow:hidden;min-width:0}
+.jdhead{position:relative;display:flex;flex-direction:column;gap:4px;width:100%;padding:14px 40px 14px 16px;text-align:left;min-height:56px}
+.jdrow1{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.jdname{font-size:17.5px;font-weight:800;letter-spacing:-.025em;color:var(--ink)}
+.jdn{font-size:14px;font-weight:800;color:var(--forest);background:var(--sage);border-radius:999px;padding:1px 9px;margin-left:auto}
+.jdmeta{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:-.01em}
+.jdmeta.lead{color:#4B6157;font-weight:600}
+.jdmeta.memo{color:var(--amber);background:var(--amber-bg);border-radius:7px;padding:1px 7px;align-self:flex-start}
+.jdhead .chev{position:absolute;right:14px;top:18px;width:17px;height:17px;color:#A2B0A8;transition:transform .18s}
+.jdcard.open .jdhead .chev{transform:rotate(180deg)}
+.jdcard.open{grid-column:1/-1}
+.jdbody{border-top:1px solid var(--line-soft);padding:11px 13px 13px;background:var(--sage-soft)}
+.jdempty{font-size:13.5px;font-weight:600;color:var(--faint)}
+.jdbody .mbtn{background:#fff}
+
+/* ---------- 사진 (아바타 · 매칭) ---------- */
+.card-av{width:48px;height:48px;flex:0 0 48px;border-radius:50%;overflow:hidden;background:var(--sage);display:flex;align-items:center;justify-content:center;align-self:flex-start}
+.card-av img{width:100%;height:100%;object-fit:cover;display:block}
+.pbox{flex:0 0 66px}
+.pav{position:relative;width:66px;height:66px;border-radius:50%;background:var(--sage);border:1px solid var(--sage-mid);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pav.has-img{background:#fff}
+.pav img{width:100%;height:100%;object-fit:cover;display:block}
+.pav .pini{font-size:25px;font-weight:800;color:var(--forest-deep)}
+.pav .pcam{position:absolute;right:0;bottom:0;width:25px;height:25px;border-radius:50%;background:var(--forest);color:#fff;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(18,54,37,.25)}
+.pav .pcam svg{width:13px;height:13px}
+.pacts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.plink{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:800;letter-spacing:-.02em;color:var(--forest-deep);background:var(--sage);border-radius:9px;padding:7px 11px;min-height:36px}
+.plink svg{width:15px;height:15px}
+.plink.del{background:var(--rose-bg);color:var(--rose)}
+.plink.ghost{background:#fff;border:1px solid var(--line);color:var(--muted)}
+.pm-btns{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.pm-btns .plink svg{margin-right:1px}
+.pm-meter{height:9px;border-radius:999px;background:#EEF3EF;overflow:hidden;margin:4px 0 7px}
+.pm-meter span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#2C7252,#1F5B3F);min-width:2px}
+.pm-meta{font-size:12.5px;color:var(--faint);font-weight:600;line-height:1.5}
+.pm-prog{font-size:13px;font-weight:800;color:var(--forest);margin-bottom:8px !important}
+.pm-box{display:flex;flex-direction:column;align-items:center;gap:5px;background:var(--sage-soft);border:1px solid var(--line);border-radius:14px;padding:18px 14px;text-align:center}
+.pm-av{width:74px;height:74px;border-radius:50%;background:#fff;border:1px solid var(--sage-mid);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800;color:var(--forest-deep);margin-bottom:4px}
+.pm-nm{font-size:19px;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+.pm-sub{font-size:13.5px;font-weight:600;color:var(--muted)}
+.memo-card .mc-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.memo-card .mc-av{width:34px;height:34px;flex:0 0 34px;border-radius:50%;overflow:hidden;background:var(--sage);display:flex;align-items:center;justify-content:center}
+.memo-card .mc-av img{width:100%;height:100%;object-fit:cover;display:block}
+.fam-btn .favatar{overflow:hidden}
+.fam-btn .favatar img{width:100%;height:100%;object-fit:cover;display:block;border-radius:50%}
 
 /* ---------- print ---------- */
 #print-area{display:none}

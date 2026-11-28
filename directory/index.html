@@ -13,7 +13,7 @@
 <meta name="format-detection" content="telephone=no,address=no,email=no">
 <meta name="description" content="세리토스장로교회 교적부">
 <title>하베스터 교적부 · 세리토스장로교회</title>
-<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="app.css?v=20261128">
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzFGNUIzRiIvPjxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI0VBRjRFQyIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE2IDI2VjEyIi8+PHBhdGggZD0iTTE2IDEyYzAtMi42IDEuNi00LjUgNC01LjMtLjIgMi43LTEuOCA0LjUtNCA1LjN6Ii8+PHBhdGggZD0iTTE2IDEyYzAtMi42LTEuNi00LjUtNC01LjMuMiAyLjcgMS44IDQuNSA0IDUuM3oiLz48cGF0aCBkPSJNMTYgMTdjMC0yLjYgMS42LTQuNSA0LTUuMy0uMiAyLjctMS44IDQuNS00IDUuM3oiLz48cGF0aCBkPSJNMTYgMTdjMC0yLjYtMS42LTQuNS00LTUuMy4yIDIuNyAxLjggNC41IDQgNS4zeiIvPjxwYXRoIGQ9Ik0xNiAyMmMwLTIuNiAxLjYtNC41IDQtNS4zLS4yIDIuNy0xLjggNC41LTQgNS4zeiIvPjxwYXRoIGQ9Ik0xNiAyMmMwLTIuNi0xLjYtNC41LTQtNS4zLjIgMi43IDEuOCA0LjUgNCA1LjN6Ii8+PC9nPjwvc3ZnPg==">
 <style>
 /* ===== 잠금 화면 ===== */
@@ -80,13 +80,13 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
         </div>
         <div class="brand-text">
           <h1>하베스터 교적부</h1>
-          <p>세리토스장로교회 · 총 <b>0</b>명</p>
+          <p>세리토스장로교회 · 총 <b data-total>0</b>명</p>
         </div>
       </div>
       <div class="tools">
-        <button class="tbtn" data-act="backup" aria-label="메모 백업">
+        <button class="tbtn" data-act="backup" aria-label="메모·사진 백업">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20h14"/></svg>
-          메모 백업
+          백업
         </button>
         <button class="tbtn" data-act="restore" aria-label="메모 복원">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7.5 13.5L12 9l4.5 4.5"/><path d="M5 4h14"/></svg>
@@ -114,7 +114,7 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
 
   <main>
     <div class="wrap">
-      <div class="banner" id="storeBanner">이 브라우저가 즐겨찾기·메모를 기기에 저장하지 못했습니다. 메모를 남기신 뒤에는 꼭 <b>[메모 백업]</b>으로 보관해 주세요.</div>
+      <div class="banner" id="storeBanner">이 브라우저가 즐겨찾기·메모·사진을 기기에 저장하지 못했습니다. 남기신 내용은 꼭 상단 <b>[백업]</b>으로 보관해 주세요.</div>
 
       <section class="view on" id="v-search" role="tabpanel" aria-label="교인 검색">
         <div class="searchbar">
@@ -125,10 +125,16 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
         </div>
         <div class="filters">
           <label class="sel"><span>공동체</span><select id="f-comm"></select></label>
+          <label class="sel"><span>전도회</span><select id="f-jd"></select></label>
           <label class="sel"><span>교구</span><select id="f-dist"></select></label>
           <label class="sel"><span>순</span><select id="f-grp"></select></label>
           <label class="sel"><span>직분</span><select id="f-role"></select></label>
           <label class="sel"><span>연락처</span><select id="f-ct"></select></label>
+          <label class="sel"><span>사진</span><select id="f-photo">
+            <option value="">사진 전체</option>
+            <option value="y">사진 등록됨</option>
+            <option value="n">사진 없음</option>
+          </select></label>
           <label class="sel"><span>정렬</span><select id="f-sort">
             <option value="name">이름순</option>
             <option value="age-desc">나이 많은순</option>
@@ -150,13 +156,14 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
       </section>
 
       <section class="view" id="v-groups" role="tabpanel" aria-label="공동체와 순"></section>
+      <section class="view" id="v-jd" role="tabpanel" aria-label="전도회와 청년부"></section>
       <section class="view" id="v-birth" role="tabpanel" aria-label="생일"></section>
       <section class="view" id="v-memo" role="tabpanel" aria-label="즐겨찾기와 메모"></section>
       <section class="view" id="v-stats" role="tabpanel" aria-label="통계"></section>
 
       <div class="footnote">
-        교인명부 <b>2026-11-28</b> 기준 · 총 <b data-total>0</b>명 · 만든 날 <span id="builtAt">2026-11-27</span><br>
-        이 페이지는 비밀번호로 잠겨 있습니다. 여는 순간에만 암호화된 교적 파일을 받아 이 브라우저 안에서 풀어 쓰고, <b>[잠그기]</b>를 누르면 곧바로 다시 잠깁니다. 즐겨찾기·메모는 이 기기의 브라우저에만 저장되며, 다른 기기로 옮기려면 상단 [메모 백업]으로 JSON을 저장한 뒤 [복원]하세요.
+        교인명부 <b>2026-11-28</b> 기준 · 총 <b data-total>0</b>명 · 만든 날 <span id="builtAt">2026-11-28</span><br>
+        이 페이지는 비밀번호로 잠겨 있습니다. 여는 순간에만 암호화된 교적 파일을 받아 이 브라우저 안에서 풀어 쓰고, <b>[잠그기]</b>를 누르면 곧바로 다시 잠깁니다. 즐겨찾기·메모·사진은 이 기기의 브라우저에만 저장되며, 다른 기기로 옮기려면 상단 [백업]으로 JSON을 저장한 뒤 [복원]하세요.
       </div>
     </div>
   </main>
@@ -178,6 +185,8 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
 
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="print-area"></div>
+<input type="file" accept="image/*" id="photoFile" hidden aria-hidden="true" tabindex="-1">
+<noscript><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#1F5B3F;color:#fff;font-size:17px;font-weight:700;padding:24px;text-align:center;z-index:10000">이 교적부는 자바스크립트가 필요합니다.</div></noscript>
 
 <div class="lock" id="lockScreen">
   <div class="lock-card">
@@ -204,9 +213,6 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
     <p class="lock-foot">교적 데이터는 암호화되어 있으며, 비밀번호를 아는 사람만 이 기기에서 열 수 있습니다.</p>
   </div>
 </div>
-
-<noscript><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#1F5B3F;color:#fff;font-size:17px;font-weight:700;padding:24px;text-align:center;z-index:10000">이 교적부는 자바스크립트가 필요합니다.</div></noscript>
-
 <script>
 (function () {
   'use strict';
@@ -214,7 +220,7 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
   var lockEl = $('lockScreen'), form = $('lockForm'), pw = $('pw'), msg = $('lockMsg'),
       submitBtn = $('lockSubmit'), toggle = $('pwToggle');
   var blob = null, busy = false, unlocked = false;
-  var BUILT = '2026-11-27';
+  var BUILT = '2026-11-28';
 
   var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>';
   var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5c1 0 1.9.2 2.8.5"/><path d="M6.6 7.1A17 17 0 0 0 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1.1"/><path d="M9.6 9.7a3.2 3.2 0 0 0 4.5 4.5"/><path d="M14.8 5.9A10 10 0 0 1 21.5 12a17.5 17.5 0 0 1-2.6 3.4"/><path d="M3.5 3.5l17 17"/></svg>';
@@ -248,7 +254,7 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
     document.documentElement.classList.remove('locked');
     lockEl.classList.add('gone');
     var s = document.createElement('script');
-    s.src = 'app.js?v=20261127';
+    s.src = 'app.js?v=20261128';
     s.onload = function () {
       setTimeout(function () { lockEl.style.display = 'none'; }, 340);
       var q = $('q');
@@ -348,7 +354,6 @@ body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibili
   });
 
   pw.focus();
-})();
-</script>
+})();</script>
 </body>
 </html>

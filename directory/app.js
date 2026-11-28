@@ -41,7 +41,12 @@
     return a >= 0 ? a : '';
   }
   function birthText(r) {
-    if (!r.b) return '미상';
+    if (!r.b) return r.by ? r.by + '년생 <span class="em">(월·일 미상)</span>' : '미상';
+    var p = r.b.split('-');
+    return p[0] + '년 ' + (+p[1]) + '월 ' + (+p[2]) + '일';
+  }
+  function birthPlain(r) {
+    if (!r.b) return r.by ? r.by + '년생 · 월·일 미상' : '생년월일 미상';
     var p = r.b.split('-');
     return p[0] + '년 ' + (+p[1]) + '월 ' + (+p[2]) + '일';
   }
@@ -69,9 +74,45 @@
       csv: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/>',
       wheat: '<path d="M12 21V9"/><path d="M12 9c0-2.2 1.3-3.7 3.4-4.4-.2 2.3-1.5 3.7-3.4 4.4z"/><path d="M12 9c0-2.2-1.3-3.7-3.4-4.4.2 2.3 1.5 3.7 3.4 4.4z"/><path d="M12 13.5c0-2.2 1.3-3.7 3.4-4.4-.2 2.3-1.5 3.7-3.4 4.4z"/><path d="M12 13.5c0-2.2-1.3-3.7-3.4-4.4.2 2.3 1.5 3.7 3.4 4.4z"/><path d="M12 18c0-2.2 1.3-3.7 3.4-4.4-.2 2.3-1.5 3.7-3.4 4.4z"/><path d="M12 18c0-2.2-1.3-3.7-3.4-4.4.2 2.3 1.5 3.7 3.4 4.4z"/>',
       chev: '<path d="M6 9l6 6 6-6"/>',
+      layers: '<path d="M12 3.2l8.4 4.4L12 12 3.6 7.6z"/><path d="M3.6 12.2L12 16.6l8.4-4.4"/><path d="M3.6 16.6L12 21l8.4-4.4"/>',
+      camera: '<path d="M3.6 8.6h2.7L7.8 5.8h8.4l1.5 2.8h2.7a1.6 1.6 0 0 1 1.6 1.6v7.6a1.6 1.6 0 0 1-1.6 1.6H3.6A1.6 1.6 0 0 1 2 17.8v-7.6a1.6 1.6 0 0 1 1.6-1.6z"/><circle cx="12" cy="13.4" r="3.3"/>',
+      trash: '<path d="M4 7h16"/><path d="M9.4 7V4.7h5.2V7"/><path d="M6.6 7l.9 12.1a1.7 1.7 0 0 0 1.7 1.6h5.6a1.7 1.7 0 0 0 1.7-1.6L17.4 7"/>',
       empty: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>'
     }[name] || '';
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
+  }
+
+  /* ---------- 전도회 (2026 세리토스장로교회 전도회 연령 기준) ---------- */
+  var JD_LIST = [
+    { k: 'youth', name: '청년부', short: '청년부', band: '만 19~34세', years: '1992~2007년생', memo: '기혼으로 표기된 분은 제1전도회' },
+    { k: '1', name: '제1전도회', short: '1전도회', band: '~44세', years: '1981~1991년생', chair: '김다니엘 집사', vice: '정슬기 집사 · 안성혁 집사', pastor: '구자경 목사', memo: '청년부 연령대 기혼자 포함' },
+    { k: '2', name: '제2전도회', short: '2전도회', band: '45~49세', years: '1976~1980년생', chair: '박사라 집사', vice: '김주훈 집사 · 김현주 집사', pastor: '박석영 목사' },
+    { k: '3', name: '제3전도회', short: '3전도회', band: '50~54세', years: '1971~1975년생', chair: '천명준 집사', vice: '고관형 집사 · 권지희 집사', pastor: '유효석 목사' },
+    { k: '4', name: '제4전도회', short: '4전도회', band: '55~59세', years: '1966~1970년생', chair: '이현천 집사', vice: '차정원 집사 · 허은형 집사', pastor: '최용진 목사' },
+    { k: '5', name: '제5전도회', short: '5전도회', band: '60~64세', years: '1961~1965년생', chair: '유병길 집사', vice: '서성민 집사 · 이효찬 권사', pastor: '유효석 목사' },
+    { k: '6', name: '제6전도회', short: '6전도회', band: '65~69세', years: '1956~1960년생', chair: '유병길 집사', vice: '서성민 집사 · 이효찬 권사', pastor: '유효석 목사' },
+    { k: '7', name: '제7전도회', short: '7전도회', band: '70~74세', years: '1951~1955년생', chair: '이병구 집사', vice: '장인숙 권사', pastor: '최용진 목사' },
+    { k: '8', name: '제8전도회', short: '8전도회', band: '75~79세', years: '1946~1950년생', chair: '이귀만 장로', vice: '홍의표 장로 · 김정민 권사', pastor: '박석영 목사' },
+    { k: '9', name: '제9전도회', short: '9전도회', band: '80세 이상', years: '1945년생 이전', chair: '박금승 장로', vice: '홍광성 집사 · 심영숙 권사', pastor: '유연일 목사' },
+    { k: 'cs', name: '교회학교·다음세대', short: '교회학교', band: '18세 이하', years: '2008년생 이후' },
+    { k: 'nb', name: '생년월일 미상', short: '미상', band: '생일 미기재', years: '' }
+  ];
+  var JD_MAP = {};
+  JD_LIST.forEach(function (d) { JD_MAP[d.k] = d; });
+  function jdOf(x) {
+    var y = x.b ? +x.b.slice(0, 4) : (x.by ? +x.by : 0);
+    if (!y) return 'nb';
+    if (y >= 2008) return 'cs';
+    if (y >= 1992) return (x.mg === '기혼' || x.mg === '사별') ? '1' : 'youth';
+    if (y >= 1981) return '1';
+    if (y >= 1976) return '2';
+    if (y >= 1971) return '3';
+    if (y >= 1966) return '4';
+    if (y >= 1961) return '5';
+    if (y >= 1956) return '6';
+    if (y >= 1951) return '7';
+    if (y >= 1946) return '8';
+    return '9';
   }
 
   /* ---------- index ---------- */
@@ -85,6 +126,7 @@
     r._hay = [r.n, r.ad, r.sp, r.ld, r.c, r.d, r.g, r.rs, r.rc, r.em, r.mn, r.hr, r.inv, r.rt]
       .map(nospace).filter(Boolean).join('\u0001');
     r._age = ageOf(r);
+    r._jd = jdOf(r);
   }
   var FAM = {};
   ROWS.forEach(function (x) {
@@ -113,11 +155,80 @@
     if (b) b.classList.add('on');
   }
 
+  /* ---------- photo store (IndexedDB · 사진은 localStorage 5MB 제한 밖에 둡니다) ---------- */
+  var PHOTO = {};        // 교인 index -> dataURL(JPEG 240px)
+  var PHOTO_LOADED = false;  // 저장소에서 모두 읽어 왔는지
+  var PHOTO_DB = null;
+  var PHOTO_DB_FAILED = false;
+  function photoDB(cb) {
+    if (PHOTO_DB) { cb(PHOTO_DB); return; }
+    if (PHOTO_DB_FAILED || !window.indexedDB) { cb(null); return; }
+    var req;
+    try { req = window.indexedDB.open('hb_kyobo_photos', 1); } catch (e) { PHOTO_DB_FAILED = true; cb(null); return; }
+    req.onupgradeneeded = function () {
+      var db = req.result;
+      if (!db.objectStoreNames.contains('p')) db.createObjectStore('p');
+    };
+    req.onsuccess = function () { PHOTO_DB = req.result; cb(PHOTO_DB); };
+    req.onerror = function () { PHOTO_DB_FAILED = true; cb(null); };
+    req.onblocked = function () { PHOTO_DB_FAILED = true; cb(null); };
+  }
+  function photosLoad(cb) {
+    photoDB(function (db) {
+      if (!db) { cb(false); return; }
+      try {
+        var out = {}, tx = db.transaction('p', 'readonly');
+        var rq = tx.objectStore('p').openCursor();
+        rq.onsuccess = function () {
+          var cur = rq.result;
+          if (cur) { if (typeof cur.value === 'string') out[cur.key] = cur.value; cur.continue(); }
+          else { PHOTO = out; cb(true); }
+        };
+        rq.onerror = function () { cb(false); };
+      } catch (e) { cb(false); }
+    });
+  }
+  function photoPut(id, data, cb) {
+    PHOTO[id] = data;
+    photoDB(function (db) {
+      if (!db) { if (cb) cb(false); return; }
+      try {
+        var tx = db.transaction('p', 'readwrite');
+        tx.objectStore('p').put(data, id);
+        tx.oncomplete = function () { if (cb) cb(true); };
+        tx.onerror = function () { if (cb) cb(false); };
+        tx.onabort = function () { if (cb) cb(false); };
+      } catch (e) { if (cb) cb(false); }
+    });
+  }
+  function photoRemove(id, cb) {
+    delete PHOTO[id];
+    photoDB(function (db) {
+      if (!db) { if (cb) cb(false); return; }
+      try {
+        var tx = db.transaction('p', 'readwrite');
+        tx.objectStore('p').delete(id);
+        tx.oncomplete = function () { if (cb) cb(true); };
+        tx.onerror = function () { if (cb) cb(false); };
+      } catch (e) { if (cb) cb(false); }
+    });
+  }
+  function photoCount() {
+    var n = 0;
+    for (var k in PHOTO) { if (PHOTO[k] && ROWS[k]) n++; }
+    return n;
+  }
+  function avHTML(x, cls) {
+    var p = PHOTO[x.i];
+    if (p) return '<span class="' + cls + ' has-img"><img src="' + p + '" alt="' + esc(x.n) + ' 사진" loading="lazy"></span>';
+    return '<span class="' + cls + '">' + esc(x.n.slice(0, 1)) + '</span>';
+  }
+
   /* ---------- state ---------- */
   var S = {
-    view: 'search', q: '', f: { c: '', d: '', g: '', r: '', ct: '' },
+    view: 'search', q: '', f: { c: '', jd: '', d: '', g: '', r: '', ct: '', photo: '' },
     onlyFav: false, sort: 'name', list: [], shown: 0,
-    month: TODAY.getMonth() + 1, openC: {}, openD: {}, modal: null
+    month: TODAY.getMonth() + 1, openC: {}, openD: {}, openJ: {}, modal: null
   };
   var TREE = null, STATS = null;
 
@@ -167,6 +278,12 @@
     }
     if (S.f.ct === 'y' && !(x.p1 || x.p2)) return false;
     if (S.f.ct === 'n' && (x.p1 || x.p2)) return false;
+    if (S.f.jd) {
+      if (S.f.jd === '__none__') { if (x._jd !== 'nb') return false; }
+      else if (x._jd !== S.f.jd) return false;
+    }
+    if (S.f.photo === 'y' && !PHOTO[x.i]) return false;
+    if (S.f.photo === 'n' && PHOTO[x.i]) return false;
     for (var k = 0; k < toks.length; k++) { if (!matchToken(x, toks[k])) return false; }
     return true;
   }
@@ -254,6 +371,9 @@
     if (S.f.r) fl.push(S.f.r === '__none__' ? '직분 없음' : S.f.r);
     if (S.f.ct === 'y') fl.push('연락처 있음');
     if (S.f.ct === 'n') fl.push('연락처 없음');
+    if (S.f.jd) fl.push(S.f.jd === '__none__' ? '생년월일 미상' : (JD_MAP[S.f.jd] ? JD_MAP[S.f.jd].name : S.f.jd));
+    if (S.f.photo === 'y') fl.push('사진 등록됨');
+    if (S.f.photo === 'n') fl.push('사진 없음');
     if (fl.length) note.push(fl.join(' · '));
     if (!note.length) note.push('');
     resNote.textContent = note.join(' ') ? '(' + note.join(' ') + ')' : '';
@@ -276,6 +396,7 @@
       chips += '<span class="chip bday">' + (+x.b.slice(5, 7)) + '월 생일</span>';
     }
     return '<article class="card' + (fav ? ' has-fav' : '') + '" data-id="' + x.i + '" role="button" tabindex="0" aria-label="' + esc(x.n) + ' 상세 보기">' +
+      (PHOTO[x.i] ? '<span class="card-av"><img src="' + PHOTO[x.i] + '" alt="' + esc(x.n) + ' 사진" loading="lazy"></span>' : '') +
       '<div class="card-main">' +
         '<div class="card-top"><span class="nm">' + esc(x.n) + '</span>' +
           (x.rs ? '<span class="role-b">' + esc(x.rs) + '</span>' : '') +
@@ -343,6 +464,11 @@
       [{ v: '__none__', l: '공동체 미지정 (' + nf(TOTAL - order.reduce(function (s, c) { return s + comms[c]; }, 0)) + ')' }]);
     fillSelect($('f-role'), '전체 직분', ROLE_OPTS);
     fillSelect($('f-ct'), '연락처 전체', [{ v: 'y', l: '연락처 있음' }, { v: 'n', l: '연락처 없음' }]);
+    var jc = {};
+    ROWS.forEach(function (x) { jc[x._jd] = (jc[x._jd] || 0) + 1; });
+    fillSelect($('f-jd'), '전체 전도회', JD_LIST.filter(function (d) { return jc[d.k]; }).map(function (d) {
+      return { v: d.k, l: d.name + ' (' + nf(jc[d.k]) + ')' };
+    }));
     syncFilterOptions();
   }
   var ROLE_OPTS = [];
@@ -376,6 +502,8 @@
     $('f-comm').value = S.f.c;
     $('f-role').value = S.f.r;
     $('f-ct').value = S.f.ct;
+    if ($('f-jd')) $('f-jd').value = S.f.jd;
+    if ($('f-photo')) $('f-photo').value = S.f.photo;
   }
 
   /* ---------- member sheet ---------- */
@@ -420,7 +548,7 @@
     var famHTML = famIds.length ? '<div class="fam">' + famIds.map(function (fid) {
       var f = ROWS[fid];
       return '<button class="fam-btn" data-m="' + fid + '">' +
-        '<span class="favatar">' + esc(f.n.slice(0, 1)) + '</span>' +
+        avHTML(f, 'favatar') +
         '<span class="fmain"><span class="fname">' + esc(f.n) +
           (f.rs ? '<span class="role-b">' + esc(f.rs) + '</span>' : '') +
           (f._age !== '' ? '<span class="age-t">만 ' + f._age + '세</span>' : '') +
@@ -431,11 +559,18 @@
       : '<p style="font-size:14px;color:#8A968F;font-weight:600">같은 헌금번호로 묶인 가족이 없습니다.</p>';
 
     mHead.innerHTML =
+      '<div class="pbox"><button class="pav' + (PHOTO[x.i] ? ' has-img' : '') + '" data-act="pickPhoto" aria-label="' + (PHOTO[x.i] ? '사진 변경' : '사진 올리기') + '">' +
+        (PHOTO[x.i] ? '<img src="' + PHOTO[x.i] + '" alt="' + esc(x.n) + ' 사진">' : '<span class="pini">' + esc(x.n.slice(0, 1)) + '</span>') +
+        '<span class="pcam">' + icon('camera') + '</span>' +
+      '</button></div>' +
       '<div class="ht"><h2>' + esc(x.n) + (x.rs ? '<span class="role-b">' + esc(x.rs) + '</span>' : '') + '</h2>' +
       '<div class="hsub">' + (x.s ? esc(x.s) + ' · ' : '') +
         (x._age !== '' ? '만 ' + x._age + '세 · ' : '') +
         (x.c ? esc(x.c) : '공동체 미지정') +
         (x.d ? ' · ' + esc(x.d) : '') + (x.g ? ' · ' + esc(x.g) : '') +
+      '</div>' +
+      '<div class="pacts"><button class="plink" data-act="pickPhoto">' + icon('camera') + (PHOTO[x.i] ? '사진 변경' : '사진 올리기') + '</button>' +
+        (PHOTO[x.i] ? '<button class="plink del" data-act="delPhoto">' + icon('trash') + '사진 삭제</button>' : '') +
       '</div></div>' +
       '<button class="sheet-close" data-act="closeSheet" aria-label="닫기">' + icon('close') + '</button>';
 
@@ -522,6 +657,146 @@
     if (S.view === 'memo') renderMemos();
   }
 
+  /* ---------- 사진 올리기 · 매칭 ---------- */
+  var photoTarget = null;
+  var MATCH = null;
+
+  function pickPhoto(id) {
+    var f = $('photoFile');
+    if (!f) { toast('이 기기에서는 사진을 고를 수 없습니다'); return; }
+    photoTarget = Number(id);
+    try { f.value = ''; } catch (e) { }
+    f.click();
+  }
+  function shrinkImage(file, cb) {
+    var url = null;
+    try { url = URL.createObjectURL(file); } catch (e) { cb(null); return; }
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        if (!w || !h) throw new Error('empty');
+        var side = Math.min(w, h);
+        var sx = Math.round((w - side) / 2), sy = Math.round((h - side) / 2);
+        var SZ = 240;
+        var c = document.createElement('canvas');
+        c.width = SZ; c.height = SZ;
+        var g = c.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, SZ, SZ);
+        g.drawImage(img, sx, sy, side, side, 0, 0, SZ, SZ);
+        var data = c.toDataURL('image/jpeg', 0.72);
+        try { URL.revokeObjectURL(url); } catch (e2) { }
+        if (!data || data.indexOf('data:image/jpeg') !== 0) { cb(null); return; }
+        cb(data);
+      } catch (e) {
+        try { URL.revokeObjectURL(url); } catch (e2) { }
+        cb(null);
+      }
+    };
+    img.onerror = function () {
+      try { URL.revokeObjectURL(url); } catch (e) { }
+      cb(null);
+    };
+    img.src = url;
+  }
+  function savePhotoFile(file) {
+    var id = photoTarget;
+    if (!file || id === null || id === undefined) return;
+    var x = ROWS[id];
+    if (!x) return;
+    if (file.size > 25 * 1024 * 1024) { toast('사진이 너무 큽니다 · 25MB 이하만 가능'); return; }
+    toast('사진을 준비하고 있습니다…');
+    shrinkImage(file, function (data) {
+      if (!data) { toast('이 사진은 열 수 없습니다 · JPG로 다시 시도해 주세요'); return; }
+      photoPut(id, data, function (ok) {
+        toast(ok ? (x.n + ' 사진을 저장했습니다') : '이번에만 표시됩니다 · 메모 백업으로 보관해 주세요');
+        refreshPhotoUI(id);
+        if (MATCH) { MATCH.k++; renderMatch(); }
+      });
+    });
+  }
+  function askDeletePhoto(id) {
+    var x = ROWS[id];
+    if (!x) return;
+    openDlg('<h3>사진 삭제</h3><p><b>' + esc(x.n) + '</b> 님의 사진을 이 기기에서 지웁니다.</p>' +
+      '<div class="dlg-actions"><button class="primary" data-dlg="photodel">삭제</button>' +
+      '<button class="ghost" data-dlg="close">취소</button></div>');
+  }
+  function refreshPhotoUI(id) {
+    var x = ROWS[id];
+    if (!x) return;
+    if (S.modal === id) {
+      var pav = mHead.querySelector('.pav');
+      if (pav) {
+        if (PHOTO[id]) {
+          pav.classList.add('has-img');
+          pav.innerHTML = '<img src="' + PHOTO[id] + '" alt="' + esc(x.n) + ' 사진"><span class="pcam">' + icon('camera') + '</span>';
+        } else {
+          pav.classList.remove('has-img');
+          pav.innerHTML = '<span class="pini">' + esc(x.n.slice(0, 1)) + '</span><span class="pcam">' + icon('camera') + '</span>';
+        }
+        pav.setAttribute('aria-label', PHOTO[id] ? '사진 변경' : '사진 올리기');
+      }
+      var pacts = mHead.querySelector('.pacts');
+      if (pacts) {
+        pacts.innerHTML = '<button class="plink" data-act="pickPhoto">' + icon('camera') + (PHOTO[id] ? '사진 변경' : '사진 올리기') + '</button>' +
+          (PHOTO[id] ? '<button class="plink del" data-act="delPhoto">' + icon('trash') + '사진 삭제</button>' : '');
+      }
+    }
+    var cards = document.querySelectorAll('.card[data-id="' + id + '"], .mini-av[data-photo-of="' + id + '"]');
+    for (var c = 0; c < cards.length; c++) {
+      var el = cards[c];
+      if (el.classList.contains('card-av')) {
+        if (PHOTO[id]) el.innerHTML = '<img src="' + PHOTO[id] + '" alt="' + esc(x.n) + ' 사진" loading="lazy">';
+      }
+    }
+    var card = document.querySelector('.card[data-id="' + id + '"]');
+    if (card) {
+      var av = card.querySelector('.card-av');
+      if (PHOTO[id]) {
+        if (!av) { av = document.createElement('span'); av.className = 'card-av'; card.insertBefore(av, card.firstChild); }
+        av.innerHTML = '<img src="' + PHOTO[id] + '" alt="' + esc(x.n) + ' 사진" loading="lazy">';
+      } else if (av) {
+        av.parentNode.removeChild(av);
+      }
+    }
+    if (S.view === 'memo') renderMemos();
+    else if (S.view === 'jd') renderJd();
+    else if (S.view === 'stats') { STATS = null; renderStats(); }
+    if (S.view === 'search' && S.f.photo) applyFilters();
+    updateTabBadges();
+  }
+
+  /* ---------- 빠른 사진 매칭 ---------- */
+  function openPhotoMatch(ids) {
+    var list = ids || ROWS.filter(function (x) { return !PHOTO[x.i]; }).map(function (x) { return x.i; });
+    if (!list.length) { toast('모든 교인에게 사진이 등록되어 있습니다'); return; }
+    MATCH = { ids: list, k: 0 };
+    renderMatch();
+  }
+  function renderMatch() {
+    if (!MATCH) return;
+    if (MATCH.k >= MATCH.ids.length) {
+      openDlg('<h3>사진 매칭</h3><p>사진이 없는 교인을 모두 살펴보았습니다.<br>사진 등록 <b>' + nf(photoCount()) + '명</b> / 전체 ' + nf(TOTAL) + '명</p>' +
+        '<div class="dlg-actions"><button class="primary" data-dlg="close">닫기</button></div>');
+      MATCH = null;
+      return;
+    }
+    var x = ROWS[MATCH.ids[MATCH.k]];
+    if (!x) { MATCH.k++; renderMatch(); return; }
+    var rel = [x.c, x.d, x.g].filter(Boolean).join(' · ') || '공동체 미지정';
+    var jd = JD_MAP[x._jd] ? JD_MAP[x._jd].name : '';
+    openDlg('<h3>사진 매칭</h3>' +
+      '<p class="pm-prog">' + nf(MATCH.k + 1) + ' / ' + nf(MATCH.ids.length) + ' · 사진이 없는 교인</p>' +
+      '<div class="pm-box"><div class="pm-av">' + esc(x.n.slice(0, 1)) + '</div>' +
+        '<div class="pm-nm">' + esc(x.n) + (x.rs ? '<span class="role-b">' + esc(x.rs) + '</span>' : '') + '</div>' +
+        '<div class="pm-sub">' + esc(birthPlain(x)) + (x._age !== '' ? ' · 만 ' + x._age + '세' : '') + '</div>' +
+        '<div class="pm-sub">' + esc(rel) + (jd ? ' · ' + esc(jd) : '') + '</div>' +
+      '</div>' +
+      '<div class="dlg-actions"><button class="primary" data-dlg="pmpick">' + icon('camera') + '사진 올리기</button>' +
+      '<button data-dlg="pmskip">건너뛰기</button><button class="ghost" data-dlg="close">닫기</button></div>');
+  }
+
   /* ---------- groups ---------- */
   function buildTree() {
     if (TREE) return TREE;
@@ -597,6 +872,49 @@
     $('v-groups').innerHTML = h;
   }
 
+  /* ---------- 전도회 · 청년부 ---------- */
+  function jdLists() {
+    var out = {};
+    JD_LIST.forEach(function (d) { out[d.k] = []; });
+    ROWS.forEach(function (x) { if (out[x._jd]) out[x._jd].push(x.i); else out.nb.push(x.i); });
+    return out;
+  }
+  function renderJd() {
+    var lists = jdLists();
+    var h = '<div class="sec-head"><h2>전도회 · 청년부</h2><p>2026년 전도회 연령 기준 · 총 ' + nf(TOTAL) + '명</p></div>';
+    h += '<div class="jdgrid">';
+    JD_LIST.forEach(function (d) {
+      var ids = lists[d.k] || [];
+      var open = !!S.openJ[d.k];
+      h += '<div class="jdcard' + (open ? ' open' : '') + '">' +
+        '<button class="jdhead" data-jd="' + esc(d.k) + '" aria-expanded="' + open + '">' +
+          '<span class="jdrow1"><span class="jdname">' + esc(d.name) + '</span>' +
+            '<span class="jdn">' + nf(ids.length) + '명</span></span>' +
+          '<span class="jdmeta">' + esc(d.band) + (d.years ? ' · ' + esc(d.years) : '') + '</span>' +
+          (d.chair ? '<span class="jdmeta lead">회장 ' + esc(d.chair) + ' · 부회장 ' + esc(d.vice) + '</span>' : '') +
+          (d.pastor ? '<span class="jdmeta lead">담당 ' + esc(d.pastor) + '</span>' : '') +
+          (d.memo ? '<span class="jdmeta memo">' + esc(d.memo) + '</span>' : '') +
+          '<span class="chev">' + icon('chev') + '</span>' +
+        '</button>';
+      if (open) {
+        var sorted = ids.slice().sort(function (a, b) { return ROWS[a].n.localeCompare(ROWS[b].n, 'ko'); });
+        h += '<div class="jdbody">' +
+          (sorted.length
+            ? '<div class="members">' + sorted.map(function (id) {
+                var x = ROWS[id];
+                return '<button class="mbtn" data-m="' + id + '">' + esc(x.n) +
+                  (x.b || x.by ? '<small>' + (x.b ? x.b.slice(0, 4) : x.by) + '</small>' : '') + '</button>';
+              }).join('') + '</div>'
+            : '<p class="jdempty">해당하는 교인이 없습니다.</p>') +
+          '<button class="grp-more" data-jdgo="' + esc(d.k) + '">검색에서 보기 →</button>' +
+        '</div>';
+      }
+      h += '</div>';
+    });
+    h += '</div>';
+    $('v-jd').innerHTML = h;
+  }
+
   /* ---------- birthdays ---------- */
   function renderBirth() {
     var by = {}; var counts = new Array(13).fill(0);
@@ -666,6 +984,16 @@
       .sort(function (a, b) { return ROWS[a].n.localeCompare(ROWS[b].n, 'ko'); });
     var h = '<div class="sec-head"><h2>즐겨찾기 · 메모</h2><p>이 기기에만 저장됩니다</p></div>';
     h += '<div class="stack">';
+    var phc = photoCount(), noPh = TOTAL - phc;
+    var pct = TOTAL ? Math.round(phc / TOTAL * 1000) / 10 : 0;
+    h += '<div class="card-panel"><div class="sec-head" style="margin:0 0 8px"><h2 style="font-size:17px">사진 매칭 현황</h2><p>등록 ' + nf(phc) + '명 · 미등록 ' + nf(noPh) + '명</p></div>' +
+      '<div class="pm-meter"><span style="width:' + pct + '%"></span></div>' +
+      '<div class="pm-meta">전체 ' + nf(TOTAL) + '명 중 ' + pct + '% 등록 · 사진은 이 기기 브라우저에만 저장됩니다</div>' +
+      '<div class="pm-btns">' +
+        '<button class="plink" data-act="photoMatch">' + icon('camera') + '한 분씩 사진 매칭</button>' +
+        '<button class="plink ghost" data-photofilter="n">사진 없는 교인 보기</button>' +
+        (phc ? '<button class="plink ghost" data-photofilter="y">사진 등록된 교인 보기</button>' : '') +
+      '</div></div>';
     h += '<div class="card-panel"><div class="sec-head" style="margin:0 0 10px"><h2 style="font-size:17px">즐겨찾기</h2><p>' + nf(favIds.length) + '명</p></div>';
     if (!favIds.length) {
       h += '<p style="font-size:14px;color:#8A968F;font-weight:600;line-height:1.6">교인 카드 오른쪽의 별표(★)를 누르면 여기에 모입니다.</p>';
@@ -685,7 +1013,8 @@
   function miniRow(x, memo) {
     var tel = x.p1 || x.p2 || '';
     return '<div class="memo-card" data-m="' + x.i + '">' +
-      '<div class="mc-top"><span class="nm" style="font-size:16.5px">' + esc(x.n) + '</span>' +
+      '<div class="mc-top">' + (PHOTO[x.i] ? '<span class="mc-av"><img src="' + PHOTO[x.i] + '" alt="' + esc(x.n) + ' 사진" loading="lazy"></span>' : '') +
+        '<span class="nm" style="font-size:16.5px">' + esc(x.n) + '</span>' +
         (x.rs ? '<span class="role-b">' + esc(x.rs) + '</span>' : '') +
         (x._age !== '' ? '<span class="age-t">만 ' + x._age + '세</span>' : '') +
         (FAV[x.i] ? '<span class="chip memo" style="background:#FBF0D8;color:#8A5A15">★ 즐겨찾기</span>' : '') +
@@ -751,6 +1080,7 @@
       stat('공동체 배정', nf(s.assigned) + '<span class="u">명</span>', Math.round(s.assigned / s.total * 100) + '%') +
       stat('가족 그룹', nf(s.famGroups) + '<span class="u">가정</span>', nf(s.famPeople) + '명') +
       stat('생년월일 미상', nf(s.noBirth) + '<span class="u">명</span>', Math.round(s.noBirth / s.total * 100) + '%') +
+      stat('사진 등록', nf(photoCount()) + '<span class="u">명</span>', Math.round(photoCount() / s.total * 100) + '%') +
       '</div>';
     h += '<div class="card-panel" style="margin-top:12px"><div class="sec-head" style="margin:0 0 12px"><h2 style="font-size:17px">공동체별</h2><p>' + nf(s.total) + '명</p></div>' +
       bars(s.comm, commOrder(Object.keys(s.comm)), s.total) + '</div>';
@@ -780,6 +1110,7 @@
   /* ---------- tabs ---------- */
   var TABS = [
     { id: 'search', label: '교인 검색', short: '검색', icon: 'search' },
+    { id: 'jd', label: '전도회/청년부', short: '전도회', icon: 'layers' },
     { id: 'groups', label: '공동체/순', short: '공동체', icon: 'users' },
     { id: 'birth', label: '이번 달 생일', short: '생일', icon: 'cake' },
     { id: 'memo', label: '즐겨찾기/메모', short: '메모', icon: 'bookmark' },
@@ -792,6 +1123,7 @@
     });
     document.querySelectorAll('.view').forEach(function (s) { s.classList.toggle('on', s.id === 'v-' + v); });
     if (v === 'groups') renderGroups();
+    else if (v === 'jd') renderJd();
     else if (v === 'birth') renderBirth();
     else if (v === 'memo') renderMemos();
     else if (v === 'stats') renderStats();
@@ -814,20 +1146,25 @@
     var favN = 0, memN = 0;
     Object.keys(FAV).forEach(function (k) { if (FAV[k]) favN++; });
     Object.keys(MEMO).forEach(function (k) { if ((MEMO[k] || '').trim()) memN++; });
-    return { app: '하베스터 교적부', version: 1, exportedAt: new Date().toISOString(), counts: { favorites: favN, memos: memN }, favorites: FAV, memos: MEMO };
+    var photos = {}, phN = 0;
+    for (var k in PHOTO) { if (PHOTO[k] && ROWS[k]) { photos[k] = PHOTO[k]; phN++; } }
+    return { app: '하베스터 교적부', version: 2, exportedAt: new Date().toISOString(),
+      counts: { favorites: favN, memos: memN, photos: phN }, favorites: FAV, memos: MEMO, photos: photos };
   }
   function openBackup() {
     var p = payload();
     var json = JSON.stringify(p, null, 2);
-    openDlg('<h3>메모 백업</h3><p>즐겨찾기 <b>' + nf(p.counts.favorites) + '명</b> · 메모 <b>' + nf(p.counts.memos) + '건</b>을 JSON으로 저장합니다.<br>아이폰에서 파일 저장이 안 되면 아래 내용을 복사해 두세요.</p>' +
+    var big = json.length > 1200000;
+    openDlg('<h3>메모 · 사진 백업</h3><p>즐겨찾기 <b>' + nf(p.counts.favorites) + '명</b> · 메모 <b>' + nf(p.counts.memos) + '건</b> · 사진 <b>' + nf(p.counts.photos) + '명</b>을 JSON 하나로 저장합니다.' +
+      (big ? '<br>사진이 많아 내용이 큼니다. 아래 <b>[JSON 파일로 저장]</b>을 써 주세요.' : '<br>아이폰에서 파일 저장이 안 되면 아래 내용을 복사해 두세요.') + '</p>' +
       '<textarea readonly id="backupText">' + esc(json) + '</textarea>' +
       '<div class="dlg-actions"><button class="primary" data-dlg="download">JSON 파일로 저장</button>' +
-      '<button data-dlg="copy">클립보드에 복사</button><button class="ghost" data-dlg="close">닫기</button></div>');
+      (big ? '' : '<button data-dlg="copy">클립보드에 복사</button>') + '<button class="ghost" data-dlg="close">닫기</button></div>');
   }
   function openRestore() {
-    openDlg('<h3>메모 복원</h3><p>백업한 JSON 파일을 선택하거나, 복사해 둔 내용을 붙여넣으세요.<br>이 기기의 즐겨찾기·메모를 <b>백업 내용으로 바꿉니다.</b></p>' +
+    openDlg('<h3>메모 · 사진 복원</h3><p>백업한 JSON 파일을 선택하거나, 복사해 둔 내용을 붙여넣으세요.<br>이 기기의 즐겨찾기·메모·사진을 <b>백업 내용으로 바꾸는 것이 아니라 더합니다.</b></p>' +
       '<label class="filebtn">JSON 파일 선택<input type="file" accept=".json,application/json,text/plain" id="restoreFile" hidden></label>' +
-      '<textarea id="restoreText" placeholder=\'{"favorites":{...},"memos":{...}}\' style="margin-top:10px"></textarea>' +
+      '<textarea id="restoreText" placeholder=\'{"favorites":{...},"memos":{...},"photos":{...}}\' style="margin-top:10px"></textarea>' +
       '<div class="dlg-actions"><button class="primary" data-dlg="restore">복원 실행</button><button class="ghost" data-dlg="close">닫기</button></div>');
   }
   function applyRestore(txt) {
@@ -835,14 +1172,31 @@
     try { o = JSON.parse(txt); } catch (e) { toast('JSON 형식이 아닙니다'); return; }
     var fav = o.favorites || o.fav || {};
     var mem = o.memos || o.memo || {};
+    var pho = o.photos || {};
     if (typeof fav !== 'object' || typeof mem !== 'object') { toast('백업 파일 형식이 아닙니다'); return; }
-    var nf2 = 0, nm = 0;
+    var nf2 = 0, nm = 0, nph = 0, pend = 0;
     Object.keys(fav).forEach(function (k) { if (fav[k] && ROWS[+k]) { FAV[+k] = 1; nf2++; } });
     Object.keys(mem).forEach(function (k) { if (typeof mem[k] === 'string' && mem[k].trim() && ROWS[+k]) { MEMO[+k] = mem[k]; nm++; } });
     persist();
-    refreshAfterEdit();
+    if (pho && typeof pho === 'object') {
+      var keys = Object.keys(pho).filter(function (k) { return ROWS[+k] && typeof pho[k] === 'string' && pho[k].indexOf('data:image/') === 0; });
+      keys.forEach(function (k) {
+        var id = +k;
+        if (PHOTO[id] === pho[k]) return;
+        nph++; pend++;
+        photoPut(id, pho[k], function () { pend--; if (!pend) finishRestore(); });
+      });
+    }
+    var done = false;
+    function finishRestore() {
+      if (done) return;
+      done = true;
+      PHOTO_LOADED = true;
+      refreshAfterEdit();
+      toast('복원 완료 · 즐겨찾기 ' + nf(nf2) + '명, 메모 ' + nf(nm) + '건, 사진 ' + nf(nph) + '명');
+    }
+    if (!pend) finishRestore();
     closeDlg();
-    toast('복원 완료 · 즐겨찾기 ' + nf(nf2) + '명, 메모 ' + nf(nm) + '건');
   }
   function openDlg(html) { dlgCard.innerHTML = html; dlg.classList.add('on'); }
   function closeDlg() { dlg.classList.remove('on'); dlgCard.innerHTML = ''; }
@@ -886,10 +1240,17 @@
         return ak.localeCompare(bk, 'ko') || a.n.localeCompare(b.n, 'ko');
       });
     }
+    if (S.view === 'jd') {
+      var order = {};
+      JD_LIST.forEach(function (d, i) { order[d.k] = i; });
+      return ROWS.slice().sort(function (a, b) {
+        return (order[a._jd] - order[b._jd]) || a.n.localeCompare(b.n, 'ko');
+      });
+    }
     return ROWS.slice().sort(function (a, b) { return a.n.localeCompare(b.n, 'ko'); });
   }
   function viewLabel() {
-    return { search: '교인검색', groups: '공동체순', birth: S.month + '월생일', memo: '즐겨찾기메모', stats: '통계' }[S.view] || '목록';
+    return { search: '교인검색', jd: '전도회', groups: '공동체순', birth: S.month + '월생일', memo: '즐겨찾기메모', stats: '통계' }[S.view] || '목록';
   }
   function filterSummary() {
     var p = [];
@@ -899,6 +1260,9 @@
       if (S.f.d) p.push(S.f.d === '__none__' ? '교구 미지정' : S.f.d);
       if (S.f.g) p.push(S.f.g === '__none__' ? '순 미지정' : S.f.g);
       if (S.f.r) p.push(S.f.r);
+      if (S.f.jd) p.push(S.f.jd === '__none__' ? '생년월일 미상' : (JD_MAP[S.f.jd] ? JD_MAP[S.f.jd].name : S.f.jd));
+      if (S.f.photo === 'y') p.push('사진 등록됨');
+      if (S.f.photo === 'n') p.push('사진 없음');
       if (S.f.ct === 'y') p.push('연락처 있음');
       if (S.f.ct === 'n') p.push('연락처 없음');
       if (S.onlyFav) p.push('즐겨찾기만');
@@ -917,7 +1281,7 @@
     var body = '<tbody>' + rows.map(function (x, i) {
       var rel = [x.c, x.d, x.g].filter(Boolean).join(' · ') || '미지정';
       return '<tr><td class="num">' + (i + 1) + '</td><td><b>' + esc(x.n) + '</b></td><td>' + esc(x.rs || '') + '</td>' +
-        '<td>' + esc(rel) + '</td><td>' + esc(x.b ? x.b + ' (' + (x.l || '양') + ')' : '-') + '</td>' +
+        '<td>' + esc(rel) + '</td><td>' + esc(x.b ? x.b + ' (' + (x.l || '양') + ')' : (x.by ? x.by + ' (연도만)' : '-')) + '</td>' +
         '<td>' + esc(x.p1 || x.p2 || '-') + '</td><td>' + esc(x.ad || '') + '</td>' +
         (hasMemo ? '<td>' + esc((MEMO[x.i] || '').replace(/\n/g, ' ')) + '</td>' : '') + '</tr>';
     }).join('') + '</tbody>';
@@ -926,11 +1290,11 @@
   }
   function doCSV() {
     var rows = activeRows();
-    var head = ['이름', '성별', '직분', '교인번호', '생년월일', '음양력', '나이', '공동체', '교구', '순', '순장', '배우자', '신앙세대주관계', '연락처1', '연락처2', '이메일', '주소', '등록일', '등록구분', '최종수정일', '최종심방일', '즐겨찾기', '메모'];
+    var head = ['이름', '성별', '직분', '교인번호', '생년월일', '음양력', '나이', '전도회', '공동체', '교구', '순', '순장', '배우자', '신앙세대주관계', '연락처1', '연락처2', '이메일', '주소', '등록일', '등록구분', '최종수정일', '최종심방일', '즐겨찾기', '메모'];
     function cell(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
     var lines = [head.map(cell).join(',')];
     rows.forEach(function (x) {
-      lines.push([x.n, x.s, x.r, x.mn, x.b, x.l, x._age, x.c, x.d, x.g, x.ld, x.sp, x.hr, x.p1, x.p2, x.em, x.ad, x.rd, x.rt, x.md, x.vd, FAV[x.i] ? 'O' : '', (MEMO[x.i] || '').replace(/\n/g, ' ')].map(cell).join(','));
+      lines.push([x.n, x.s, x.r, x.mn, x.b || (x.by ? x.by + ' (연도만)' : ''), x.l, x._age, (JD_MAP[x._jd] || {}).name || '', x.c, x.d, x.g, x.ld, x.sp, x.hr, x.p1, x.p2, x.em, x.ad, x.rd, x.rt, x.md, x.vd, FAV[x.i] ? 'O' : '', (MEMO[x.i] || '').replace(/\n/g, ' ')].map(cell).join(','));
     });
     var name = '하베스터교적부_' + viewLabel() + '_' + ymd(new Date()) + '.csv';
     if (downloadFile(name, '\ufeff' + lines.join('\r\n'), 'text/csv;charset=utf-8')) toast(nf(rows.length) + '명 CSV 저장');
@@ -951,6 +1315,8 @@
     });
     qClear.addEventListener('click', function () { qEl.value = ''; qClear.classList.remove('on'); S.q = ''; applyFilters(); qEl.focus(); });
     $('f-comm').addEventListener('change', function (e) { S.f.c = e.target.value; S.f.d = ''; S.f.g = ''; applyFilters(); });
+    $('f-jd').addEventListener('change', function (e) { S.f.jd = e.target.value; applyFilters(); });
+    $('f-photo').addEventListener('change', function (e) { S.f.photo = e.target.value; applyFilters(); });
     $('f-dist').addEventListener('change', function (e) { S.f.d = e.target.value; S.f.g = ''; applyFilters(); });
     $('f-grp').addEventListener('change', function (e) { S.f.g = e.target.value; applyFilters(); });
     $('f-role').addEventListener('change', function (e) { S.f.r = e.target.value; applyFilters(); });
@@ -963,7 +1329,7 @@
     });
     $('resetF').addEventListener('click', function () {
       S.q = ''; qEl.value = ''; qClear.classList.remove('on');
-      S.f = { c: '', d: '', g: '', r: '', ct: '' }; S.onlyFav = false; S.sort = 'name';
+      S.f = { c: '', jd: '', d: '', g: '', r: '', ct: '', photo: '' }; S.onlyFav = false; S.sort = 'name';
       $('f-sort').value = 'name'; $('onlyFav').setAttribute('aria-pressed', 'false');
       applyFilters();
     });
@@ -992,9 +1358,26 @@
       var go = t.closest('[data-go]');
       if (go) {
         var p = go.dataset.go.split('|');
-        S.f = { c: p[0] === '미지정' ? '__none__' : p[0], d: p[1] === '미지정' ? '__none__' : p[1], g: p[2] === '미지정' ? '__none__' : p[2], r: '', ct: '' };
+        S.f = { c: p[0] === '미지정' ? '__none__' : p[0], jd: '', d: p[1] === '미지정' ? '__none__' : p[1], g: p[2] === '미지정' ? '__none__' : p[2], r: '', ct: '', photo: '' };
         S.q = ''; qEl.value = ''; qClear.classList.remove('on'); S.onlyFav = false;
         $('onlyFav').setAttribute('aria-pressed', 'false');
+        setView('search'); applyFilters(); return;
+      }
+      var jd = t.closest('[data-jd]');
+      if (jd) {
+        var jk = jd.dataset.jd;
+        S.openJ[jk] = !S.openJ[jk]; renderJd(); return;
+      }
+      var jdgo = t.closest('[data-jdgo]');
+      if (jdgo) {
+        S.f = { c: '', jd: jdgo.dataset.jdgo, d: '', g: '', r: '', ct: '', photo: '' };
+        S.q = ''; qEl.value = ''; qClear.classList.remove('on'); S.onlyFav = false;
+        $('onlyFav').setAttribute('aria-pressed', 'false');
+        setView('search'); applyFilters(); return;
+      }
+      var pf = t.closest('[data-photofilter]');
+      if (pf) {
+        S.f.photo = pf.dataset.photofilter;
         setView('search'); applyFilters(); return;
       }
       var mon = t.closest('[data-month]');
@@ -1005,6 +1388,9 @@
         var a = act.dataset.act;
         if (a === 'closeSheet') { closeMember(); return; }
         if (a === 'toggleFav') { toggleFav(S.modal); return; }
+        if (a === 'pickPhoto') { pickPhoto(S.modal); return; }
+        if (a === 'delPhoto') { askDeletePhoto(S.modal); return; }
+        if (a === 'photoMatch') { openPhotoMatch(); return; }
         if (a === 'backup') { openBackup(); return; }
         if (a === 'restore') { openRestore(); return; }
         if (a === 'print') { doPrint(); return; }
@@ -1014,6 +1400,17 @@
       if (d) {
         var dk = d.dataset.dlg;
         if (dk === 'close') { closeDlg(); return; }
+        if (dk === 'pmpick') { if (MATCH) pickPhoto(MATCH.ids[MATCH.k]); return; }
+        if (dk === 'pmskip') { if (MATCH) { MATCH.k++; renderMatch(); } return; }
+        if (dk === 'photodel') {
+          var did = S.modal;
+          photoRemove(did, function () {
+            closeDlg();
+            refreshPhotoUI(did);
+            toast('사진을 삭제했습니다');
+          });
+          return;
+        }
         if (dk === 'download') {
           var txt = JSON.stringify(payload(), null, 2);
           var nm = '하베스터교적부_메모백업_' + ymd(new Date()) + '.json';
@@ -1026,6 +1423,11 @@
       }
     });
     document.addEventListener('change', function (e) {
+      if (e.target.id === 'photoFile') {
+        var pf = e.target.files && e.target.files[0];
+        if (pf) savePhotoFile(pf);
+        return;
+      }
       if (e.target.id === 'restoreFile') {
         var f = e.target.files && e.target.files[0];
         if (!f) return;
@@ -1090,6 +1492,17 @@
     applyFilters();
     var ba = $('builtAt');
     if (ba) ba.textContent = (window.__META__ && window.__META__.built) || ymd(new Date());
+    // 사진(IndexedDB) 불러오기 — 다 읽으면 화면을 한 번 다시 그립니다
+    photosLoad(function (ok) {
+      PHOTO_LOADED = true;
+      if (!ok && Object.keys(PHOTO).length === 0) {
+        var st = $('storeBanner');
+        if (st) { st.innerHTML = '이 브라우저에서는 사진 저장소(IndexedDB)를 열 수 없어 사진이 이번 화면에만 보입니다. 사진을 남기려면 상단 [사진 백업]으로 보관해 주세요.'; st.classList.add('on'); }
+      }
+      refreshAfterEdit();
+      if (S.view === 'jd') renderJd();
+      else if (S.view === 'stats') { STATS = null; renderStats(); }
+    });
   }
   document.addEventListener('DOMContentLoaded', init);
   if (document.readyState !== 'loading') init();
