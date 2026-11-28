@@ -264,8 +264,7 @@ tr.day td{height:34pt}
 tr.visit td{height:27.2pt}
 tr.blank td{height:27.2pt}
 /* 비고(메모·사진) */
-tr.note td{height:auto; min-height:56pt; vertical-align:top; padding:4pt 5.4pt; font-weight:400; line-height:1.35}
-tr.note td[contenteditable="true"]{font-weight:400}
+tr.note td{height:auto; min-height:56pt; vertical-align:top; padding:4pt 5.4pt; line-height:1.35}
 tr.note td:empty::before{content:""; display:inline-block; height:2.6em}
 tr.note-photo td{padding:3pt 4pt; height:auto}
 .pv-photos{display:grid; grid-template-columns:1fr 1fr; gap:6pt; align-items:start}
