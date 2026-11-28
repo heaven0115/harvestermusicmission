@@ -3400,9 +3400,10 @@ function revealPrompt(prompt) {
   return box;
 }
 
-function scrollToEl(el) {
+function scrollToEl(el, block) {
   if (!el) return;
-  try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  const where = block || 'start';
+  try { el.scrollIntoView({ behavior: 'smooth', block: where }); }
   catch (e) { try { el.scrollIntoView(); } catch (e2) { /* 무시 */ } }
 }
 
@@ -3420,14 +3421,14 @@ function collectInput() {
     toast('설교 제목을 입력해 주세요.', true);
     setGoStatus('설교 제목을 입력해 주세요 — 맨 위 「설교 제목」 칸이 비어 있습니다.', 'err');
     const el = $('#f-title');
-    if (el) { el.focus(); scrollToEl(el); }
+    if (el) { el.focus(); scrollToEl(el, 'center'); }
     return null;
   }
   if (text.length < 80) {
     toast('설교 본문을 80자 이상 붙여넣어 주세요.', true);
     setGoStatus('설교 본문이 ' + text.length + '자입니다 — 80자 이상 붙여넣어 주세요.', 'err');
     const el2 = $('#f-text');
-    if (el2) { el2.focus(); scrollToEl(el2); }
+    if (el2) { el2.focus(); scrollToEl(el2, 'center'); }
     return null;
   }
   setGoStatus('', '');
