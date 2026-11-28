@@ -307,7 +307,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
 
 /* ---------- 콘티 파일 불러오기 막대 ---------- */
 .quickbar {
-  display: flex; gap: 8px; margin-bottom: 10px;
+  display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
 }
 .quickbar .btn { flex: 1 1 auto; }
 .quickbar #btnOpenConti { flex: 2 1 auto; }
@@ -470,4 +470,5 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
   .tab { font-size: 14px; }
   .song-tab .t { display: none; }
   .score-head .hint { font-size: 11.5px; }
+  .quickbar .btn { font-size: 13.5px; padding: 10px 9px; }
 }
