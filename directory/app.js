@@ -108,9 +108,9 @@
   function jdCellHTML(x) {
     var d = jdInfo(x);
     if (x._jd === 'nb' || !JD_MAP[x._jd]) {
-      return '<span class="em">전도회 미정</span><span class="jd-meta">생년월일 미기재</span>';
+      return '<span class="em">전도회 미정</span> <span class="jd-meta">생년월일 미기재</span>';
     }
-    return '<b>' + esc(d.name) + '</b>' +
+    return '<b>' + esc(d.name) + '</b> ' +
       '<span class="jd-meta">(' + esc(d.band) + (d.years ? ' · ' + esc(d.years) : '') + ')</span>';
   }
   function jdShortOf(x) {
