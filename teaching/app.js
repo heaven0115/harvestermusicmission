@@ -2722,7 +2722,15 @@ function pdfRenderPages(rootEl, o) {
         }
       }
       const keptCss = cutRow ? (cutRow / scale) : hPx;
-      pages.push(pdfCropCanvas(canvas, Math.max(8, keptCss), pageW));
+      const cropped = pdfCropCanvas(canvas, Math.max(8, keptCss), pageW);
+      /* 글자가 하나도 없는 쪽(카드 테두리만 남은 쪽)은 넣지 않는다 */
+      const croppedRows = pdfInkRows(cropped);
+      let hasInk = true;
+      if (croppedRows) {
+        hasInk = false;
+        for (let r = 0; r < croppedRows.ink.length; r++) { if (croppedRows.ink[r]) { hasInk = true; break; } }
+      }
+      if (hasInk || !pages.length) pages.push(cropped);
       start = start + Math.max(8, keptCss);
       return step();
     }, function (err) {
@@ -2854,7 +2862,8 @@ function exportPdfFromPage(rootEl, o) {
     stage.setAttribute('aria-hidden', 'true');
     const clone = rootEl.cloneNode(true);
     if (clone.hasAttribute && clone.hasAttribute('hidden')) clone.removeAttribute('hidden');
-    const strip = o.strip || [];
+    /* 안내 줄·버튼처럼 종이에 찍히면 안 되는 것 */
+    const strip = ['.pdf-note', '[data-pdf-note]'].concat(o.strip || []);
     for (let i = 0; i < strip.length; i++) {
       const junk = clone.querySelectorAll(strip[i]);
       for (let j = 0; j < junk.length; j++) if (junk[j].parentNode) junk[j].parentNode.removeChild(junk[j]);
