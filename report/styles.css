@@ -260,10 +260,19 @@ tr.spacer{display:none}
 tr.title td{text-align:center; font-size:16pt; line-height:1.22; padding:3pt 5.4pt}
 tr.title p{margin:0}
 tr.sec td{background:#d9d9d9; height:28.8pt; text-indent:11pt}
+tr.sec td.note-head{text-indent:0; text-align:center; white-space:nowrap}
 tr.day td{height:34pt}
 tr.visit td{height:27.2pt}
 tr.blank td{height:27.2pt}
-/* 비고(메모·사진) */
+/* 오른쪽 4열 비고·사진 칸 (11/24 행부터 표 끝까지 세로 병합) */
+td.note-cell{vertical-align:top; padding:3pt 3.5pt; line-height:1.32}
+td.note-cell .note-memo{min-height:2.8em; outline:none; white-space:pre-wrap}
+td.note-cell .note-memo:empty::before{
+  content:attr(data-placeholder); color:#9aa4ad; font-weight:400; font-size:9pt;
+}
+td.note-cell .pv-photo{margin:4pt 0 0}
+td.note-cell .pv-photo:first-of-type{margin-top:6pt}
+td.note-cell .pv-photo img{max-height:none}
 tr.note td{height:auto; min-height:56pt; vertical-align:top; padding:4pt 5.4pt; line-height:1.35}
 tr.note td:empty::before{content:""; display:inline-block; height:2.6em}
 tr.note-photo td{padding:3pt 4pt; height:auto}
@@ -275,8 +284,10 @@ tr.note-photo td{padding:3pt 4pt; height:auto}
 .pv-photo img{display:block; width:100%; height:auto; max-height:4in; object-fit:contain; border:0.5pt solid #000}
 .pv-photo figcaption{font-size:8.5pt; font-weight:400; color:#333; text-align:center; margin-top:2pt; line-height:1.25}
 
-table.report td[contenteditable="true"]{cursor:text}
-table.report td[contenteditable="true"]:focus{
+table.report td[contenteditable="true"],
+table.report [contenteditable="true"]{cursor:text}
+table.report td[contenteditable="true"]:focus,
+table.report [contenteditable="true"]:focus{
   outline:2px solid rgba(63,106,156,.45);
   outline-offset:-2px;
   background:#f4f8ff;
@@ -365,6 +376,7 @@ table.report td[contenteditable="true"]:focus{
   tr{break-inside:avoid; page-break-inside:avoid}
   .pv-photo, .pv-photo img{break-inside:avoid; page-break-inside:avoid}
   tr.note td{min-height:0}
-  table.report td[contenteditable="true"]:focus{outline:0 !important; background:transparent !important}
+  table.report td[contenteditable="true"]:focus,
+  table.report [contenteditable="true"]:focus{outline:0 !important; background:transparent !important}
   *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
 }

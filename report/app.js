@@ -24,6 +24,7 @@
   var SEC1 = '사역 내용';
   var SEC2 = '주간 심방 내용 (담임목사님이 알아야 할 내용 및 심방 필요)';
   var SEC3 = '비고 (메모 및 사진)';
+  var SEC3_HEAD = '비고·사진';   // 표 오른쪽 4번째 열 머리글
   var DEFAULT_VISITS = ['찬양대', '결석자전화심방', '수요새벽예배', '칸타타연습', '3전도회 및 5-6전도회 총회'];
   var TOTAL_ROWS = 36;          // 원본 워드 폼의 전체 행 수
   var ROWS_BEFORE_VISITS = 10;  // 스페이서 + 제목 + 섹션1 + 6일 + 섹션2
@@ -393,39 +394,48 @@
     else if (failed.length) { toast('사진을 넣지 못했습니다: ' + failed.join(', ')); }
   }
 
+  /* 표 오른쪽 4번째 열(17.86%)의 비고·사진 칸.
+     메모를 위에 두고 사진은 폭 100%로 세로로 차곡차곡 쌓습니다. */
+  function noteCellHtml(wk, span) {
+    var note = wk.note;
+    var html = '<td class="note-cell" rowspan="' + span + '">';
+    html += '<div class="note-memo" contenteditable="true" data-edit="note" data-placeholder="비고 메모">' +
+      escHtml(note.memo).replace(/\n/g, '<br>') + '</div>';
+    note.photos.forEach(function (p, i) {
+      html += '<figure class="pv-photo"><img src="' + escAttr(p.data) + '" alt="' +
+        escAttr(p.caption || ('비고 사진 ' + (i + 1))) + '">' +
+        (p.caption ? '<figcaption>' + escHtml(p.caption) + '</figcaption>' : '') + '</figure>';
+    });
+    html += '</td>';
+    return html;
+  }
+
   function renderPreview() {
     var wk = currentWeek();
     var html = '';
+    var blanks = blankRowCount(wk);
+    /* 오른쪽 비고·사진 칸은 11/24 행부터 표 맨 아래 행까지 세로로 하나로 이어집니다. */
+    var noteSpan = 6 + 1 + wk.visits.length + blanks;   // 날짜 6행 + 심방 머리행 + 심방 항목 + 빈 행
     html += '<tr class="spacer"><td colspan="4"></td></tr>';
     html += '<tr class="title"><td colspan="4"><p>' + escHtml(TITLE) + '</p>' +
       '<p>제출일: ' + escHtml(fmtSubmit(wk.submit)) + '</p></td></tr>';
-    html += '<tr class="sec"><td colspan="4">' + escHtml(SEC1) + '</td></tr>';
+    /* 사역 내용 머리행: 1~3열 병합 + 4열 비고·사진 머리글 */
+    html += '<tr class="sec"><td colspan="3">' + escHtml(SEC1) + '</td>' +
+      '<td class="note-head">' + escHtml(SEC3_HEAD) + '</td></tr>';
     wk.days.forEach(function (d, i) {
       html += '<tr class="day"><td>' + escHtml(dateLabel(wk, i)) + '</td><td></td>' +
-        '<td contenteditable="true" data-edit="day:' + i + '">' + escHtml(d.text).replace(/\n/g, '<br>') + '</td><td></td></tr>';
+        '<td contenteditable="true" data-edit="day:' + i + '">' + escHtml(d.text).replace(/\n/g, '<br>') + '</td>';
+      if (i === 0) { html += noteCellHtml(wk, noteSpan); }
+      html += '</tr>';
     });
-    html += '<tr class="sec"><td colspan="4">' + escHtml(SEC2) + '</td></tr>';
+    /* 주간 심방 내용 머리행: 1~3열만 병합해 오른쪽 비고 칸이 끊기지 않게 */
+    html += '<tr class="sec"><td colspan="3">' + escHtml(SEC2) + '</td></tr>';
     wk.visits.forEach(function (v, i) {
       html += '<tr class="visit"><td contenteditable="true" data-edit="vname:' + i + '">' + escHtml(v.name) + '</td><td></td>' +
-        '<td contenteditable="true" data-edit="vtext:' + i + '">' + escHtml(v.text).replace(/\n/g, '<br>') + '</td><td></td></tr>';
+        '<td contenteditable="true" data-edit="vtext:' + i + '">' + escHtml(v.text).replace(/\n/g, '<br>') + '</td></tr>';
     });
-    /* 비고(메모·사진): 원본 표 디자인을 그대로 이어받은 섹션 머리행 + 메모 칸 + 사진 2열 */
-    html += '<tr class="sec note-sec"><td colspan="4">' + escHtml(SEC3) + '</td></tr>';
-    html += '<tr class="note"><td colspan="4" contenteditable="true" data-edit="note">' +
-      escHtml(wk.note.memo).replace(/\n/g, '<br>') + '</td></tr>';
-    if (wk.note.photos.length) {
-      html += '<tr class="note-photo"><td colspan="4"><div class="pv-photos">';
-      wk.note.photos.forEach(function (p, i) {
-        html += '<figure class="pv-photo"><img src="' + escAttr(p.data) + '" alt="' +
-          escAttr(p.caption || ('비고 사진 ' + (i + 1))) + '">' +
-          (p.caption ? '<figcaption>' + escHtml(p.caption) + '</figcaption>' : '') + '</figure>';
-      });
-      html += '</div></td></tr>';
-    }
-
-    var blanks = blankRowCount(wk);
     for (var i = 0; i < blanks; i++) {
-      html += '<tr class="blank"><td></td><td></td><td></td><td></td></tr>';
+      html += '<tr class="blank"><td></td><td></td><td></td></tr>';
     }
     qs('#reportBody').innerHTML = html;
     fitPaper();
@@ -442,14 +452,10 @@
     syncTopOffset();
   }
 
-  /* 빈 행 수: 원본 36행 분량을 유지하되, 비고(섹션 머리 + 메모 + 사진 행)가
-     차지하는 만큼 빈 행을 덜 넣어 인쇄 분량이 지나치게 늘지 않게 합니다. */
+  /* 빈 행 수: 원본 양식과 같은 36행을 유지합니다(비고·사진은 오른쪽 열 안에 들어감). */
   function blankRowCount(wk) {
-    var n = (wk && wk.note && wk.note.photos) ? wk.note.photos.length : 0;
-    var pairs = n ? Math.ceil(n / 2) : 0;
-    var noteRows = 2 + pairs;          // 섹션 머리 + 메모 1행 + 사진 행
-    var tallRows = pairs * 8;          // 사진 행 한 줄은 빈 행 8줄 높이쯤
-    return Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length - noteRows - tallRows);
+    var visits = (wk && wk.visits) ? wk.visits.length : 0;
+    return Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - visits);
   }
 
   /* ------------------------------------------------------------------ *
@@ -659,19 +665,19 @@
     toast('날짜를 화~주일로 다시 맞췄습니다.');
   });
 
-  /* 보고서 표 안에서 바로 고치기 */
+  /* 보고서 표 안에서 바로 고치기 (표 칸과 오른쪽 비고 메모 모두) */
   var reportBody = qs('#reportBody');
   reportBody.addEventListener('input', function (e) {
-    var td = e.target;
-    if (td && td.matches && td.matches('td[contenteditable="true"]')) {
-      commitCell(td);
+    var el = e.target;
+    if (el && el.matches && el.matches('[contenteditable="true"]')) {
+      commitCell(el);
       save();
     }
   });
   reportBody.addEventListener('focusout', function (e) {
-    var td = e.target;
-    if (!td || !td.matches || !td.matches('td[contenteditable="true"]')) { return; }
-    commitCell(td);
+    var el = e.target;
+    if (!el || !el.matches || !el.matches('[contenteditable="true"]')) { return; }
+    commitCell(el);
     renderLog();
     renderVisit();
     renderNote();
@@ -798,7 +804,12 @@
     '</w:tcBorders>';
   var BODY_RPR = '<w:rPr><w:rFonts w:asciiTheme="majorHAnsi" w:eastAsiaTheme="majorHAnsi" w:hAnsiTheme="majorHAnsi" w:hint="eastAsia"/>' +
     '<w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>';
-  var CAP_RPR = '<w:rPr><w:rFonts w:eastAsiaTheme="minorHAnsi"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>';
+  var CAP_RPR = '<w:rPr><w:rFonts w:eastAsiaTheme="minorHAnsi"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>';
+
+  /* 오른쪽 4열(비고·사진) 치수 — 원본 양식 기준 */
+  var NOTE_COL_W = 1842;      // 4열 폭 (twips, 전체 10314의 17.86%)
+  var NOTE_GRID3_W = 8472;    // 1~3열 합 (1809+1134+5529)
+  var NOTE_IMG_W = 1024000;   // 사진 폭 (EMU, 약 1.12in — 4열 안쪽 1626tw 안에 들어감)
 
   function xesc(s) {
     return String(s == null ? '' : s)
@@ -820,13 +831,74 @@
 
   function memoP(text) {
     var body = text ? ('<w:r>' + BODY_RPR + '<w:t xml:space="preserve">' + xesc(text) + '</w:t></w:r>') : '';
-    return '<w:p><w:pPr><w:pStyle w:val="a3"/><w:spacing w:before="20" w:after="20"/>' + BODY_RPR + '</w:pPr>' + body + '</w:p>';
+    return '<w:p><w:pPr><w:pStyle w:val="a3"/><w:spacing w:before="20" w:after="20"/><w:jc w:val="left"/>' + BODY_RPR + '</w:pPr>' + body + '</w:p>';
   }
-  function noteMemoRowXml(text) {
-    var ps = textLines(text).map(memoP).join('');
-    return '<w:tr><w:trPr><w:trHeight w:val="544"/></w:trPr><w:tc>' +
-      '<w:tcPr><w:tcW w:w="10314" w:type="dxa"/><w:gridSpan w:val="4"/>' + TC_BORDER +
-      '<w:vAlign w:val="center"/></w:tcPr>' + ps + '</w:tc></w:tr>';
+
+  /* ---- 오른쪽 4열 비고·사진 칸 ---- */
+  function noteHeadCellXml() {
+    return '<w:tc><w:tcPr><w:tcW w:w="' + NOTE_COL_W + '" w:type="dxa"/>' + TC_BORDER +
+      '<w:shd w:val="pct25" w:color="auto" w:fill="auto"/><w:vAlign w:val="center"/></w:tcPr>' +
+      '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:jc w:val="center"/>' + BODY_RPR + '</w:pPr>' +
+      '<w:r>' + BODY_RPR + '<w:t xml:space="preserve">' + xesc(SEC3_HEAD) + '</w:t></w:r></w:p></w:tc>';
+  }
+
+  function noteMergeCellXml() {
+    return '<w:tc><w:tcPr><w:tcW w:w="' + NOTE_COL_W + '" w:type="dxa"/><w:vMerge/>' + TC_BORDER +
+      '<w:vAlign w:val="top"/></w:tcPr>' +
+      '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p></w:tc>';
+  }
+
+  function notePhotoXml(photo, rel) {
+    var pw = Number(photo.w) || 4, ph = Number(photo.h) || 3;
+    var ar = ph / pw;
+    var cx = NOTE_IMG_W, cy = Math.max(1, Math.round(NOTE_IMG_W * ar));
+    var out = '<w:p><w:pPr><w:spacing w:before="80" w:after="0"/><w:jc w:val="center"/></w:pPr>' +
+      '<w:r>' + drawingXml(rel, cx, cy) + '</w:r></w:p>';
+    if (photo.caption) {
+      out += '<w:p><w:pPr><w:spacing w:before="0" w:after="80"/><w:jc w:val="center"/>' + CAP_RPR + '</w:pPr>' +
+        '<w:r>' + CAP_RPR + '<w:t xml:space="preserve">' + xesc(photo.caption) + '</w:t></w:r></w:p>';
+    } else {
+      out += '<w:p><w:pPr><w:spacing w:before="0" w:after="80"/></w:pPr></w:p>';
+    }
+    return out;
+  }
+
+  /* 4열 첫 칸: vMerge 시작 + 비고 메모 + 사진들 */
+  function noteCellXml(note, rels) {
+    var out = '';
+    var memo = String(note.memo == null ? '' : note.memo);
+    if (memo) { textLines(memo).forEach(function (l) { out += memoP(l); }); }
+    (note.photos || []).forEach(function (p, i) {
+      if (!rels[i]) { return; }
+      out += notePhotoXml(p, rels[i]);
+    });
+    if (!out) { out = '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/></w:pPr></w:p>'; }
+    return '<w:tc><w:tcPr><w:tcW w:w="' + NOTE_COL_W + '" w:type="dxa"/><w:vMerge w:val="restart"/>' + TC_BORDER +
+      '<w:vAlign w:val="top"/></w:tcPr>' + out + '</w:tc>';
+  }
+
+  /* XML 문자열 한 개를 현재 문서의 요소로 */
+  function importXmlEl(doc, xml) {
+    var frag = parseXmlFragment(xml);
+    for (var i = 0; i < frag.childNodes.length; i++) {
+      if (frag.childNodes[i].nodeType === 1) { return doc.importNode(frag.childNodes[i], true); }
+    }
+    return null;
+  }
+
+  /* 첫 칸의 gridSpan·tcW를 1~3열 폭으로 줄입니다. */
+  function setGrid3(cell) {
+    var tcPr = childEls(cell, 'tcPr')[0];
+    if (!tcPr) { return; }
+    var gs = childEls(tcPr, 'gridSpan')[0];
+    if (gs) { gs.setAttributeNS(W_NS, 'w:val', '3'); } else {
+      var g = wEl(cell.ownerDocument, 'gridSpan');
+      g.setAttributeNS(W_NS, 'w:val', '3');
+      var tw0 = childEls(tcPr, 'tcW')[0];
+      if (tw0 && tw0.nextSibling) { tcPr.insertBefore(g, tw0.nextSibling); } else { tcPr.appendChild(g); }
+    }
+    var tw = childEls(tcPr, 'tcW')[0];
+    if (tw) { tw.setAttributeNS(W_NS, 'w:w', String(NOTE_GRID3_W)); }
   }
 
   /* 그림 한 장(inline) — EMU 크기로 넣어 워드·한컴·Pages에서 넘치지 않게 합니다. */
@@ -842,44 +914,6 @@
       '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cxEmu + '" cy="' + cyEmu + '"/></a:xfrm>' +
       '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
       '</a:graphicData></a:graphic></wp:inline></w:drawing>';
-  }
-
-  function photoCellXml(photo, rel) {
-    var tcPr = '<w:tcPr><w:tcW w:w="5049" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>';
-    if (!photo) { return '<w:tc>' + tcPr + '<w:p/></w:tc>'; }
-    var maxW = 3.28, maxH = 3.4;   // in — 셀 안쪽 5049twips(약 3.37in) 안에 2열로
-    var pw = Number(photo.w) || 4, ph = Number(photo.h) || 3;
-    var ar = ph / pw;
-    var win = maxW, hin = win * ar;
-    if (hin > maxH) { hin = maxH; win = hin / ar; }
-    var cx = Math.round(win * 914400), cy = Math.round(hin * 914400);
-    var cap = photo.caption ? ('<w:r>' + CAP_RPR + '<w:t xml:space="preserve">' + xesc(photo.caption) + '</w:t></w:r>') : '';
-    return '<w:tc>' + tcPr +
-      '<w:p><w:pPr><w:spacing w:before="40" w:after="20"/><w:jc w:val="center"/></w:pPr>' +
-      '<w:r>' + drawingXml(rel, cx, cy) + '</w:r></w:p>' +
-      '<w:p><w:pPr><w:spacing w:before="0" w:after="60"/><w:jc w:val="center"/>' + CAP_RPR + '</w:pPr>' + cap + '</w:p>' +
-      '</w:tc>';
-  }
-
-  function notePhotoRowXml(pair, rels) {
-    var cells = photoCellXml(pair[0], rels[0]) + photoCellXml(pair[1] || null, rels[1] || null);
-    var tbl = '<w:tbl><w:tblPr><w:tblW w:w="10098" w:type="dxa"/>' +
-      '<w:tblBorders>' +
-      '<w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
-      '<w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
-      '<w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
-      '</w:tblBorders>' +
-      '<w:tblLayout w:type="fixed"/>' +
-      '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="60" w:type="dxa"/>' +
-      '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar>' +
-      '<w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="1" w:noVBand="1"/></w:tblPr>' +
-      '<w:tblGrid><w:gridCol w:w="5049"/><w:gridCol w:w="5049"/></w:tblGrid>' +
-      '<w:tr>' + cells + '</w:tr></w:tbl>';
-    return '<w:tr><w:trPr><w:trHeight w:val="544"/></w:trPr><w:tc>' +
-      '<w:tcPr><w:tcW w:w="10314" w:type="dxa"/><w:gridSpan w:val="4"/>' + TC_BORDER +
-      '<w:vAlign w:val="center"/></w:tcPr>' + tbl +
-      '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:rPr><w:sz w:val="6"/></w:rPr></w:pPr></w:p>' +
-      '</w:tc></w:tr>';
   }
 
   /* 사진을 워드 패키지(word/media)·관계(rels)·콘텐츠 타입에 등록합니다. */
@@ -939,7 +973,16 @@
     if (titleParas[0]) { setParagraphText(titleParas[0], TITLE); }
     if (titleParas[1]) { setParagraphText(titleParas[1], '제출일: ' + fmtSubmit(wk.submit)); }
 
-    // 2) 날짜별 사역 6행
+    // 2) 사역 내용 머리행: 1~3열 병합 + 4열 비고·사진 머리글
+    var sec1Cells = childEls(rows[2], 'tc');
+    if (sec1Cells.length) {
+      setGrid3(sec1Cells[0]);
+      rows[2].appendChild(importXmlEl(doc, noteHeadCellXml()));
+    }
+
+    // 3) 날짜별 사역 6행 + 오른쪽 비고·사진 열(11/24 행부터 표 끝까지 세로 병합)
+    var note = wk.note;
+    var photoRels = note.photos.length ? await registerImages(zip, note.photos) : [];
     for (var i = 0; i < 6; i++) {
       var row = rows[3 + i];
       if (!row) { continue; }
@@ -947,10 +990,20 @@
       if (!cells.length) { continue; }
       fillCell(cells[0], [dateLabel(wk, i)]);
       if (cells[2]) { fillCell(cells[2], textLines(wk.days[i].text)); }
-      if (cells[3]) { fillCell(cells[3], ['']); }
+      if (cells[3]) {
+        var nc = importXmlEl(doc, i === 0 ? noteCellXml(note, photoRels) : noteMergeCellXml());
+        if (nc) { row.replaceChild(nc, cells[3]); }
+      }
     }
 
-    // 3) 심방 항목 행 + 빈 행
+    // 4) 주간 심방 내용 머리행: 1~3열만 병합하고 4열은 세로 병합을 이어 갑니다
+    var sec2Cells = childEls(rows[9], 'tc');
+    if (sec2Cells.length) {
+      setGrid3(sec2Cells[0]);
+      rows[9].appendChild(importXmlEl(doc, noteMergeCellXml()));
+    }
+
+    // 5) 심방 항목 행 + 빈 행 (각 행 4열은 vMerge continue)
     var itemTpl = rows[12].cloneNode(true);
     var blankTpl = rows[15].cloneNode(true);
     rows.slice(10).forEach(function (r) { tbl.removeChild(r); });
@@ -960,25 +1013,24 @@
       var cs = childEls(r, 'tc');
       fillCell(cs[0], v.name ? [v.name] : ['']);
       if (cs[2]) { fillCell(cs[2], textLines(v.text)); }
+      if (cs[3]) {
+        var mc = importXmlEl(r.ownerDocument, noteMergeCellXml());
+        if (mc) { r.replaceChild(mc, cs[3]); }
+      }
       tbl.appendChild(r);
     });
-    // 4) 비고(메모 + 사진) — 원본 섹션 머리행(회색 25%)을 복제해 디자인을 잇습니다
-    var note = wk.note;
-    var photoRels = note.photos.length ? await registerImages(zip, note.photos) : [];
-    var secTpl = rows[9].cloneNode(true);
-    var secCells = childEls(secTpl, 'tc');
-    var secP = secCells.length ? childEls(secCells[0], 'p')[0] : null;
-    if (secP) { setParagraphText(secP, ' ' + SEC3); }
-    tbl.appendChild(secTpl);
-    appendXml(tbl, noteMemoRowXml(note.memo));
-    for (var pi = 0; pi < note.photos.length; pi += 2) {
-      appendXml(tbl, notePhotoRowXml(note.photos.slice(pi, pi + 2), photoRels.slice(pi, pi + 2)));
-    }
 
     var blanks = blankRowCount(wk);
-    for (var b = 0; b < blanks; b++) { tbl.appendChild(blankTpl.cloneNode(true)); }
-
-    // 5) zip 다시 만들기
+    for (var b = 0; b < blanks; b++) {
+      var br = blankTpl.cloneNode(true);
+      var bcs = childEls(br, 'tc');
+      if (bcs[3]) {
+        var bm = importXmlEl(br.ownerDocument, noteMergeCellXml());
+        if (bm) { br.replaceChild(bm, bcs[3]); }
+      }
+      tbl.appendChild(br);
+    }
+    // 6) zip 다시 만들기
     try {
       doc.documentElement.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
       doc.documentElement.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:pic', 'http://schemas.openxmlformats.org/drawingml/2006/picture');
