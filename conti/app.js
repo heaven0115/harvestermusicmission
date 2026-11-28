@@ -647,6 +647,7 @@
         return;
       }
       if (a === 'clear') {
+        if (!window.confirm('이 곡에 올린 악보를 지울까요? (악보 위에 붙인 표시는 그대로 남습니다)')) return;
         var song = state.songs[active];
         song.image = '';
         song.fileName = '';
