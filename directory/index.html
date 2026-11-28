@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="하베스터 교적부">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1F5B3F">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="format-detection" content="telephone=no,address=no,email=no">
+<meta name="description" content="세리토스장로교회 교적부">
+<title>하베스터 교적부 · 세리토스장로교회</title>
+<link rel="stylesheet" href="app.css">
+<style>
+/* ===== 잠금 화면 ===== */
+body.locked{height:100%;overflow:hidden;background:#1F5B3F}
+body.locked .app,body.locked .modal,body.locked .dlg,body.locked #toast{visibility:hidden}
+.lock{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+  padding:calc(24px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+  background:radial-gradient(120% 90% at 50% 0%,#276B4B 0%,#1F5B3F 42%,#17452F 78%,#123625 100%);
+  color:#F2F8F3;transition:opacity .3s ease;-webkit-tap-highlight-color:transparent}
+.lock.gone{opacity:0;pointer-events:none}
+.lock-card{width:100%;max-width:392px;text-align:center;
+  background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.16);border-radius:24px;
+  padding:34px 24px 26px;box-shadow:0 24px 60px rgba(8,28,19,.42);
+  -webkit-backdrop-filter:blur(7px);backdrop-filter:blur(7px)}
+.lock-mark{width:60px;height:60px;margin:0 auto 16px;border-radius:18px;display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.26)}
+.lock-mark svg{width:32px;height:32px;color:#F2F8F3}
+.lock-card h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.04em;line-height:1.25}
+.lock-sub{margin:7px 0 0;font-size:14.5px;font-weight:600;color:#C6DED0;letter-spacing:-.01em}
+.lock-form{margin-top:26px;text-align:left}
+.lock-field{position:relative}
+.lock-field input{width:100%;height:56px;padding:0 54px 0 17px;border-radius:14px;border:1px solid rgba(255,255,255,.28);
+  background:#F7FBF8;color:#16202E;font-size:17px;font-weight:600;letter-spacing:.01em;outline:none;
+  -webkit-appearance:none;appearance:none}
+.lock-field input::placeholder{color:#8A968F;font-weight:600}
+.lock-field input:focus{border-color:#CFE5D6;box-shadow:0 0 0 3px rgba(207,229,214,.34)}
+.pw-toggle{position:absolute;right:5px;top:5px;width:46px;height:46px;border-radius:11px;display:flex;align-items:center;
+  justify-content:center;color:#5F6F66;background:transparent;border:0;cursor:pointer}
+.pw-toggle svg{width:22px;height:22px}
+.pw-toggle:active{background:rgba(31,91,63,.1)}
+.lock-btn{width:100%;height:56px;margin-top:11px;border-radius:14px;border:0;cursor:pointer;
+  background:#F7FBF8;color:#17452F;font-size:17.5px;font-weight:800;letter-spacing:-.02em;
+  box-shadow:0 6px 18px rgba(8,28,19,.28);transition:transform .08s ease,background .15s}
+.lock-btn:hover{background:#fff}
+.lock-btn:active{transform:scale(.985);background:#E9F2EC}
+.lock-btn[disabled]{opacity:.72;cursor:default;transform:none}
+.lock-msg{min-height:22px;margin:14px 0 0;font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:#FFD9D2}
+.lock-msg.info{color:#CFE5D6}
+.lock-foot{margin:16px 0 0;font-size:12.5px;line-height:1.6;color:rgba(242,248,243,.6);letter-spacing:-.01em}
+.lock-err .lock-field input{border-color:#E9A79B;box-shadow:0 0 0 3px rgba(233,167,155,.26)}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.shake{animation:shake .38s ease}
+@media (max-width:400px){
+  .lock-card{padding:28px 18px 22px;border-radius:22px}
+  .lock-card h1{font-size:23px}
+  .lock-field input,.lock-btn{height:54px}
+}
+@media (max-width:759px){
+  .tools{grid-template-columns:repeat(5,1fr)}
+}
+</style>
+</head>
+<body class="locked">
+<div class="app">
+  <header class="topbar">
+    <div class="wrap bar">
+      <div class="brand">
+        <div class="brand-mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 21.5V9"/><path d="M12 9c0-2.3 1.4-4 3.6-4.7-.2 2.4-1.6 4-3.6 4.7z"/><path d="M12 9c0-2.3-1.4-4-3.6-4.7.2 2.4 1.6 4 3.6 4.7z"/>
+            <path d="M12 13.6c0-2.3 1.4-4 3.6-4.7-.2 2.4-1.6 4-3.6 4.7z"/><path d="M12 13.6c0-2.3-1.4-4-3.6-4.7.2 2.4 1.6 4 3.6 4.7z"/>
+            <path d="M12 18.2c0-2.3 1.4-4 3.6-4.7-.2 2.4-1.6 4-3.6 4.7z"/><path d="M12 18.2c0-2.3-1.4-4-3.6-4.7.2 2.4 1.6 4 3.6 4.7z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>하베스터 교적부</h1>
+          <p>세리토스장로교회 · 총 <b>0</b>명</p>
+        </div>
+      </div>
+      <div class="tools">
+        <button class="tbtn" data-act="backup" aria-label="메모 백업">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20h14"/></svg>
+          메모 백업
+        </button>
+        <button class="tbtn" data-act="restore" aria-label="메모 복원">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V9"/><path d="M7.5 13.5L12 9l4.5 4.5"/><path d="M5 4h14"/></svg>
+          복원
+        </button>
+        <button class="tbtn" data-act="print" aria-label="현재 목록 인쇄">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 8V3h10v5"/><rect x="4" y="8" width="16" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>
+          인쇄
+        </button>
+        <button class="tbtn" data-act="csv" aria-label="현재 목록 CSV 저장">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>
+          CSV
+        </button>
+        <button class="tbtn" data-act="lock" id="lockBtnTop" aria-label="교적부 잠그기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.4"/><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7"/><path d="M12 14.4v2.4"/></svg>
+          잠그기
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="화면 전환">
+    <div class="wrap"><div class="tabbar"></div></div>
+  </nav>
+
+  <main>
+    <div class="wrap">
+      <div class="banner" id="storeBanner">이 브라우저가 즐겨찾기·메모를 기기에 저장하지 못했습니다. 메모를 남기신 뒤에는 꼭 <b>[메모 백업]</b>으로 보관해 주세요.</div>
+
+      <section class="view on" id="v-search" role="tabpanel" aria-label="교인 검색">
+        <div class="searchbar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+          <input id="q" type="search" inputmode="search" autocomplete="off" autocorrect="off" spellcheck="false"
+                 placeholder="이름 · 초성 ㄱㅌㅎ · 전화 · 주소" aria-label="교인 통합 검색">
+          <button class="qclear" id="qclear" aria-label="검색어 지우기">×</button>
+        </div>
+        <div class="filters">
+          <label class="sel"><span>공동체</span><select id="f-comm"></select></label>
+          <label class="sel"><span>교구</span><select id="f-dist"></select></label>
+          <label class="sel"><span>순</span><select id="f-grp"></select></label>
+          <label class="sel"><span>직분</span><select id="f-role"></select></label>
+          <label class="sel"><span>연락처</span><select id="f-ct"></select></label>
+          <label class="sel"><span>정렬</span><select id="f-sort">
+            <option value="name">이름순</option>
+            <option value="age-desc">나이 많은순</option>
+            <option value="age-asc">나이 적은순</option>
+            <option value="reg-desc">최근 등록순</option>
+          </select></label>
+        </div>
+        <div class="resultbar">
+          <div class="count"><b id="resCount">0</b>명 <span class="note" id="resNote"></span></div>
+          <div class="quick">
+            <button class="qbtn" id="onlyFav" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.9l6-.8z"/></svg>
+              즐겨찾기만
+            </button>
+            <button class="qbtn ghost" id="resetF">초기화</button>
+          </div>
+        </div>
+        <div class="list" id="list"></div>
+      </section>
+
+      <section class="view" id="v-groups" role="tabpanel" aria-label="공동체와 순"></section>
+      <section class="view" id="v-birth" role="tabpanel" aria-label="생일"></section>
+      <section class="view" id="v-memo" role="tabpanel" aria-label="즐겨찾기와 메모"></section>
+      <section class="view" id="v-stats" role="tabpanel" aria-label="통계"></section>
+
+      <div class="footnote">
+        교인명부 <b>2026-11-28</b> 기준 · 총 <b data-total>0</b>명 · 만든 날 <span id="builtAt">2026-11-27</span><br>
+        이 페이지는 비밀번호로 잠겨 있습니다. 여는 순간에만 암호화된 교적 파일을 받아 이 브라우저 안에서 풀어 쓰고, <b>[잠그기]</b>를 누르면 곧바로 다시 잠깁니다. 즐겨찾기·메모는 이 기기의 브라우저에만 저장되며, 다른 기기로 옮기려면 상단 [메모 백업]으로 JSON을 저장한 뒤 [복원]하세요.
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal" id="memberModal" role="dialog" aria-modal="true" aria-label="교인 상세">
+  <div class="modal-bg"></div>
+  <div class="sheet">
+    <div class="sheet-head"></div>
+    <div class="sheet-body"></div>
+    <div class="sheet-foot"></div>
+  </div>
+</div>
+
+<div class="dlg" id="dlg" role="dialog" aria-modal="true">
+  <div class="dlg-bg"></div>
+  <div class="dlg-card" id="dlgCard"></div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="print-area"></div>
+
+<div class="lock" id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 21.5V9"/><path d="M12 9c0-2.3 1.4-4 3.6-4.7-.2 2.4-1.6 4-3.6 4.7z"/><path d="M12 9c0-2.3-1.4-4-3.6-4.7.2 2.4 1.6 4 3.6 4.7z"/>
+        <path d="M12 13.6c0-2.3 1.4-4 3.6-4.7-.2 2.4-1.6 4-3.6 4.7z"/><path d="M12 13.6c0-2.3-1.4-4-3.6-4.7.2 2.4 1.6 4 3.6 4.7z"/>
+        <path d="M12 18.2c0-2.3 1.4-4 3.6-4.7-.2 2.4-1.6 4-3.6 4.7z"/><path d="M12 18.2c0-2.3-1.4-4-3.6-4.7.2 2.4 1.6 4 3.6 4.7z"/>
+      </svg>
+    </div>
+    <h1>하베스터 교적부</h1>
+    <p class="lock-sub">세리토스장로교회</p>
+    <form class="lock-form" id="lockForm" autocomplete="off" novalidate>
+      <div class="lock-field">
+        <input id="pw" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off"
+               spellcheck="false" placeholder="비밀번호" aria-label="비밀번호" enterkeyhint="go">
+        <button type="button" class="pw-toggle" id="pwToggle" aria-label="비밀번호 보기" aria-pressed="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>
+        </button>
+      </div>
+      <button type="submit" class="lock-btn" id="lockSubmit">열기</button>
+    </form>
+    <p class="lock-msg" id="lockMsg" role="status" aria-live="polite"></p>
+    <p class="lock-foot">교적 데이터는 암호화되어 있으며, 비밀번호를 아는 사람만 이 기기에서 열 수 있습니다.</p>
+  </div>
+</div>
+
+<noscript><div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#1F5B3F;color:#fff;font-size:17px;font-weight:700;padding:24px;text-align:center;z-index:10000">이 교적부는 자바스크립트가 필요합니다.</div></noscript>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var lockEl = $('lockScreen'), form = $('lockForm'), pw = $('pw'), msg = $('lockMsg'),
+      submitBtn = $('lockSubmit'), toggle = $('pwToggle');
+  var blob = null, busy = false, unlocked = false;
+  var BUILT = '2026-11-27';
+
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3.2"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5c1 0 1.9.2 2.8.5"/><path d="M6.6 7.1A17 17 0 0 0 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1.1"/><path d="M9.6 9.7a3.2 3.2 0 0 0 4.5 4.5"/><path d="M14.8 5.9A10 10 0 0 1 21.5 12a17.5 17.5 0 0 1-2.6 3.4"/><path d="M3.5 3.5l17 17"/></svg>';
+
+  function setMsg(t, kind) {
+    msg.textContent = t || '';
+    msg.className = 'lock-msg' + (kind ? ' ' + kind : '');
+  }
+  function b64(s) {
+    var bin = atob(s), n = bin.length, out = new Uint8Array(n);
+    for (var i = 0; i < n; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  toggle.addEventListener('click', function () {
+    var show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    toggle.innerHTML = show ? EYE_OFF : EYE;
+    toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+    toggle.setAttribute('aria-label', show ? '비밀번호 숨기기' : '비밀번호 보기');
+    pw.focus();
+  });
+
+  function start(rows) {
+    unlocked = true;
+    window.__ROWS__ = rows;
+    window.__META__ = { built: BUILT, total: rows.length };
+    var totals = document.querySelectorAll('[data-total]');
+    for (var i = 0; i < totals.length; i++) totals[i].textContent = rows.length.toLocaleString('ko-KR');
+    document.body.classList.remove('locked');
+    document.documentElement.classList.remove('locked');
+    lockEl.classList.add('gone');
+    var s = document.createElement('script');
+    s.src = 'app.js?v=20261127';
+    s.onload = function () {
+      setTimeout(function () { lockEl.style.display = 'none'; }, 340);
+      var q = $('q');
+      if (q && window.innerWidth >= 760) { try { q.focus({ preventScroll: true }); } catch (e) {} }
+    };
+    s.onerror = function () {
+      lockEl.style.display = '';
+      lockEl.classList.remove('gone');
+      document.body.classList.add('locked');
+      setMsg('앱 파일을 불러오지 못했습니다. 잠시 뒤 새로고침해 주세요.');
+    };
+    document.body.appendChild(s);
+  }
+
+  function fail(text) {
+    setMsg(text);
+    form.classList.add('lock-err');
+    lockEl.querySelector('.lock-card').classList.remove('shake');
+    void lockEl.offsetWidth;
+    lockEl.querySelector('.lock-card').classList.add('shake');
+    pw.select();
+  }
+
+  async function unlock(pass) {
+    if (busy) return;
+    busy = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = '여는 중…';
+    form.classList.remove('lock-err');
+    setMsg('');
+    try {
+      if (!(window.crypto && window.crypto.subtle && window.crypto.subtle.importKey)) {
+        throw new Error('nocrypto');
+      }
+      if (!blob) {
+        var res = await fetch('data.enc.json', { cache: 'no-store', credentials: 'omit' });
+        if (!res.ok) throw new Error('http:' + res.status);
+        blob = await res.json();
+      }
+      var enc = new TextEncoder();
+      var km = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+      var key = await crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: b64(blob.salt), iterations: blob.iter, hash: 'SHA-256' },
+        km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+      var plain;
+      try {
+        plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(blob.iv), tagLength: 128 }, key, b64(blob.ct));
+      } catch (e) {
+        throw new Error('badpw');
+      }
+      var rows;
+      try { rows = JSON.parse(new TextDecoder().decode(plain)); } catch (e) { throw new Error('format'); }
+      if (!Array.isArray(rows) || !rows.length) throw new Error('format');
+      submitBtn.textContent = '열었습니다';
+      start(rows);
+    } catch (e) {
+      var m = String((e && e.message) || e);
+      if (m === 'badpw') fail('비밀번호가 맞지 않습니다');
+      else if (m === 'nocrypto') fail('이 브라우저에서는 열 수 없습니다. HTTPS 주소로 다시 열어 주세요.');
+      else if (m.indexOf('http:') === 0) fail('교적 파일을 불러오지 못했습니다 (' + m.slice(5) + '). 잠시 뒤 다시 시도해 주세요.');
+      else fail('열지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+      busy = false;
+      submitBtn.disabled = false;
+      submitBtn.textContent = '열기';
+      return;
+    }
+    busy = false;
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = pw.value;
+    if (!v) { fail('비밀번호를 입력해 주세요'); pw.focus(); return; }
+    unlock(v);
+  });
+  pw.addEventListener('input', function () {
+    if (form.classList.contains('lock-err')) { form.classList.remove('lock-err'); setMsg(''); }
+  });
+
+  // 헤더 [잠그기] — 복호화된 데이터를 메모리에서 지우고 잠금 화면으로 되돌린다
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    var b = t.closest ? t.closest('[data-act="lock"]') : null;
+    if (!b) return;
+    e.preventDefault();
+    if (!unlocked) return;
+    unlocked = false;
+    try { window.__ROWS__ = null; window.__META__ = null; } catch (err) {}
+    blob = null;
+    pw.value = '';
+    location.replace(location.pathname + location.search);
+  });
+
+  // 뒤로가기 캐시로 잠금이 풀린 화면이 되살아나지 않도록
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted && !unlocked) location.reload();
+  });
+
+  pw.focus();
+})();
+</script>
+</body>
+</html>
