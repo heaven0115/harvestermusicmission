@@ -3307,27 +3307,103 @@ function persistPayload() {
    5) 입력 · 실행 · 이벤트
    ========================================================= */
 
-async function copyText(text, okMsg) {
+/* 복사 — 아이패드·홈 화면 웹앱에서도 확실히 되도록
+   ① 예전 방식(execCommand)을 손가락이 닿은 그 순간에 먼저 시도하고
+   ② 그것이 막히면 clipboard API를 쓴다.
+   clipboard API는 홈 화면 웹앱에서 약속이 끝나지 않아(응답 없음) 화면이
+   아무 반응도 없는 것처럼 보일 수 있어 시간 제한을 둔다. */
+function legacyCopy(text) {
+  let ok = false;
+  let ta = null;
   try {
-    await navigator.clipboard.writeText(text);
+    ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.setAttribute('inputmode', 'none');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;padding:0;' +
+      'border:0;opacity:0;font-size:16px;resize:none;';
+    document.body.appendChild(ta);
+    const sel = window.getSelection ? window.getSelection() : null;
+    const saved = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+    ta.select();
+    try { ta.setSelectionRange(0, text.length); } catch (e) { /* 무시 */ }
+    ok = document.execCommand('copy');
+    if (sel) {
+      sel.removeAllRanges();
+      if (saved) { try { sel.addRange(saved); } catch (e) { /* 무시 */ } }
+    }
+  } catch (e) {
+    ok = false;
+  }
+  if (ta && ta.parentNode) ta.parentNode.removeChild(ta);
+  return !!ok;
+}
+
+function withTimeout(promise, ms) {
+  return new Promise(function (resolve, reject) {
+    let done = false;
+    const timer = setTimeout(function () {
+      if (done) return;
+      done = true;
+      reject(new Error('timeout'));
+    }, ms);
+    Promise.resolve(promise).then(function (v) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(v);
+    }, function (e) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      reject(e);
+    });
+  });
+}
+
+async function copyText(text, okMsg) {
+  if (legacyCopy(text)) {
+    toast(okMsg || '복사했습니다.');
+    return true;
+  }
+  try {
+    if (!(navigator.clipboard && navigator.clipboard.writeText)) throw new Error('no clipboard');
+    await withTimeout(navigator.clipboard.writeText(text), 1500);
     toast(okMsg || '복사했습니다.');
     return true;
   } catch (e) {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.top = '-1000px';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    let ok = false;
-    try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
-    ta.remove();
-    if (ok) toast(okMsg || '복사했습니다.');
-    else toast('복사하지 못했습니다. 프롬프트를 직접 선택해 복사해 주세요.', true);
-    return ok;
+    toast('복사하지 못했습니다. 화면의 글을 길게 눌러 전체 선택해 복사해 주세요.', true);
+    return false;
   }
+}
+
+/* 「분석 준비하기」 버튼 바로 아래에 결과를 알려 준다(iPad에서 화면 아래 알림이
+   키보드에 가려 보이지 않던 문제 대응) */
+function setGoStatus(msg, cls) {
+  const el = $('#go-status');
+  if (!el) return;
+  el.className = 'status go-status' + (cls ? ' ' + cls : '');
+  el.innerHTML = msg || '';
+}
+
+/* 만들어진 프롬프트를 화면에도 보여 준다 — 복사가 막혀도 직접 골라 복사할 수 있다 */
+function revealPrompt(prompt) {
+  const box = $('#prompt-preview');
+  const out = $('#prompt-out');
+  const count = $('#prompt-count');
+  const selBtn = $('#btn-select-prompt');
+  if (out) out.value = prompt;
+  if (count) count.textContent = prompt.length.toLocaleString('ko-KR') + '자';
+  if (box) box.hidden = false;
+  if (selBtn) selBtn.hidden = false;
+  return box;
+}
+
+function scrollToEl(el) {
+  if (!el) return;
+  try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  catch (e) { try { el.scrollIntoView(); } catch (e2) { /* 무시 */ } }
 }
 
 function setStatus(sel, msg, cls) {
@@ -3340,8 +3416,21 @@ function setStatus(sel, msg, cls) {
 function collectInput() {
   const title = ($('#f-title').value || '').trim();
   const text = ($('#f-text').value || '').trim();
-  if (!title) { toast('설교 제목을 입력해 주세요.', true); $('#f-title').focus(); return null; }
-  if (text.length < 80) { toast('설교 본문을 80자 이상 붙여넣어 주세요.', true); $('#f-text').focus(); return null; }
+  if (!title) {
+    toast('설교 제목을 입력해 주세요.', true);
+    setGoStatus('설교 제목을 입력해 주세요 — 맨 위 「설교 제목」 칸이 비어 있습니다.', 'err');
+    const el = $('#f-title');
+    if (el) { el.focus(); scrollToEl(el); }
+    return null;
+  }
+  if (text.length < 80) {
+    toast('설교 본문을 80자 이상 붙여넣어 주세요.', true);
+    setGoStatus('설교 본문이 ' + text.length + '자입니다 — 80자 이상 붙여넣어 주세요.', 'err');
+    const el2 = $('#f-text');
+    if (el2) { el2.focus(); scrollToEl(el2); }
+    return null;
+  }
+  setGoStatus('', '');
   return {
     title: title,
     text: text,
@@ -3365,12 +3454,39 @@ function updateFormatGuide() {
     f.criteria.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>';
 }
 
+let goBusy = false;
+
 async function copyAnalysisPrompt() {
+  if (goBusy) return false;
   const input = collectInput();
-  if (!input) return;
+  if (!input) return false;
+  goBusy = true;
   const prompt = buildAnalysisPrompt(input);
-  const ok = await copyText(prompt, '분석용 프롬프트를 복사했습니다. ChatGPT·Claude에 붙여넣으세요.');
-  if (ok) setStatus('#parse-status', '프롬프트가 복사되었습니다. AI의 응답을 아래에 붙여넣고 <strong>[결과 불러오기 &amp; 저장]</strong>을 누르세요.', 'ok');
+  revealPrompt(prompt);
+  setGoStatus('프롬프트를 만들었습니다. 복사하는 중…', 'busy');
+  let ok = false;
+  try {
+    ok = await copyText(prompt, '분석용 프롬프트를 복사했습니다. ChatGPT·Claude에 붙여넣으세요.');
+  } catch (e) {
+    ok = false;
+  } finally {
+    goBusy = false;
+  }
+  if (ok) {
+    setStatus('#parse-status', '프롬프트가 복사되었습니다. AI의 응답을 아래에 붙여넣고 <strong>[결과 불러오기 &amp; 저장]</strong>을 누르세요.', 'ok');
+    setGoStatus('프롬프트를 복사했습니다. 「ChatGPT 바로 열기」를 눌러 붙여넣으세요.', 'ok');
+  } else {
+    setGoStatus('복사가 막힌 브라우저입니다. 아래 「만들어진 프롬프트」를 길게 눌러 전체 선택 → 복사하세요.', 'err');
+  }
+  scrollToEl($('#prompt-preview'));
+  return ok;
+}
+
+/* 「분석 준비하기」 — 폼 전송(submit)이 아니라 버튼 자체의 click으로도 동작한다.
+   iOS 홈 화면 웹앱에서 submit이 먹히지 않는 경우를 피하려고 버튼은 type="button"이다. */
+function goAnalyze() {
+  if (uiMode === 'api') { runApiAnalysis(); return; }
+  copyAnalysisPrompt();
 }
 
 function applyRawAnalysis(input, raw, statusSel) {
@@ -4215,8 +4331,16 @@ function bindEvents() {
   if (form) {
     form.addEventListener('submit', function (ev) {
       ev.preventDefault();
-      if (uiMode === 'api') runApiAnalysis();
-      else copyAnalysisPrompt();
+      goAnalyze();
+    });
+  }
+
+  /* 버튼 자체의 click — submit 이벤트가 오지 않는 환경(iOS 홈 화면 웹앱)도 여기서 처리 */
+  const goBtn = $('#btn-go-free');
+  if (goBtn) {
+    goBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      goAnalyze();
     });
   }
 
@@ -4300,6 +4424,16 @@ function bindEvents() {
 
   const btnCopy = $('#btn-copy-prompt');
   if (btnCopy) btnCopy.addEventListener('click', copyAnalysisPrompt);
+
+  const btnSelectPrompt = $('#btn-select-prompt');
+  if (btnSelectPrompt) {
+    btnSelectPrompt.addEventListener('click', function () {
+      const out = $('#prompt-out');
+      if (!out) return;
+      try { out.focus(); out.select(); out.setSelectionRange(0, out.value.length); } catch (e) { /* 무시 */ }
+      setGoStatus('프롬프트를 전체 선택했습니다. 길게 눌러 「복사」를 누르세요.', 'ok');
+    });
+  }
 
   const btnImport = $('#btn-import-json');
   if (btnImport) btnImport.addEventListener('click', importFromPaste);

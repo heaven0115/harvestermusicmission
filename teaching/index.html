@@ -8,7 +8,7 @@
 <meta name="description" content="말씀 앞에서 설교를 살피는 코칭 워크스페이스. 설교를 10가지 항목으로 분석하고, 원문 근거와 함께 코칭 리포트를 남깁니다.">
 <meta name="theme-color" content="#1d2c47">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d2c47'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' fill='%23f5efe2' font-family='Georgia,serif'%3E%E1%84%86%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20261128b">
+<link rel="stylesheet" href="styles.css?v=20261128c">
 </head>
 <body>
 <a class="skip-link" href="#main">본문으로 건너뛰기</a>
@@ -148,9 +148,10 @@
       </label>
 
       <div class="form-actions">
-        <button class="btn btn-primary" type="submit" id="btn-go-free">분석 준비하기</button>
+        <button class="btn btn-primary" type="button" id="btn-go-free">분석 준비하기</button>
         <button class="btn btn-outline" type="button" id="btn-clear-form">입력 비우기</button>
       </div>
+      <div class="status go-status" id="go-status" role="status" aria-live="polite"></div>
     </form>
 
     <!-- 무료 모드 -->
@@ -158,8 +159,17 @@
       <div class="action-step">
         <h3><span class="step-no">1</span> 분석용 프롬프트 복사</h3>
         <p>설교를 열 가지 항목으로 채점하고, 원문 근거·코칭·다시 쓰기·문장별 번역까지 정해진 JSON 형식으로 답하도록 지시하는 프롬프트입니다.</p>
+        <div class="prompt-preview" id="prompt-preview" hidden>
+          <div class="prompt-preview-head">
+            <strong>만들어진 프롬프트</strong>
+            <span id="prompt-count"></span>
+          </div>
+          <textarea id="prompt-out" rows="7" readonly spellcheck="false" aria-label="분석용 프롬프트"></textarea>
+          <p class="prompt-preview-tip">복사가 되지 않으면 이 글을 길게 눌러 <strong>전체 선택 → 복사</strong>하세요.</p>
+        </div>
         <div class="btn-row">
           <button class="btn btn-primary" type="button" id="btn-copy-prompt">분석용 프롬프트 복사</button>
+          <button class="btn btn-outline" type="button" id="btn-select-prompt" hidden>프롬프트 전체 선택</button>
           <a class="btn btn-outline" id="link-chatgpt" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">ChatGPT 바로 열기 ↗</a>
           <a class="btn btn-outline" id="link-claude" href="https://claude.ai/new" target="_blank" rel="noopener noreferrer">Claude 바로 열기 ↗</a>
         </div>
@@ -428,6 +438,6 @@ window.addEventListener('error', function (e) { if (window.__mtErrors.length < 2
 window.addEventListener('unhandledrejection', function (e) { if (window.__mtErrors.length < 20) window.__mtErrors.push('promise: ' + String(e.reason)); });
 </script>
 <script src="vendor/docx-lite.js?v=20261127ae"></script>
-<script src="app.js?v=20261128d"></script>
+<script src="app.js?v=20261128e"></script>
 </body>
 </html>

@@ -332,6 +332,27 @@ select {
 .status.ok { color: var(--good); }
 .status.err { color: var(--burgundy); }
 .status.busy { color: var(--gold); }
+
+/* 「분석 준비하기」를 누르면 바로 옆에서 결과를 알려 준다.
+   아이패드에서는 화면 아래 띄우는 알림이 키보드에 가려 보이지 않기 때문이다. */
+.go-status { margin-top: .55rem; font-weight: 700; }
+.go-status:empty { display: none; }
+
+/* 복사가 막히는 브라우저·홈 화면 웹앱에서 직접 복사할 수 있도록 만든 프롬프트 상자 */
+.prompt-preview { margin-top: .9rem; scroll-margin-top: 96px; }
+.prompt-preview-head {
+  display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: baseline;
+  justify-content: space-between; margin-bottom: .35rem;
+  font-family: var(--sans); font-size: .88rem; color: var(--navy);
+}
+.prompt-preview-head span { font-size: .8rem; color: var(--ink-mute); }
+.prompt-preview textarea {
+  width: 100%; margin: 0; padding: .8rem .9rem; resize: vertical;
+  font-family: var(--sans); font-size: .84rem; line-height: 1.6;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--navy-line); border-radius: var(--radius-sm);
+}
+.prompt-preview-tip { margin: .35rem 0 0; font-size: .8rem; color: var(--ink-mute); }
 .status .spinner {
   display: inline-block; width: 1em; height: 1em; vertical-align: -.15em;
   border: 2px solid var(--gold); border-right-color: transparent; border-radius: 50%;
