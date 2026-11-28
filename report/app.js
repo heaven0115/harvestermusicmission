@@ -23,9 +23,16 @@
   var TITLE = '유효석 목사 주간 사역 및 심방 보고서';
   var SEC1 = '사역 내용';
   var SEC2 = '주간 심방 내용 (담임목사님이 알아야 할 내용 및 심방 필요)';
+  var SEC3 = '비고 (메모 및 사진)';
   var DEFAULT_VISITS = ['찬양대', '결석자전화심방', '수요새벽예배', '칸타타연습', '3전도회 및 5-6전도회 총회'];
   var TOTAL_ROWS = 36;          // 원본 워드 폼의 전체 행 수
   var ROWS_BEFORE_VISITS = 10;  // 스페이서 + 제목 + 섹션1 + 6일 + 섹션2
+
+  /* 사진: 넣을 때 캔버스로 줄여 저장합니다(아이폰 원본은 수 MB라 localStorage에 그대로 못 들어갑니다). */
+  var PHOTO_MAX_W = 1200;            // 가로 최대 px
+  var PHOTO_MAX_H = 1600;            // 세로 최대 px
+  var PHOTO_TARGET_BYTES = 150 * 1024;  // 사진 한 장 목표 용량
+  var PHOTO_LADDER = [[1, 0.82], [1, 0.72], [0.88, 0.62], [0.72, 0.55]];
 
   /* ------------------------------------------------------------------ *
    *  날짜 도우미
@@ -89,7 +96,7 @@
     var submit = sun;
     if (today > sun && today <= addDays(sun, 2)) { submit = today; }
     var visits = DEFAULT_VISITS.map(function (n) { return { name: n, text: '' }; });
-    return { start: start, submit: submit, days: days, visits: visits };
+    return { start: start, submit: submit, days: days, visits: visits, note: { memo: '', photos: [] } };
   }
 
   function currentWeek() {
@@ -118,6 +125,20 @@
     w.visits = w.visits.map(function (v) {
       return { name: String((v && v.name) || ''), text: String((v && v.text) || '') };
     });
+    if (!w.note || typeof w.note !== 'object') { w.note = { memo: '', photos: [] }; }
+    w.note.memo = String(w.note.memo == null ? '' : w.note.memo);
+    if (!Array.isArray(w.note.photos)) { w.note.photos = []; }
+    w.note.photos = w.note.photos.filter(function (p) {
+      return p && typeof p.data === 'string' && p.data.indexOf('data:image/') === 0;
+    }).map(function (p, i) {
+      return {
+        id: String(p.id || ('p' + i + '_' + Date.now())),
+        data: p.data,
+        caption: String(p.caption == null ? '' : p.caption),
+        w: Number(p.w) || 0,
+        h: Number(p.h) || 0
+      };
+    });
     w.start = w.start || k;
   }
 
@@ -131,8 +152,11 @@
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(state));
       setStatus('자동 저장됨', true);
+      return true;
     } catch (e) {
-      setStatus('저장 실패 — 저장 공간을 확인해 주세요', false);
+      var full = !!(e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014));
+      setStatus(full ? '저장 공간 부족 — 사진을 줄여 주세요' : '저장 실패 — 저장 공간을 확인해 주세요', false);
+      return false;
     }
   }
   function setStatus(text, ok) {
@@ -246,6 +270,128 @@
     qs('#visitList').innerHTML = html;
   }
 
+  function dataUrlBytes(data) {
+    var s = String(data || '');
+    var i = s.indexOf(',');
+    if (i < 0) { return 0; }
+    return Math.round((s.length - i - 1) * 0.75);
+  }
+  function fmtSize(bytes) {
+    if (!bytes) { return '0KB'; }
+    if (bytes < 1024 * 1024) { return Math.max(1, Math.round(bytes / 1024)) + 'KB'; }
+    return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+  }
+  function findPhoto(id) {
+    var list = currentWeek().note.photos;
+    for (var i = 0; i < list.length; i++) { if (list[i].id === id) { return list[i]; } }
+    return null;
+  }
+
+  function renderNote() {
+    var note = currentWeek().note;
+    var memo = qs('#noteMemo');
+    if (memo && document.activeElement !== memo) { memo.value = note.memo; }
+
+    var html = '';
+    var bytes = 0;
+    note.photos.forEach(function (p, i) {
+      var b = dataUrlBytes(p.data);
+      bytes += b;
+      html += '<div class="photo-item" data-photo="' + escAttr(p.id) + '">' +
+        '<div class="photo-thumb"><img src="' + escAttr(p.data) + '" alt="' +
+        escAttr(p.caption || ('비고 사진 ' + (i + 1))) + '"></div>' +
+        '<div class="photo-row2">' +
+        '<input type="text" data-photo-caption="' + escAttr(p.id) + '" placeholder="사진 설명 (선택)" value="' + escAttr(p.caption) + '">' +
+        '<button class="del-btn" data-photo-del="' + escAttr(p.id) + '" aria-label="이 사진 삭제">✕</button>' +
+        '</div>' +
+        '<div class="photo-meta">' + (i + 1) + '번째 · ' + (p.w || '?') + '×' + (p.h || '?') + ' · ' + fmtSize(b) + '</div>' +
+        '</div>';
+    });
+    qs('#photoList').innerHTML = html ||
+      '<p class="photo-empty">아직 사진이 없습니다. “사진 추가”를 눌러 아이폰 사진첩에서 고르세요.<br>여러 장을 한 번에 고를 수 있습니다.</p>';
+
+    var meta = qs('#photoMeta');
+    var heavy = bytes > 1.6 * 1024 * 1024;
+    meta.textContent = note.photos.length
+      ? '사진 ' + note.photos.length + '장 · 약 ' + fmtSize(bytes) + (heavy ? ' — 저장 공간이 거의 찼습니다' : '')
+      : '사진 없음';
+    meta.className = 'hint' + (heavy ? ' warn' : '');
+  }
+
+  /* 사진 파일 → 줄인 JPEG(dataURL) */
+  function readImageFile(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('사진을 읽지 못했습니다.')); };
+      img.src = url;
+    });
+  }
+  function compressPhoto(img) {
+    var sw = img.naturalWidth || img.width, sh = img.naturalHeight || img.height;
+    if (!sw || !sh) { throw new Error('사진 크기를 읽지 못했습니다.'); }
+    var base = Math.min(1, PHOTO_MAX_W / sw, PHOTO_MAX_H / sh);
+    var best = null;
+    for (var i = 0; i < PHOTO_LADDER.length; i++) {
+      var w = Math.max(1, Math.round(sw * base * PHOTO_LADDER[i][0]));
+      var h = Math.max(1, Math.round(sh * base * PHOTO_LADDER[i][0]));
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      var ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.imageSmoothingEnabled = true;
+      if ('imageSmoothingQuality' in ctx) { ctx.imageSmoothingQuality = 'high'; }
+      ctx.drawImage(img, 0, 0, w, h);
+      var data = cv.toDataURL('image/jpeg', PHOTO_LADDER[i][1]);
+      best = { data: data, w: w, h: h };
+      if (dataUrlBytes(data) <= PHOTO_TARGET_BYTES) { return best; }
+    }
+    return best;
+  }
+
+  async function addPhotos(files) {
+    var list = Array.prototype.slice.call(files || []);
+    if (!list.length) { return; }
+    var wk = currentWeek();
+    var busy = qs('#photoBusy');
+    var btn = qs('#btnAddPhoto');
+    if (busy) { busy.hidden = false; }
+    if (btn) { btn.disabled = true; }
+    var added = 0;
+    var failed = [];
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      try {
+        var img = await readImageFile(f);
+        var out = compressPhoto(img);
+        wk.note.photos.push({
+          id: 'p' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          data: out.data, caption: '', w: out.w, h: out.h
+        });
+        if (!flushSave()) {
+          wk.note.photos.pop();
+          flushSave();
+          failed.push((f.name || '사진') + ' (저장 공간 부족)');
+          break;
+        }
+        added++;
+        renderNote();
+        renderPreview();
+      } catch (err) {
+        failed.push(f && f.name ? f.name : '사진');
+      }
+    }
+    if (busy) { busy.hidden = true; }
+    if (btn) { btn.disabled = false; }
+    renderNote();
+    renderPreview();
+    if (added && !failed.length) { toast('사진 ' + added + '장을 넣었습니다.'); }
+    else if (added && failed.length) { toast('사진 ' + added + '장을 넣었습니다. ' + failed.length + '장은 넣지 못했습니다.'); }
+    else if (failed.length) { toast('사진을 넣지 못했습니다: ' + failed.join(', ')); }
+  }
+
   function renderPreview() {
     var wk = currentWeek();
     var html = '';
@@ -262,7 +408,21 @@
       html += '<tr class="visit"><td contenteditable="true" data-edit="vname:' + i + '">' + escHtml(v.name) + '</td><td></td>' +
         '<td contenteditable="true" data-edit="vtext:' + i + '">' + escHtml(v.text).replace(/\n/g, '<br>') + '</td><td></td></tr>';
     });
-    var blanks = Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length);
+    /* 비고(메모·사진): 원본 표 디자인을 그대로 이어받은 섹션 머리행 + 메모 칸 + 사진 2열 */
+    html += '<tr class="sec note-sec"><td colspan="4">' + escHtml(SEC3) + '</td></tr>';
+    html += '<tr class="note"><td colspan="4" contenteditable="true" data-edit="note">' +
+      escHtml(wk.note.memo).replace(/\n/g, '<br>') + '</td></tr>';
+    if (wk.note.photos.length) {
+      html += '<tr class="note-photo"><td colspan="4"><div class="pv-photos">';
+      wk.note.photos.forEach(function (p, i) {
+        html += '<figure class="pv-photo"><img src="' + escAttr(p.data) + '" alt="' +
+          escAttr(p.caption || ('비고 사진 ' + (i + 1))) + '">' +
+          (p.caption ? '<figcaption>' + escHtml(p.caption) + '</figcaption>' : '') + '</figure>';
+      });
+      html += '</div></td></tr>';
+    }
+
+    var blanks = Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length - noteRowCount(wk));
     for (var i = 0; i < blanks; i++) {
       html += '<tr class="blank"><td></td><td></td><td></td><td></td></tr>';
     }
@@ -276,8 +436,15 @@
     renderLog();
     renderChips();
     renderVisit();
+    renderNote();
     renderPreview();
     syncTopOffset();
+  }
+
+  /* 비고가 차지하는 표 행 수: 섹션 머리 + 메모 1행 + 사진 2열(2장당 1행) */
+  function noteRowCount(wk) {
+    var n = (wk && wk.note && wk.note.photos) ? wk.note.photos.length : 0;
+    return 2 + (n ? Math.ceil(n / 2) : 0);
   }
 
   /* ------------------------------------------------------------------ *
@@ -387,6 +554,49 @@
     if (inputs.length) { inputs[inputs.length - 1].focus(); }
   });
 
+  /* 비고 메모 */
+  qs('#noteMemo').addEventListener('input', function (e) {
+    currentWeek().note.memo = e.target.value;
+    renderPreview();
+    save();
+  });
+
+  /* 비고 사진 */
+  var filePhotos = qs('#filePhotos');
+  qs('#btnAddPhoto').addEventListener('click', function () { filePhotos.click(); });
+  filePhotos.addEventListener('change', function (e) {
+    var files = e.target.files ? Array.prototype.slice.call(e.target.files) : [];
+    e.target.value = '';
+    if (files.length) { addPhotos(files); }
+  });
+
+  var photoList = qs('#photoList');
+  photoList.addEventListener('input', function (e) {
+    var t = e.target;
+    if (!t || !t.matches || !t.matches('input[data-photo-caption]')) { return; }
+    var p = findPhoto(t.getAttribute('data-photo-caption'));
+    if (!p) { return; }
+    p.caption = t.value;
+    renderPreview();
+    save();
+  });
+  photoList.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.matches || !t.matches('[data-photo-del]')) { return; }
+    var wk = currentWeek();
+    var id = t.getAttribute('data-photo-del');
+    var idx = -1;
+    wk.note.photos.forEach(function (p, i) { if (p.id === id) { idx = i; } });
+    if (idx < 0) { return; }
+    if (!window.confirm('이 사진(' + (idx + 1) + '번째)을 지웁니다. 계속할까요?')) { return; }
+    wk.note.photos.splice(idx, 1);
+    renderNote();
+    renderPreview();
+    save();
+  });
+
+  qs('#btnGoNote').addEventListener('click', function () { showTab('note'); });
+
   /* 빠른 기록 */
   qs('#qAdd').addEventListener('click', quickAdd);
   qs('#qText').addEventListener('keydown', function (e) {
@@ -459,6 +669,7 @@
     commitCell(td);
     renderLog();
     renderVisit();
+    renderNote();
     renderPreview();
     save();
   });
@@ -474,6 +685,7 @@
     if (kind === 'day' && wk.days[idx]) { wk.days[idx].text = text; }
     else if (kind === 'vname' && wk.visits[idx]) { wk.visits[idx].name = text; }
     else if (kind === 'vtext' && wk.visits[idx]) { wk.visits[idx].text = text; }
+    else if (kind === 'note') { wk.note.memo = text; }
   }
 
   /* 배율 */
@@ -483,16 +695,16 @@
   });
 
   /* 탭 */
-  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
-    b.addEventListener('click', function () {
-      var t = b.getAttribute('data-tab');
-      document.body.setAttribute('data-tab', t);
-      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
-        x.classList.toggle('active', x.getAttribute('data-tab') === t);
-      });
-      if (t === 'preview') { setTimeout(fitPaper, 30); }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+  function showTab(t) {
+    document.body.setAttribute('data-tab', t);
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) {
+      x.classList.toggle('active', x.getAttribute('data-tab') === t);
     });
+    if (t === 'preview') { setTimeout(fitPaper, 30); }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
+    b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
   });
 
   /* ------------------------------------------------------------------ *
@@ -565,6 +777,137 @@
     });
   }
 
+  /* ------------------------------------------------------------------ *
+   *  비고란(메모·사진) — 원본 표 디자인을 이어받아 워드를 만듭니다
+   * ------------------------------------------------------------------ */
+  var XMLNS_DECL = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' +
+    ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"' +
+    ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"' +
+    ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+  var TC_BORDER = '<w:tcBorders>' +
+    '<w:top w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:left w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '<w:right w:val="single" w:sz="4" w:space="0" w:color="auto"/>' +
+    '</w:tcBorders>';
+  var BODY_RPR = '<w:rPr><w:rFonts w:asciiTheme="majorHAnsi" w:eastAsiaTheme="majorHAnsi" w:hAnsiTheme="majorHAnsi" w:hint="eastAsia"/>' +
+    '<w:b/><w:bCs/><w:sz w:val="22"/><w:szCs w:val="22"/></w:rPr>';
+  var CAP_RPR = '<w:rPr><w:rFonts w:eastAsiaTheme="minorHAnsi"/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr>';
+
+  function xesc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function parseXmlFragment(xml) {
+    var d = new DOMParser().parseFromString('<root ' + XMLNS_DECL + '>' + xml + '</root>', 'application/xml');
+    if (d.getElementsByTagName('parsererror').length) { throw new Error('비고란 서식을 만들지 못했습니다.'); }
+    return d.documentElement;
+  }
+  function appendXml(parent, xml) {
+    var frag = parseXmlFragment(xml);
+    var doc = parent.ownerDocument;
+    Array.prototype.slice.call(frag.childNodes).forEach(function (n) {
+      if (n.nodeType === 1) { parent.appendChild(doc.importNode(n, true)); }
+    });
+  }
+
+  function memoP(text) {
+    var body = text ? ('<w:r>' + BODY_RPR + '<w:t xml:space="preserve">' + xesc(text) + '</w:t></w:r>') : '';
+    return '<w:p><w:pPr><w:pStyle w:val="a3"/><w:spacing w:before="20" w:after="20"/>' + BODY_RPR + '</w:pPr>' + body + '</w:p>';
+  }
+  function noteMemoRowXml(text) {
+    var ps = textLines(text).map(memoP).join('');
+    return '<w:tr><w:trPr><w:trHeight w:val="544"/></w:trPr><w:tc>' +
+      '<w:tcPr><w:tcW w:w="10314" w:type="dxa"/><w:gridSpan w:val="4"/>' + TC_BORDER +
+      '<w:vAlign w:val="center"/></w:tcPr>' + ps + '</w:tc></w:tr>';
+  }
+
+  /* 그림 한 장(inline) — EMU 크기로 넣어 워드·한컴·Pages에서 넘치지 않게 합니다. */
+  function drawingXml(rel, cxEmu, cyEmu) {
+    return '<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+      '<wp:extent cx="' + cxEmu + '" cy="' + cyEmu + '"/>' +
+      '<wp:effectExtent l="0" t="0" r="0" b="0"/>' +
+      '<wp:docPr id="' + rel.docPr + '" name="' + xesc(rel.name) + '"/>' +
+      '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>' +
+      '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+      '<pic:pic><pic:nvPicPr><pic:cNvPr id="' + rel.docPr + '" name="' + xesc(rel.name) + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
+      '<pic:blipFill><a:blip r:embed="' + rel.rid + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+      '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cxEmu + '" cy="' + cyEmu + '"/></a:xfrm>' +
+      '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
+      '</a:graphicData></a:graphic></wp:inline></w:drawing>';
+  }
+
+  function photoCellXml(photo, rel) {
+    var tcPr = '<w:tcPr><w:tcW w:w="5049" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>';
+    if (!photo) { return '<w:tc>' + tcPr + '<w:p/></w:tc>'; }
+    var maxW = 3.28, maxH = 3.4;   // in — 셀 안쪽 5049twips(약 3.37in) 안에 2열로
+    var pw = Number(photo.w) || 4, ph = Number(photo.h) || 3;
+    var ar = ph / pw;
+    var win = maxW, hin = win * ar;
+    if (hin > maxH) { hin = maxH; win = hin / ar; }
+    var cx = Math.round(win * 914400), cy = Math.round(hin * 914400);
+    var cap = photo.caption ? ('<w:r>' + CAP_RPR + '<w:t xml:space="preserve">' + xesc(photo.caption) + '</w:t></w:r>') : '';
+    return '<w:tc>' + tcPr +
+      '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="40" w:after="20" w:line="240" w:lineRule="auto"/></w:pPr>' +
+      '<w:r>' + drawingXml(rel, cx, cy) + '</w:r></w:p>' +
+      '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="60"/>' + CAP_RPR + '</w:pPr>' + cap + '</w:p>' +
+      '</w:tc>';
+  }
+
+  function notePhotoRowXml(pair, rels) {
+    var cells = photoCellXml(pair[0], rels[0]) + photoCellXml(pair[1] || null, rels[1] || null);
+    var tbl = '<w:tbl><w:tblPr><w:tblW w:w="10098" w:type="dxa"/><w:tblLayout w:type="fixed"/>' +
+      '<w:tblBorders>' +
+      '<w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+      '<w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+      '<w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
+      '</w:tblBorders>' +
+      '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="60" w:type="dxa"/>' +
+      '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar>' +
+      '<w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="1" w:noVBand="1"/></w:tblPr>' +
+      '<w:tblGrid><w:gridCol w:w="5049"/><w:gridCol w:w="5049"/></w:tblGrid>' +
+      '<w:tr>' + cells + '</w:tr></w:tbl>';
+    return '<w:tr><w:trPr><w:trHeight w:val="544"/></w:trPr><w:tc>' +
+      '<w:tcPr><w:tcW w:w="10314" w:type="dxa"/><w:gridSpan w:val="4"/>' + TC_BORDER +
+      '<w:vAlign w:val="center"/></w:tcPr>' + tbl +
+      '<w:p><w:pPr><w:spacing w:before="0" w:after="0"/><w:rPr><w:sz w:val="6"/></w:rPr></w:pPr></w:p>' +
+      '</w:tc></w:tr>';
+  }
+
+  /* 사진을 워드 패키지(word/media)·관계(rels)·콘텐츠 타입에 등록합니다. */
+  async function registerImages(zip, photos) {
+    var out = [];
+    var relsFile = zip.file('word/_rels/document.xml.rels');
+    var relsXml = relsFile ? await relsFile.async('string') :
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+    var addRel = '';
+    photos.forEach(function (p, i) {
+      var n = i + 1;
+      var name = 'report_img_' + n + '.jpg';
+      var b64 = String(p.data || '').split(',')[1] || '';
+      if (!b64) { throw new Error('사진 ' + n + '번째 데이터가 비어 있습니다.'); }
+      zip.file('word/media/' + name, b64, { base64: true });
+      var rid = 'rId' + (100 + n);
+      addRel += '<Relationship Id="' + rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + name + '"/>';
+      out.push({ rid: rid, name: name, docPr: 900 + n });
+    });
+    if (addRel) {
+      relsXml = relsXml.replace('</Relationships>', addRel + '</Relationships>');
+      zip.file('word/_rels/document.xml.rels', relsXml);
+    }
+    var ctFile = zip.file('[Content_Types].xml');
+    if (ctFile) {
+      var ctXml = await ctFile.async('string');
+      var add = '';
+      if (!/Extension="jpe?g"/i.test(ctXml)) { add += '<Default Extension="jpg" ContentType="image/jpeg"/>'; }
+      if (!/Extension="jpeg"/i.test(ctXml)) { add += '<Default Extension="jpeg" ContentType="image/jpeg"/>'; }
+      if (add) { zip.file('[Content_Types].xml', ctXml.replace('</Types>', add + '</Types>')); }
+    }
+    return out;
+  }
+
   async function buildDocx() {
     if (typeof JSZip === 'undefined') { throw new Error('압축 라이브러리를 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'); }
     var res = await fetch('template.docx', { cache: 'no-store' });
@@ -613,10 +956,27 @@
       if (cs[2]) { fillCell(cs[2], textLines(v.text)); }
       tbl.appendChild(r);
     });
-    var blanks = Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length);
+    // 4) 비고(메모 + 사진) — 원본 섹션 머리행(회색 25%)을 복제해 디자인을 잇습니다
+    var note = wk.note;
+    var photoRels = note.photos.length ? await registerImages(zip, note.photos) : [];
+    var secTpl = rows[9].cloneNode(true);
+    var secCells = childEls(secTpl, 'tc');
+    var secP = secCells.length ? childEls(secCells[0], 'p')[0] : null;
+    if (secP) { setParagraphText(secP, ' ' + SEC3); }
+    tbl.appendChild(secTpl);
+    appendXml(tbl, noteMemoRowXml(note.memo));
+    for (var pi = 0; pi < note.photos.length; pi += 2) {
+      appendXml(tbl, notePhotoRowXml(note.photos.slice(pi, pi + 2), photoRels.slice(pi, pi + 2)));
+    }
+
+    var blanks = Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length - noteRowCount(wk));
     for (var b = 0; b < blanks; b++) { tbl.appendChild(blankTpl.cloneNode(true)); }
 
-    // 4) zip 다시 만들기
+    // 5) zip 다시 만들기
+    try {
+      doc.documentElement.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:a', 'http://schemas.openxmlformats.org/drawingml/2006/main');
+      doc.documentElement.setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:pic', 'http://schemas.openxmlformats.org/drawingml/2006/picture');
+    } catch (e) { /* 직렬화할 때 자동으로 붙습니다 */ }
     var out = new XMLSerializer().serializeToString(doc);
     if (out.indexOf('<?xml') !== 0) {
       out = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + out;
@@ -710,6 +1070,15 @@
       if (t) { t.split('\n').forEach(function (l) { out.push('   ' + l); }); }
     });
     if (!any) { out.push('(없음)'); }
+
+    var memo = String(wk.note.memo || '').trim();
+    var photos = wk.note.photos.length;
+    if (memo || photos) {
+      out.push('');
+      out.push('■ 비고');
+      if (memo) { memo.split('\n').forEach(function (l) { out.push(l.trim() ? '· ' + l : ''); }); }
+      if (photos) { out.push('(비고 사진 ' + photos + '장은 워드/PDF 파일에 포함)'); }
+    }
     return out.join('\n');
   }
 

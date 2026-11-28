@@ -109,10 +109,46 @@ button.icon-btn{
 .panel-foot{margin-top:12px; display:flex; gap:8px; flex-wrap:wrap}
 
 /* 모바일: 탭으로 한 화면씩 */
-.panel-log,.panel-visit,.panel-preview{display:none}
+.panel-log,.panel-visit,.panel-note,.panel-preview{display:none}
 body[data-tab="log"] .panel-log,
 body[data-tab="visit"] .panel-visit,
+body[data-tab="note"] .panel-note,
 body[data-tab="preview"] .panel-preview{display:block}
+
+/* ---------- 비고 메모 · 사진 ---------- */
+.note-memo-field{display:block; margin:12px 0 0}
+.note-memo-field > span{display:block; font-size:12.5px; color:var(--muted); font-weight:600; margin-bottom:4px}
+.note-memo-field textarea{
+  width:100%; border:1px solid var(--line); border-radius:10px; padding:10px 12px;
+  font:inherit; font-size:15px; line-height:1.5; resize:vertical; min-height:112px; background:#fff;
+}
+.note-memo-field textarea:focus{outline:2px solid rgba(43,74,111,.28); border-color:var(--accent-2)}
+.note-photo-tools{display:flex; align-items:center; gap:10px; margin:12px 0 8px; flex-wrap:wrap}
+.note-photo-tools .hint{margin:0}
+.hint.warn{color:var(--warn); font-weight:600}
+.hint.busy{margin:0 0 8px; color:var(--accent-2); font-weight:600}
+.photo-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(148px,1fr)); gap:10px}
+.photo-empty{
+  margin:0; font-size:12.5px; color:var(--muted); border:1px dashed var(--line);
+  border-radius:10px; padding:16px 12px; text-align:center; line-height:1.4;
+}
+.photo-item{
+  border:1px solid var(--line); border-radius:12px; padding:8px; background:#fcfdff;
+  display:flex; flex-direction:column; gap:6px; min-width:0;
+}
+.photo-thumb{
+  background:#eef2f7; border-radius:8px; overflow:hidden; aspect-ratio:4/3;
+  display:flex; align-items:center; justify-content:center;
+}
+.photo-thumb img{max-width:100%; max-height:100%; display:block; object-fit:contain}
+.photo-row2{display:flex; gap:6px; align-items:center}
+.photo-row2 input[type=text]{
+  flex:1; min-width:0; border:1px solid var(--line); border-radius:8px; padding:7px 9px;
+  font:inherit; font-size:13px; background:#fff; min-height:38px;
+}
+.photo-row2 input[type=text]:focus{outline:2px solid rgba(43,74,111,.28); border-color:var(--accent-2)}
+.photo-row2 .del-btn{width:38px; min-height:38px; font-size:14px}
+.photo-meta{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
 
 /* ---------- 빠른 기록 ---------- */
 .quickadd{display:flex; gap:6px; margin:12px 0 10px; flex-wrap:wrap}
@@ -227,6 +263,18 @@ tr.sec td{background:#d9d9d9; height:28.8pt; text-indent:11pt}
 tr.day td{height:34pt}
 tr.visit td{height:27.2pt}
 tr.blank td{height:27.2pt}
+/* 비고(메모·사진) */
+tr.note td{height:auto; min-height:56pt; vertical-align:top; padding:4pt 5.4pt; font-weight:400; line-height:1.35}
+tr.note td[contenteditable="true"]{font-weight:400}
+tr.note td:empty::before{content:""; display:inline-block; height:2.6em}
+tr.note-photo td{padding:3pt 4pt; height:auto}
+.pv-photos{display:grid; grid-template-columns:1fr 1fr; gap:6pt; align-items:start}
+.pv-photo{
+  margin:0; min-width:0; break-inside:avoid; page-break-inside:avoid;
+  display:flex; flex-direction:column; align-items:center;
+}
+.pv-photo img{display:block; width:100%; height:auto; max-height:4in; object-fit:contain; border:0.5pt solid #000}
+.pv-photo figcaption{font-size:8.5pt; font-weight:400; color:#333; text-align:center; margin-top:2pt; line-height:1.25}
 
 table.report td[contenteditable="true"]{cursor:text}
 table.report td[contenteditable="true"]:focus{
@@ -287,7 +335,8 @@ table.report td[contenteditable="true"]:focus{
   }
   .panel-log{grid-column:1; grid-row:1; display:block}
   .panel-visit{grid-column:1; grid-row:2; display:block}
-  .panel-preview{grid-column:2; grid-row:1 / span 2; display:block !important; position:sticky; top:86px}
+  .panel-note{grid-column:1; grid-row:3; display:block}
+  .panel-preview{grid-column:2; grid-row:1 / span 3; display:block !important; position:sticky; top:86px}
   .topbar-inner{gap:10px 16px}
 }
 
@@ -295,7 +344,7 @@ table.report td[contenteditable="true"]:focus{
 @media print{
   @page{size:letter portrait; margin:0.5in}
   html,body{background:#fff !important}
-  .topbar,.tabs,.panel-log,.panel-visit,.preview-head,.preview-hint,.modal,.toast{display:none !important}
+  .topbar,.tabs,.panel-log,.panel-visit,.panel-note,.preview-head,.preview-hint,.modal,.toast{display:none !important}
   .layout{display:block !important; max-width:none; margin:0; padding:0; gap:0}
   .panel-preview{
     display:block !important; border:0 !important; box-shadow:none !important;
@@ -309,6 +358,8 @@ table.report td[contenteditable="true"]:focus{
   }
   table.report{width:100% !important}
   tr{break-inside:avoid; page-break-inside:avoid}
+  .pv-photo, .pv-photo img{break-inside:avoid; page-break-inside:avoid}
+  tr.note td{min-height:0}
   table.report td[contenteditable="true"]:focus{outline:0 !important; background:transparent !important}
   *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
 }
