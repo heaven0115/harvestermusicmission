@@ -1156,9 +1156,9 @@
     var p = payload();
     var json = JSON.stringify(p, null, 2);
     var big = json.length > 1200000;
-    openDlg('<h3>메모 · 사진 백업</h3><p>즐겨찾기 <b>' + nf(p.counts.favorites) + '명</b> · 메모 <b>' + nf(p.counts.memos) + '건</b> · 사진 <b>' + nf(p.counts.photos) + '명</b>을 JSON 하나로 저장합니다.' +
-      (big ? '<br>사진이 많아 내용이 큼니다. 아래 <b>[JSON 파일로 저장]</b>을 써 주세요.' : '<br>아이폰에서 파일 저장이 안 되면 아래 내용을 복사해 두세요.') + '</p>' +
-      '<textarea readonly id="backupText">' + esc(json) + '</textarea>' +
+    openDlg('<h3>메모 · 사진 백업</h3><p>즐겨찾기 <b>' + nf(p.counts.favorites) + '명</b> · 메모 <b>' + nf(p.counts.memos) + '건</b> · 사진 <b>' + nf(p.counts.photos) + '명</b>을 JSON 하나로 저장합니다.<br>' +
+      (big ? '사진이 많아 내용이 커서 화면에는 싣지 않았습니다. 아래 <b>[JSON 파일로 저장]</b>을 눌러 주세요.' : '아이폰에서 파일 저장이 안 되면 아래 내용을 복사해 두세요.') + '</p>' +
+      (big ? '' : '<textarea readonly id="backupText">' + esc(json) + '</textarea>') +
       '<div class="dlg-actions"><button class="primary" data-dlg="download">JSON 파일로 저장</button>' +
       (big ? '' : '<button data-dlg="copy">클립보드에 복사</button>') + '<button class="ghost" data-dlg="close">닫기</button></div>');
   }
