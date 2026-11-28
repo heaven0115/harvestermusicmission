@@ -1016,10 +1016,67 @@ function wrapBareJsonRuns(str) {
   return out;
 }
 
-function tryParseJsonCandidate(raw) {
-  if (!raw) return null;
-  const base = String(raw).replace(/^\uFEFF/, '');
-  const mdFixed = normalizeMarkdownEscapesOutsideStrings(base)
+/* ---------- 둥근 따옴표(스마트 따옴표) 정리 ----------
+   아이패드·아이폰에서 복사한 응답은 JSON 구조를 감싸는 따옴표까지 둥근 따옴표
+   (“ ” ‘ ’)로 바뀌어 옵니다. 문자열 값 안에도 “두려워하지 말라”처럼 둥근 따옴표가
+   섞이기 때문에, 예전처럼 전부 "로 바꾸면 문자열이 그 자리에서 끊겨 구문이 깨집니다.
+   그래서 구조 경계(키/값의 시작과 끝)에 있는 둥근 따옴표만 "로 바꾸고,
+   문자열 안쪽의 둥근 따옴표는 글자 그대로 남깁니다. */
+const SMART_QUOTE_CHARS = '\u201C\u201D\u201E\u201F\u2018\u2019\u201A\u201B';
+const SMART_QUOTE_RE = /[\u201C\u201D\u201E\u201F\u2018\u2019\u201A\u201B]/;
+
+function isSmartQuoteChar(ch) {
+  return !!ch && SMART_QUOTE_CHARS.indexOf(ch) !== -1;
+}
+
+/* 따옴표 뒤에 `:` `,` `}` `]` 또는 입력 끝이 오면 그 따옴표는 문자열의 끝이다.
+   문자열 값 속의 “인용구”는 뒤에 글자가 이어지므로 내용으로 남는다. */
+function smartQuoteEndsString(s, i) {
+  let j = i + 1;
+  while (j < s.length) {
+    const ch = s[j];
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') { j++; continue; }
+    break;
+  }
+  if (j >= s.length) return true;
+  const next = s[j];
+  return next === ':' || next === ',' || next === '}' || next === ']';
+}
+
+function normalizeSmartJsonQuotes(input) {
+  const s = String(input == null ? '' : input);
+  if (!SMART_QUOTE_RE.test(s)) return s;
+  let out = '';
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === '\\') { out += ch; if (inStr) esc = true; continue; }
+    const smart = isSmartQuoteChar(ch);
+    if (!inStr) {
+      // 문자열 밖에서는 따옴표가 곧 구조 경계다.
+      if (ch === '"') { inStr = true; out += ch; continue; }
+      if (smart) { inStr = true; out += '"'; continue; }
+      out += ch;
+      continue;
+    }
+    // 문자열 안: 경계로 보이는 따옴표만 닫는 따옴표로 바꾼다.
+    if (ch === '"' || smart) {
+      if (smartQuoteEndsString(s, i)) { inStr = false; out += '"'; continue; }
+      // 값 안의 인용부호 — 둥근 따옴표는 그대로, ASCII 따옴표는 이스케이프
+      out += (ch === '"') ? '\\"' : ch;
+      continue;
+    }
+    out += ch;
+  }
+  if (inStr) out += '"'; // 닫히지 않은 문자열 보정
+  return out;
+}
+
+function jsonParseVariants(src) {
+  const out = [];
+  const mdFixed = normalizeMarkdownEscapesOutsideStrings(src)
     .replace(/:\s*,/g, ': null,')
     .replace(/:\s*}/g, ': null}')
     .replace(/,\s*([}\]])/g, '$1');
@@ -1028,7 +1085,7 @@ function tryParseJsonCandidate(raw) {
     .replace(/\bTrue\b/g, 'true')
     .replace(/\bFalse\b/g, 'false')
     .replace(/\bNone\b/g, 'null');
-  const smartBase = normalizeMarkdownEscapesOutsideStrings(base.replace(/[\u201C\u201D]/g, '"'))
+  const smartBase = normalizeMarkdownEscapesOutsideStrings(src)
     .replace(/:\s*,/g, ': null,')
     .replace(/:\s*}/g, ': null}');
   const smartFixed = fixMissingArrayBrackets(wrapBareJsonRuns(escapeControlInJsonStrings(smartBase)))
@@ -1038,15 +1095,29 @@ function tryParseJsonCandidate(raw) {
     .replace(/\bNone\b/g, 'null');
   const smartWrapped = wrapBareJsonRuns(escapeControlInJsonStrings(smartBase))
     .replace(/,\s*([}\]])/g, '$1');
-  const candidates = [
+  out.push(src, mdFixed, escapedSafe, repairJsonBrackets(escapedSafe), smartWrapped,
+    repairJsonBrackets(smartWrapped), smartFixed, repairJsonBrackets(smartFixed));
+  return out;
+}
+
+function tryParseJsonCandidate(raw) {
+  if (!raw) return null;
+  const base = String(raw).replace(/^\uFEFF/, '');
+  // 1) 문맥에 맞게 둥근 따옴표를 정리한 후보 → 2) 원문 그대로 → 3) 예전 방식(전부 "로 치환)
+  const sources = [
+    normalizeSmartJsonQuotes(base),
     base,
-    escapedSafe,
-    repairJsonBrackets(escapedSafe),
-    smartWrapped,
-    repairJsonBrackets(smartWrapped),
-    smartFixed,
-    repairJsonBrackets(smartFixed)
+    base.replace(/[\u201C\u201D]/g, '"')
   ];
+  const candidates = [];
+  const seen = {};
+  sources.forEach(function (src) {
+    jsonParseVariants(src).forEach(function (cand) {
+      if (typeof cand !== 'string' || seen[cand]) return;
+      seen[cand] = 1;
+      candidates.push(cand);
+    });
+  });
   for (let i = 0; i < candidates.length; i++) {
     try {
       const obj = JSON.parse(candidates[i]);
@@ -1244,7 +1315,7 @@ function normalizeWeak(raw) {
 /* JSON이 날것으로 남았는지 판별 (스마트 따옴표 포함) */
 function looksLikeJsonBlob(text) {
   if (!text) return false;
-  const s = String(text).replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+  const s = String(text).replace(/[\u201C\u201D\u201E\u201F\u2018\u2019]/g, '"');
   if (!/"\s*(?:items|title|text|summary|how|item)\s*"\s*:/.test(s)) return false;
   return s.indexOf('{') !== -1;
 }
@@ -1336,7 +1407,8 @@ function jsonishItemRows(s) {
 
 /* JSON 파싱이 실패해도 title/text/items 값을 문자열에서 직접 뽑아낸다. */
 function extractPerfectJsonish(raw) {
-  const s = String(raw || '').replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+  // 구조 경계의 둥근 따옴표만 "로 바꾸고, 값 안의 “인용구”는 그대로 둔다.
+  const s = normalizeSmartJsonQuotes(raw);
   const out = { title: '', text: '', summary: '', items: [] };
   if (s.indexOf('{') === -1) return out;
   out.title = jsonishKeyString(s, ['title', '제목']);
