@@ -32,7 +32,8 @@
   var PHOTO_MAX_W = 1200;            // 가로 최대 px
   var PHOTO_MAX_H = 1600;            // 세로 최대 px
   var PHOTO_TARGET_BYTES = 150 * 1024;  // 사진 한 장 목표 용량
-  var PHOTO_LADDER = [[1, 0.82], [1, 0.72], [0.88, 0.62], [0.72, 0.55]];
+  /* 품질을 먼저 낮추고, 그래도 크면 해상도를 조금씩 줄입니다. */
+  var PHOTO_LADDER = [[1, 0.82], [1, 0.7], [1, 0.6], [0.85, 0.55], [0.72, 0.5]];
 
   /* ------------------------------------------------------------------ *
    *  날짜 도우미
@@ -850,20 +851,21 @@
     var cx = Math.round(win * 914400), cy = Math.round(hin * 914400);
     var cap = photo.caption ? ('<w:r>' + CAP_RPR + '<w:t xml:space="preserve">' + xesc(photo.caption) + '</w:t></w:r>') : '';
     return '<w:tc>' + tcPr +
-      '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="40" w:after="20" w:line="240" w:lineRule="auto"/></w:pPr>' +
+      '<w:p><w:pPr><w:spacing w:before="40" w:after="20"/><w:jc w:val="center"/></w:pPr>' +
       '<w:r>' + drawingXml(rel, cx, cy) + '</w:r></w:p>' +
-      '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="60"/>' + CAP_RPR + '</w:pPr>' + cap + '</w:p>' +
+      '<w:p><w:pPr><w:spacing w:before="0" w:after="60"/><w:jc w:val="center"/>' + CAP_RPR + '</w:pPr>' + cap + '</w:p>' +
       '</w:tc>';
   }
 
   function notePhotoRowXml(pair, rels) {
     var cells = photoCellXml(pair[0], rels[0]) + photoCellXml(pair[1] || null, rels[1] || null);
-    var tbl = '<w:tbl><w:tblPr><w:tblW w:w="10098" w:type="dxa"/><w:tblLayout w:type="fixed"/>' +
+    var tbl = '<w:tbl><w:tblPr><w:tblW w:w="10098" w:type="dxa"/>' +
       '<w:tblBorders>' +
       '<w:top w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
       '<w:bottom w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
       '<w:insideH w:val="none" w:sz="0" w:space="0" w:color="auto"/><w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>' +
       '</w:tblBorders>' +
+      '<w:tblLayout w:type="fixed"/>' +
       '<w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="60" w:type="dxa"/>' +
       '<w:bottom w:w="0" w:type="dxa"/><w:right w:w="60" w:type="dxa"/></w:tblCellMar>' +
       '<w:tblLook w:val="0000" w:firstRow="0" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="1" w:noVBand="1"/></w:tblPr>' +
