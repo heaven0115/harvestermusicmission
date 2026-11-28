@@ -103,6 +103,7 @@ main{flex:1;padding:16px 0 40px}
 .card-sub{margin-top:4px;font-size:14px;color:var(--muted);font-weight:600;display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-width:0}
 .dot-sep{color:#C6D2CB}
 .card-sub .unassigned{color:#A6B3AC}
+.jd-sub{font-size:11.5px;font-weight:800;color:var(--forest-deep);background:var(--sage);border-radius:6px;padding:1.5px 7px;letter-spacing:-.01em;white-space:nowrap}
 .card-tel{margin-top:5px;font-size:15.5px;font-weight:700;color:var(--forest);letter-spacing:.01em;word-break:break-all}
 .card-tel a{color:inherit}
 .card-addr{margin-top:5px;font-size:13.5px;color:var(--muted);font-weight:500;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
@@ -207,6 +208,9 @@ main{flex:1;padding:16px 0 40px}
 .sheet-head{display:flex;align-items:flex-start;gap:12px;padding:17px 16px 14px;border-bottom:1px solid var(--line-soft);flex:0 0 auto}
 .sheet-head .ht{min-width:0;flex:1 1 auto}
 .sheet-head h2{font-size:22px;font-weight:800;letter-spacing:-.035em;color:var(--ink);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.jd-b{font-size:12.5px;font-weight:800;color:#fff;background:var(--forest);border-radius:8px;padding:3px 9px;letter-spacing:-.01em;white-space:nowrap;align-self:center}
+.jd-b.none{background:#EDF1EF;color:var(--muted);font-weight:700}
+.kv dd .jd-meta{font-size:12.5px;color:var(--faint);font-weight:600;margin-left:5px}
 .sheet-head .hsub{margin-top:5px;font-size:14px;color:var(--muted);font-weight:600;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 .sheet-close{width:42px;height:42px;flex:0 0 42px;border-radius:50%;background:#F2F5F3;color:#6E7C75;display:flex;align-items:center;justify-content:center}
 .sheet-close svg{width:20px;height:20px}

@@ -99,6 +99,23 @@
   ];
   var JD_MAP = {};
   JD_LIST.forEach(function (d) { JD_MAP[d.k] = d; });
+  function jdInfo(x) { return JD_MAP[x._jd] || JD_MAP.nb; }
+  // 상세 모달·카드에서 쓰는 전도회 표기
+  function jdBadgeHTML(x) {
+    if (x._jd === 'nb' || !JD_MAP[x._jd]) return '<span class="jd-b none">전도회 미정</span>';
+    return '<span class="jd-b">' + esc(JD_MAP[x._jd].name) + '</span>';
+  }
+  function jdCellHTML(x) {
+    var d = jdInfo(x);
+    if (x._jd === 'nb' || !JD_MAP[x._jd]) {
+      return '<span class="em">전도회 미정</span><span class="jd-meta">생년월일 미기재</span>';
+    }
+    return '<b>' + esc(d.name) + '</b>' +
+      '<span class="jd-meta">(' + esc(d.band) + (d.years ? ' · ' + esc(d.years) : '') + ')</span>';
+  }
+  function jdShortOf(x) {
+    return (x._jd !== 'nb' && JD_MAP[x._jd]) ? JD_MAP[x._jd].short : '';
+  }
   function jdOf(x) {
     var y = x.b ? +x.b.slice(0, 4) : (x.by ? +x.by : 0);
     if (!y) return 'nb';
@@ -389,6 +406,8 @@
     if (x.c) rel.push(esc(x.c)); if (x.d) rel.push(esc(x.d)); if (x.g) rel.push(esc(x.g));
     var relTxt = rel.length ? rel.join('<span class="dot-sep">·</span>')
       : '<span class="unassigned">공동체 미지정</span>';
+    var jdShort = jdShortOf(x);
+    if (jdShort) relTxt += '<span class="jd-sub">' + esc(jdShort) + '</span>';
     var chips = '';
     if (fam > 1) chips += '<span class="chip fam">가족 ' + fam + '명</span>';
     if (memo) chips += '<span class="chip memo">메모</span>';
@@ -520,7 +539,8 @@
     var famIds = (FAM[x.mn] || []).filter(function (f) { return f !== x.i; });
     var memoVal = MEMO[x.i] || '';
 
-    var kv1 = kvRow('공동체', x.c ? esc(x.c) : '<span class="em">미지정</span>') +
+    var kv1 = kvRow('전도회', jdCellHTML(x)) +
+      kvRow('공동체', x.c ? esc(x.c) : '<span class="em">미지정</span>') +
       kvRow('교구', x.d ? esc(x.d) : '<span class="em">미지정</span>') +
       kvRow('순', x.g ? esc(x.g) : '<span class="em">미지정</span>') +
       kvRow('순장', x.ld ? esc(x.ld) : '<span class="em">미지정</span>');
@@ -563,7 +583,8 @@
         (PHOTO[x.i] ? '<img src="' + PHOTO[x.i] + '" alt="' + esc(x.n) + ' 사진">' : '<span class="pini">' + esc(x.n.slice(0, 1)) + '</span>') +
         '<span class="pcam">' + icon('camera') + '</span>' +
       '</button></div>' +
-      '<div class="ht"><h2>' + esc(x.n) + (x.rs ? '<span class="role-b">' + esc(x.rs) + '</span>' : '') + '</h2>' +
+      '<div class="ht"><h2>' + esc(x.n) + (x.rs ? '<span class="role-b">' + esc(x.rs) + '</span>' : '') +
+        jdBadgeHTML(x) + '</h2>' +
       '<div class="hsub">' + (x.s ? esc(x.s) + ' · ' : '') +
         (x._age !== '' ? '만 ' + x._age + '세 · ' : '') +
         (x.c ? esc(x.c) : '공동체 미지정') +
