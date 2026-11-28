@@ -332,6 +332,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
 .seg button.active { background: #fff; color: var(--red-dark); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .print-bar .row .btn { flex: 1; }
 .print-status { font-size: 12.5px; color: var(--ink-2); min-height: 1px; }
+.pdf-link-holder:empty { display: none; }
+.print-status:empty { display: none; }
 .pdf-link-holder a {
   display: inline-block; margin-top: 4px; font-size: 13.5px; font-weight: 800; color: var(--blue);
 }
