@@ -4465,6 +4465,13 @@ function bindEvents() {
       updateFormatGuide();
       $('#char-count').textContent = '0자';
       setStatus('#parse-status', '', '');
+      setGoStatus('', '');
+      const pbox = $('#prompt-preview');
+      if (pbox) pbox.hidden = true;
+      const pout = $('#prompt-out');
+      if (pout) pout.value = '';
+      const psel = $('#btn-select-prompt');
+      if (psel) psel.hidden = true;
       setUploadStatus('', '');
       toast('입력을 비웠습니다.');
     });
