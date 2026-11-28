@@ -349,6 +349,8 @@ main{flex:1;padding:16px 0 40px}
 .jdbody{border-top:1px solid var(--line-soft);padding:11px 13px 13px;background:var(--sage-soft)}
 .jdempty{font-size:13.5px;font-weight:600;color:var(--faint)}
 .jdbody .mbtn{background:#fff}
+.jdacts{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.jdcard.open .grp-more{margin-top:0}
 
 /* ---------- 사진 (아바타 · 매칭) ---------- */
 .card-av{width:48px;height:48px;flex:0 0 48px;border-radius:50%;overflow:hidden;background:var(--sage);display:flex;align-items:center;justify-content:center;align-self:flex-start}

@@ -906,7 +906,8 @@
                   (x.b || x.by ? '<small>' + (x.b ? x.b.slice(0, 4) : x.by) + '</small>' : '') + '</button>';
               }).join('') + '</div>'
             : '<p class="jdempty">해당하는 교인이 없습니다.</p>') +
-          '<button class="grp-more" data-jdgo="' + esc(d.k) + '">검색에서 보기 →</button>' +
+          '<div class="jdacts"><button class="grp-more" data-jdgo="' + esc(d.k) + '">검색에서 보기 →</button>' +
+          '<button class="grp-more" data-jdprint="' + esc(d.k) + '">이 명단 인쇄 →</button></div>' +
         '</div>';
       }
       h += '</div>';
@@ -1374,6 +1375,14 @@
         S.q = ''; qEl.value = ''; qClear.classList.remove('on'); S.onlyFav = false;
         $('onlyFav').setAttribute('aria-pressed', 'false');
         setView('search'); applyFilters(); return;
+      }
+      var jdp = t.closest('[data-jdprint]');
+      if (jdp) {
+        S.f = { c: '', jd: jdp.dataset.jdprint, d: '', g: '', r: '', ct: '', photo: '' };
+        S.q = ''; qEl.value = ''; qClear.classList.remove('on'); S.onlyFav = false;
+        $('onlyFav').setAttribute('aria-pressed', 'false');
+        setView('search'); applyFilters();
+        setTimeout(doPrint, 150); return;
       }
       var pf = t.closest('[data-photofilter]');
       if (pf) {
