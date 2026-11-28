@@ -2518,7 +2518,395 @@ function downloadManuscript(s, key, fmt) {
   }
 }
 
-function printManuscriptFor(s, key) {
+/* ================= PDF 저장 / 인쇄 =================
+   아이패드·아이폰에서 홈 화면에 추가해 쓰는 웹앱(PWA standalone)은 window.print()가
+   브라우저 차원에서 막혀 인쇄 창이 열리지 않습니다. 일반 iOS Safari도 setTimeout 안에서
+   부른 print()는 사용자 제스처가 풀려 무시됩니다. 그래서
+     · 일반 브라우저: 클릭 안에서 곧바로 window.print() (지연 호출 없음)
+     · 홈 화면 웹앱: 화면에 보이는 원고를 그대로 그려 A4 쪽으로 나눈 PDF 파일을 만들어 저장·공유
+   합니다. 쪽 경계는 실제로 그려진 그림에서 글줄 사이 빈 줄을 찾아 끊기 때문에 글자가
+   반쯤 잘리거나 다음 쪽에 겹치지 않습니다(「사역의 한 주」와 같은 방식). */
+const PDF_PAGE_W = 680;    /* A4 본문 폭 180mm (96dpi) */
+const PDF_PAGE_H = 990;    /* A4 본문 높이 263mm (96dpi) */
+const PDF_INK_LEVEL = 190; /* 이보다 어두운 픽셀을 글자로 본다(테두리·바탕색은 넘김) */
+const PDF_LIBS = {};
+let pdfBusy = false;
+
+function isStandaloneApp() {
+  try {
+    if (window.navigator && window.navigator.standalone === true) return true;
+    if (!window.matchMedia) return false;
+    const qs = ['(display-mode: standalone)', '(display-mode: fullscreen)', '(display-mode: minimal-ui)'];
+    for (let i = 0; i < qs.length; i++) {
+      try { if (window.matchMedia(qs[i]).matches) return true; } catch (e) { /* 무시 */ }
+    }
+  } catch (e) { /* 무시 */ }
+  return false;
+}
+
+function pdfLoadScript(key, url) {
+  if (PDF_LIBS[key]) return PDF_LIBS[key];
+  PDF_LIBS[key] = new Promise(function (resolve, reject) {
+    const s = document.createElement('script');
+    s.src = url;
+    s.async = true;
+    s.onload = function () { resolve(true); };
+    s.onerror = function () { delete PDF_LIBS[key]; reject(new Error('PDF 도구를 불러오지 못했습니다')); };
+    document.head.appendChild(s);
+  });
+  return PDF_LIBS[key];
+}
+
+function ensurePdfLibs() {
+  const jobs = [];
+  if (!window.html2canvas) jobs.push(pdfLoadScript('h2c', 'vendor/html2canvas.min.js?v=1.4.1'));
+  if (!(window.jspdf && window.jspdf.jsPDF)) jobs.push(pdfLoadScript('jspdf', 'vendor/jspdf.umd.min.js?v=2.5.2'));
+  return Promise.all(jobs).then(function () {
+    if (!window.html2canvas) throw new Error('PDF 도구를 불러오지 못했습니다');
+    if (!(window.jspdf && window.jspdf.jsPDF)) throw new Error('PDF 도구를 불러오지 못했습니다');
+  });
+}
+
+function pdfFontsReady() {
+  return new Promise(function (resolve) {
+    let done = false;
+    const go = function () { if (!done) { done = true; resolve(); } };
+    try {
+      if (document.fonts && document.fonts.ready && document.fonts.ready.then) document.fonts.ready.then(go, go);
+      else go();
+    } catch (e) { go(); }
+    setTimeout(go, 3000);
+  });
+}
+
+/* ---- 쪽 경계 ----
+   글줄 한가운데가 잘리지 않도록, 실제로 그려진 그림(canvas)에서 글자 줄을 찾아
+   글줄 사이 빈 줄에서 자른다. 그림과 자르는 자리가 같은 그림이라 배치가 몇 픽셀
+   어긋나도 쪽 끝에서 글자가 반쯤 잘리지 않는다. */
+function pdfInkRows(canvas) {
+  const w = canvas.width;
+  const h = canvas.height;
+  let data = null;
+  try {
+    data = canvas.getContext('2d').getImageData(0, 0, w, h).data;
+  } catch (e) { return null; }
+  const ink = new Uint8Array(h);
+  const stepX = w > 900 ? 2 : 1;
+  for (let y = 0; y < h; y++) {
+    const off = y * w * 4;
+    for (let x = 0; x < w; x += stepX) {
+      const p = off + x * 4;
+      if (data[p] < PDF_INK_LEVEL || data[p + 1] < PDF_INK_LEVEL || data[p + 2] < PDF_INK_LEVEL) { ink[y] = 1; break; }
+    }
+  }
+  return { ink: ink };
+}
+
+/* 제목이 쪽 끝에 홀로 남지 않도록 제목 자리를 미리 재 둔다(문서 위 기준 CSS px) */
+function pdfKeepRanges(rootEl) {
+  const base = rootEl.getBoundingClientRect().top;
+  const out = [];
+  const heads = rootEl.querySelectorAll('.print-title, .print-eyebrow, .ms-title, #rp-title, h1, h2, h3');
+  for (let i = 0; i < heads.length; i++) {
+    const r = heads[i].getBoundingClientRect();
+    if (!r.height) continue;
+    out.push([Math.round(r.top - base) - 4, Math.round(r.bottom - base) + 96]);
+  }
+  return out;
+}
+
+function pdfBlocked(list, y) {
+  if (!list) return false;
+  for (let i = 0; i < list.length; i++) {
+    if (y >= list[i][0] && y <= list[i][1]) return true;
+  }
+  return false;
+}
+
+/* 그려진 쪽(canvas px)에서 다음 쪽 시작 지점을 찾는다 */
+function pdfCutRow(rows, scale, start, pageH, keep) {
+  const inkRows = rows.ink || rows;
+  const h = inkRows.length;
+  if (!h) return h;
+  const minGap = Math.max(5, Math.round(6 * scale));   /* 글줄 사이 최소 빈 줄 */
+  let y = h - 1;
+  while (y >= 0 && !inkRows[y]) y--;
+  const lastInk = y;
+  if (lastInk < 0) return h;                            /* 빈 쪽 */
+  if (lastInk < h - minGap) return h;                   /* 아래가 비어 있으면 그대로 */
+  /* 위로 올라가며 빈 줄(구간)을 모은다 — 넓은 구간(문단 사이)을 먼저 고른다 */
+  const limit = Math.max(0, lastInk - Math.round(pageH * 0.55 * scale));
+  const bands = [];
+  let run = 0;
+  for (let i = lastInk; i >= limit; i--) {
+    if (!inkRows[i]) { run += 1; continue; }
+    if (run >= minGap) bands.push({ mid: i + Math.round(run / 2), width: run });
+    run = 0;
+  }
+  if (run >= minGap) bands.push({ mid: limit + Math.round(run / 2), width: run });
+  if (!bands.length) return h;
+  const widths = bands.map(function (b) { return b.width; }).sort(function (a, b) { return a - b; });
+  const median = widths[Math.floor(widths.length / 2)];
+  const wideLimit = Math.max(minGap, Math.round(median * 1.15));
+  let lowest = 0;
+  for (let n = 0; n < bands.length; n++) if (bands[n].mid > lowest) lowest = bands[n].mid;
+  const nearLimit = lowest - Math.round(70 * scale);
+  const near = bands.filter(function (b) { return b.mid >= nearLimit && b.width >= wideLimit; });
+  near.sort(function (a, b) { return b.mid - a.mid; });
+  const startCss = start;
+  for (let k = 0; k < near.length; k++) {
+    const pos = startCss + near[k].mid / scale;
+    if (pos > startCss + pageH * 0.45 && !pdfBlocked(keep, pos)) return near[k].mid;
+  }
+  if (near.length) return near[0].mid;
+  /* 넓은 빈 줄이 없으면 글자가 잘리지 않는 쪽 끝에 가장 가까운 빈 줄 */
+  return Math.round(lowest);
+}
+
+function pdfCropCanvas(canvas, keepCssPx, pageW) {
+  const scale = canvas.width / pageW;
+  const h = Math.max(1, Math.min(canvas.height, Math.round(keepCssPx * scale)));
+  if (h >= canvas.height - 1) return canvas;
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = h;
+  try { out.getContext('2d').drawImage(canvas, 0, 0); } catch (e) { return canvas; }
+  return out;
+}
+
+function pdfRenderPages(rootEl, o) {
+  o = o || {};
+  const pageW = o.pageW || PDF_PAGE_W;
+  const pageH = o.pageH || PDF_PAGE_H;
+  const pages = [];
+  let start = 0;
+  let guard = 0;
+  const total = Math.ceil(rootEl.getBoundingClientRect().height) || 1;
+  let keep = null;
+  const step = function () {
+    guard += 1;
+    if (guard > 300) return Promise.resolve(pages);
+    const left = total - start;
+    if (left <= 4) return Promise.resolve(pages);
+    const lastPage = (left <= pageH);
+    /* 마지막 쪽은 배치가 조금 길어도 끝까지 담기도록 여유를 둔다 */
+    const hPx = lastPage ? (left + 140) : pageH;
+    if (o.onStep) o.onStep(pages.length + 1, Math.max(pages.length + 1, Math.ceil(total / pageH)));
+    const page = document.createElement('div');
+    page.className = 'pdf-sheet';
+    page.setAttribute('aria-hidden', 'true');
+    page.style.cssText = 'position:relative;width:' + pageW + 'px;height:' + hPx +
+      'px;overflow:hidden;background:#fff;';
+    const inner = document.createElement('div');
+    inner.style.cssText = 'position:absolute;left:0;top:' + (-start) + 'px;width:' + pageW + 'px;background:#fff;';
+    inner.appendChild(rootEl.cloneNode(true));
+    page.appendChild(inner);
+    document.body.appendChild(page);
+    if (!keep) keep = pdfKeepRanges(rootEl);
+    return window.html2canvas(page, {
+      scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false,
+      width: pageW, height: hPx, windowWidth: 1024, windowHeight: 1200, scrollX: 0, scrollY: 0
+    }).then(function (canvas) {
+      if (page.parentNode) page.parentNode.removeChild(page);
+      const scale = canvas.width / pageW;
+      const rows = pdfInkRows(canvas);
+      let cutRow = 0;
+      if (rows) {
+        if (lastPage) {
+          let y2 = rows.ink.length - 1;
+          while (y2 >= 0 && !rows.ink[y2]) y2--;
+          cutRow = (y2 < 0) ? rows.ink.length : Math.min(rows.ink.length, y2 + Math.round(8 * scale));
+        } else {
+          cutRow = pdfCutRow(rows, scale, start, pageH, keep);
+          if (cutRow >= canvas.height - 1) cutRow = canvas.height;
+        }
+      }
+      const keptCss = cutRow ? (cutRow / scale) : hPx;
+      pages.push(pdfCropCanvas(canvas, Math.max(8, keptCss), pageW));
+      start = start + Math.max(8, keptCss);
+      return step();
+    }, function (err) {
+      if (page.parentNode) page.parentNode.removeChild(page);
+      throw err;
+    });
+  };
+  return step();
+}
+
+function pdfBuild(canvases, pageW) {
+  const JsPDF = window.jspdf.jsPDF;
+  const pdf = new JsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+  const left = 15;
+  const top = 16;
+  const bw = 180;   /* A4 210mm - 좌우 여백 15mm */
+  for (let i = 0; i < canvases.length; i++) {
+    if (i) pdf.addPage();
+    const bh = canvases[i].height * (bw / canvases[i].width);
+    pdf.addImage(canvases[i].toDataURL('image/jpeg', 0.95), 'JPEG', left, top, bw, bh, 'p' + i, 'FAST');
+  }
+  return pdf;
+}
+
+function pdfFileName(rootEl) {
+  const h = rootEl ? (rootEl.querySelector('.print-title') || rootEl.querySelector('#rp-title') || rootEl.querySelector('.ms-title') || rootEl.querySelector('h1, h2')) : null;
+  let t = h ? String(h.textContent || '') : '';
+  t = t.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+  if (!t) t = '설교원고';
+  return safeFileName(t) + '.pdf';
+}
+
+/* 내려받기 / 공유 */
+function pdfDownload(blob, name) {
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      if (a.parentNode) a.parentNode.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 4000);
+    toast('PDF를 저장했습니다 · ' + name);
+  } catch (e) {
+    toast('PDF를 저장하지 못했습니다 — 「PDF 저장 / 공유」를 눌러 주세요.', true);
+  }
+}
+
+function pdfSaveBlob(blob, name) {
+  let file = null;
+  try { file = new File([blob], name, { type: 'application/pdf' }); } catch (e) { file = null; }
+  let can = false;
+  if (file && navigator.share && navigator.canShare) {
+    try { can = navigator.canShare({ files: [file] }); } catch (e) { can = false; }
+  }
+  if (can) {
+    navigator.share({ files: [file], title: name }).then(function () {
+      toast('PDF를 내보냈습니다 · ' + name);
+    }, function (err) {
+      if (err && err.name === 'AbortError') return;
+      pdfDownload(blob, name);
+    });
+    return;
+  }
+  pdfDownload(blob, name);
+}
+
+/* 안내 줄은 누른 버튼 바로 아래에 붙인다 */
+function pdfNoteFor(btn) {
+  let note = null;
+  const anchor = btn ? (btn.closest('.btn-row') || btn.parentNode) : null;
+  if (anchor && anchor.parentNode) {
+    const kids = anchor.parentNode.children;
+    for (let i = 0; i < kids.length; i++) {
+      if (kids[i].hasAttribute && kids[i].hasAttribute('data-pdf-note')) { note = kids[i]; break; }
+    }
+  }
+  if (!note) {
+    note = document.createElement('div');
+    note.className = 'pdf-note';
+    note.setAttribute('data-pdf-note', '');
+    note.innerHTML = '<span data-pdf-note-txt></span>' +
+      '<button type="button" class="btn btn-primary btn-small" data-pdf-save hidden>PDF 저장 / 공유</button>' +
+      '<button type="button" class="btn btn-outline btn-small" data-pdf-again hidden>다시 만들기</button>';
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(note, anchor.nextSibling);
+    else document.body.appendChild(note);
+  }
+  return note;
+}
+
+/* o: { btn, pageW, pageH, name, strip:[선택자], autoSave } */
+function exportPdfFromPage(rootEl, o) {
+  o = o || {};
+  if (!rootEl) { toast('내보낼 원고가 없습니다.', true); return; }
+  if (pdfBusy) { toast('PDF를 만드는 중입니다 — 조금만 기다려 주세요'); return; }
+  const btn = o.btn || null;
+  const btnHTML = btn ? btn.innerHTML : '';
+  const note = pdfNoteFor(btn);
+  const txt = note.querySelector('[data-pdf-note-txt]');
+  const saveBtn = note.querySelector('[data-pdf-save]');
+  const againBtn = note.querySelector('[data-pdf-again]');
+  const pageW = o.pageW || PDF_PAGE_W;
+  const pageH = o.pageH || Math.round(pageW * (PDF_PAGE_H / PDF_PAGE_W));
+  const name = o.name || pdfFileName(rootEl);
+  let stage = null;
+  pdfBusy = true;
+  note.hidden = false;
+  note.className = 'pdf-note';
+  saveBtn.hidden = true;
+  againBtn.hidden = true;
+  txt.textContent = 'PDF를 만드는 준비 중…';
+  if (btn) { btn.disabled = true; btn.innerHTML = 'PDF 만드는 중…'; }
+  const cleanStage = function () {
+    if (stage && stage.parentNode) stage.parentNode.removeChild(stage);
+    stage = null;
+  };
+  const restore = function () {
+    pdfBusy = false;
+    if (btn) { btn.disabled = false; btn.innerHTML = btnHTML; }
+  };
+
+  ensurePdfLibs().then(pdfFontsReady).then(function () {
+    stage = document.createElement('div');
+    stage.className = 'pdf-stage';
+    stage.setAttribute('aria-hidden', 'true');
+    const clone = rootEl.cloneNode(true);
+    if (clone.hasAttribute && clone.hasAttribute('hidden')) clone.removeAttribute('hidden');
+    const strip = o.strip || [];
+    for (let i = 0; i < strip.length; i++) {
+      const junk = clone.querySelectorAll(strip[i]);
+      for (let j = 0; j < junk.length; j++) if (junk[j].parentNode) junk[j].parentNode.removeChild(junk[j]);
+    }
+    clone.style.width = pageW + 'px';
+    stage.appendChild(clone);
+    document.body.appendChild(stage);
+    return new Promise(function (resolve) { setTimeout(resolve, 40); }).then(function () {
+      if (!Math.ceil(clone.getBoundingClientRect().height)) throw new Error('문서 높이를 재지 못했습니다');
+      return pdfRenderPages(clone, {
+        pageW: pageW, pageH: pageH,
+        onStep: function (i, n) { txt.textContent = 'PDF 만드는 중… ' + i + '/' + n + '쪽'; }
+      });
+    });
+  }).then(function (pages) {
+    cleanStage();
+    const blob = pdfBuild(pages, pageW).output('blob');
+    const kb = Math.round(blob.size / 1024);
+    const sizeTxt = kb >= 1024 ? (kb / 1024).toFixed(1) + 'MB' : kb + 'KB';
+    restore();
+    note.className = 'pdf-note ok';
+    txt.textContent = 'PDF ' + pages.length + '쪽 · ' + sizeTxt + ' 파일을 만들었습니다. ' +
+      '아래 「PDF 저장 / 공유」를 누르면 파일로 저장하거나 다른 앱으로 보낼 수 있습니다.';
+    saveBtn.hidden = false;
+    againBtn.hidden = false;
+    saveBtn.onclick = function () { pdfSaveBlob(blob, name); };
+    againBtn.onclick = function () { exportPdfFromPage(rootEl, o); };
+    if (o.autoSave !== false) pdfSaveBlob(blob, name);
+    toast('PDF ' + pages.length + '쪽을 만들었습니다 · ' + name);
+  }).catch(function (err) {
+    cleanStage();
+    restore();
+    note.className = 'pdf-note err';
+    txt.textContent = 'PDF를 만들지 못했습니다 — 다시 시도해 주세요.' +
+      (err && err.message ? ' (' + err.message + ')' : '');
+    againBtn.hidden = false;
+    againBtn.onclick = function () { exportPdfFromPage(rootEl, o); };
+  });
+}
+
+/* 인쇄 창은 클릭 안에서 곧바로 부른다(iOS Safari는 지연 호출을 무시한다) */
+function printPageNow(onFail) {
+  if (typeof window.print !== 'function') { if (onFail) onFail(); return; }
+  try {
+    window.print();
+  } catch (e) {
+    if (onFail) onFail();
+  }
+}
+
+function printManuscriptFor(s, key, opts) {
+  opts = opts || {};
   const doc = manuscriptFor(s, key);
   if (!doc) { toast('인쇄할 원고가 없습니다.', true); return; }
   const host = $('#print-doc');
@@ -2529,6 +2917,16 @@ function printManuscriptFor(s, key) {
     (doc.meta ? '<p class="print-meta">' + esc(doc.meta) + '</p>' : '') +
     '<div class="print-body">' + esc(doc.body) + '</div>' +
   '</div>';
+  const pageEl = host.querySelector('.print-page');
+  const pdfOpts = function () {
+    return { btn: opts.btn || null, name: safeFileName(doc.fileBase) + '.pdf' };
+  };
+
+  /* 홈 화면 웹앱(PWA)은 인쇄 창 자체가 열리지 않으므로 PDF 파일로 만든다 */
+  if (opts.forcePdf || isStandaloneApp() || typeof window.print !== 'function') {
+    exportPdfFromPage(pageEl, pdfOpts());
+    return;
+  }
 
   document.body.classList.add('is-printing-doc');
   const clear = function () {
@@ -2536,11 +2934,31 @@ function printManuscriptFor(s, key) {
     window.removeEventListener('afterprint', clear);
   };
   window.addEventListener('afterprint', clear);
-  setTimeout(function () {
-    window.print();
-    // 인쇄 중에는 print 전용 화면을 유지합니다(브라우저 미리보기가 그리는 동안 사라지지 않도록).
-    setTimeout(clear, 60000);
-  }, 120);
+  setTimeout(clear, 60000);
+  printPageNow(function () {
+    clear();
+    exportPdfFromPage(pageEl, pdfOpts());
+  });
+}
+
+/* 리포트 화면 인쇄(홈 화면 웹앱에서는 A4 PDF로) */
+function printReportPage() {
+  const panel = $('#report-body');
+  if (!panel) { toast('먼저 설교를 분석해 주세요.', true); return; }
+  const w = Math.round(panel.getBoundingClientRect().width) || PDF_PAGE_W;
+  const opts = function () {
+    return {
+      btn: $('#btn-print'),
+      pageW: Math.max(PDF_PAGE_W, w),
+      strip: ['.report-tabs', '.no-print'],
+      name: pdfFileName(panel)
+    };
+  };
+  if (isStandaloneApp() || typeof window.print !== 'function') {
+    exportPdfFromPage(panel, opts());
+    return;
+  }
+  printPageNow(function () { exportPdfFromPage(panel, opts()); });
 }
 
 function handlePerfectAction(action) {
@@ -3693,7 +4111,7 @@ function bindEvents() {
     if (dlBtn) { downloadManuscript(currentSermon(), dlBtn.dataset.doc, dlBtn.dataset.dl); return; }
 
     const printDoc = t.closest('[data-print-doc]');
-    if (printDoc) { printManuscriptFor(currentSermon(), printDoc.dataset.printDoc); return; }
+    if (printDoc) { printManuscriptFor(currentSermon(), printDoc.dataset.printDoc, { btn: printDoc }); return; }
 
     const copyDoc = t.closest('[data-copy-doc]');
     if (copyDoc) {
@@ -3906,7 +4324,7 @@ function bindEvents() {
     btnPrint.addEventListener('click', function () {
       activateTab('report');
       setReportTab('coaching');
-      setTimeout(function () { window.print(); }, 350);
+      printReportPage();
     });
   }
 

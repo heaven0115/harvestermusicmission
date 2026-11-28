@@ -676,6 +676,33 @@ mark.hl sup {
 }
 @page { size: A4; margin: 18mm 18mm 20mm; }
 
+/* ---------- PDF 저장(홈 화면 웹앱) ----------
+   화면 밖에서 A4 쪽으로 그려 html2canvas로 그림을 만든다. 인쇄용 서식을
+   화면에서도 그대로 재현해야 인쇄물과 PDF가 같은 모양이 된다. */
+.pdf-stage { position: fixed; left: -20000px; top: 0; background: #fff; pointer-events: none; z-index: 0; }
+.pdf-sheet { background: #fff; }
+.pdf-sheet .print-page { width: 100%; max-width: none; padding: 0; background: #fff; }
+.pdf-sheet .print-title { font-family: var(--serif); font-size: 21pt; line-height: 1.4; margin: 0 0 6pt; color: #000; }
+.pdf-sheet .print-eyebrow { font-family: var(--sans); font-size: 9pt; letter-spacing: .1em; color: #555; margin: 0 0 4pt; text-transform: uppercase; }
+.pdf-sheet .print-meta { font-family: var(--sans); font-size: 10.5pt; color: #333; margin: 0 0 16pt; padding-bottom: 8pt; border-bottom: 1pt solid #999; }
+.pdf-sheet .print-body {
+  font-family: var(--serif); font-size: 18pt; line-height: 1.85; color: #000;
+  white-space: pre-wrap; word-break: keep-all;
+}
+.pdf-note {
+  display: flex; flex: 0 0 auto; align-items: center; gap: 8px 10px; flex-wrap: wrap;
+  margin: .7rem 0 0; padding: 10px 12px; border: 1px solid var(--navy-line); border-radius: 10px;
+  background: #fffdf4; font-family: var(--sans); font-size: .86rem; color: #5a4a22;
+}
+.pdf-note[hidden] { display: none !important; }
+.pdf-note.ok { background: #f2f8f3; border-color: #d7e7db; color: #1f5b3f; }
+.pdf-note.err { background: #fdf3f1; border-color: #f0d8d2; color: #8a3b2a; }
+.pdf-note [data-pdf-note-txt] { flex: 1 1 200px; min-width: 0; line-height: 1.55; font-weight: 600; }
+.pdf-note button[hidden] { display: none !important; }
+@media print {
+  .pdf-stage, .pdf-note { display: none !important; }
+}
+
 /* ---------- 번역 대조 ---------- */
 .translate-table { width: 100%; border-collapse: collapse; font-size: .96rem; }
 .translate-table th, .translate-table td {
