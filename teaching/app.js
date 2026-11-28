@@ -2860,7 +2860,13 @@ function exportPdfFromPage(rootEl, o) {
       for (let j = 0; j < junk.length; j++) if (junk[j].parentNode) junk[j].parentNode.removeChild(junk[j]);
     }
     clone.style.width = pageW + 'px';
-    stage.appendChild(clone);
+    /* 높이를 잴 때와 그릴 때의 서식이 같아야 쪽 수가 어긋나지 않는다.
+       .pdf-sheet 안에 넣어 인쇄용 서식(18pt·pre-wrap)을 그대로 적용한다. */
+    const sheet = document.createElement('div');
+    sheet.className = 'pdf-sheet';
+    sheet.style.width = pageW + 'px';
+    sheet.appendChild(clone);
+    stage.appendChild(sheet);
     document.body.appendChild(stage);
     return new Promise(function (resolve) { setTimeout(resolve, 40); }).then(function () {
       if (!Math.ceil(clone.getBoundingClientRect().height)) throw new Error('문서 높이를 재지 못했습니다');
@@ -2882,7 +2888,8 @@ function exportPdfFromPage(rootEl, o) {
     againBtn.hidden = false;
     saveBtn.onclick = function () { pdfSaveBlob(blob, name); };
     againBtn.onclick = function () { exportPdfFromPage(rootEl, o); };
-    if (o.autoSave !== false) pdfSaveBlob(blob, name);
+    /* 홈 화면 웹앱은 저장·공유에 사용자 손길이 필요하므로 위 버튼을 눌렀을 때만 내보낸다 */
+    if (o.autoSave !== false && !isStandaloneApp()) pdfSaveBlob(blob, name);
     toast('PDF ' + pages.length + '쪽을 만들었습니다 · ' + name);
   }).catch(function (err) {
     cleanStage();
