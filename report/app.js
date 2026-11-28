@@ -308,6 +308,9 @@
     if (t && t.matches && t.matches('textarea[data-day-text]')) {
       var i = Number(t.getAttribute('data-day-text'));
       currentWeek().days[i].text = t.value;
+      var card = t.closest ? t.closest('.daycard') : null;
+      var cnt = card ? card.querySelector('.count') : null;
+      if (cnt) { cnt.textContent = t.value.length + '자'; }
       renderPreview();
       save();
     }
