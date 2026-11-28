@@ -400,6 +400,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
 /* ---------- 넓은 화면 ---------- */
 @media (min-width: 760px) {
   main { padding: 16px 18px 60px; }
+  .tabs { max-width: 720px; margin: 0 auto; }
   .card { padding: 16px; }
   .score-card { padding: 14px; }
   .song-tab .t { max-width: 150px; }
@@ -408,7 +409,8 @@ main { max-width: 1080px; margin: 0 auto; padding: 12px 12px 40px; }
   .print-bar { flex-direction: row; align-items: center; flex-wrap: wrap; }
   .print-bar .seg { flex: 0 0 auto; }
   .print-bar .row { flex: 0 0 auto; }
-  .print-status { flex: 1 1 100%; }
+  .print-status { flex: 1 1 auto; text-align: right; min-width: 180px; }
+  .pdf-link-holder { flex: 1 1 100%; }
   .me-text { flex: 1 1 200px; }
 }
 
