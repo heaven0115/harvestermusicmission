@@ -377,6 +377,8 @@ table.report [contenteditable="true"]:focus{
   tr:not(.note-start){break-inside:avoid; page-break-inside:avoid}
   .pv-photo, .pv-photo img{break-inside:avoid; page-break-inside:avoid}
   tr.note td{min-height:0}
+  /* 화면용 안내 문구(비고 메모)는 인쇄하지 않습니다 */
+  td.note-cell .note-memo:empty::before{content:none}
   table.report td[contenteditable="true"]:focus,
   table.report [contenteditable="true"]:focus{outline:0 !important; background:transparent !important}
   *{-webkit-print-color-adjust:exact; print-color-adjust:exact}
