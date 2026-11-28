@@ -423,7 +423,7 @@
       html += '</div></td></tr>';
     }
 
-    var blanks = Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length - noteRowCount(wk));
+    var blanks = blankRowCount(wk);
     for (var i = 0; i < blanks; i++) {
       html += '<tr class="blank"><td></td><td></td><td></td><td></td></tr>';
     }
@@ -442,10 +442,14 @@
     syncTopOffset();
   }
 
-  /* 비고가 차지하는 표 행 수: 섹션 머리 + 메모 1행 + 사진 2열(2장당 1행) */
-  function noteRowCount(wk) {
+  /* 빈 행 수: 원본 36행 분량을 유지하되, 비고(섹션 머리 + 메모 + 사진 행)가
+     차지하는 만큼 빈 행을 덜 넣어 인쇄 분량이 지나치게 늘지 않게 합니다. */
+  function blankRowCount(wk) {
     var n = (wk && wk.note && wk.note.photos) ? wk.note.photos.length : 0;
-    return 2 + (n ? Math.ceil(n / 2) : 0);
+    var pairs = n ? Math.ceil(n / 2) : 0;
+    var noteRows = 2 + pairs;          // 섹션 머리 + 메모 1행 + 사진 행
+    var tallRows = pairs * 8;          // 사진 행 한 줄은 빈 행 8줄 높이쯤
+    return Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length - noteRows - tallRows);
   }
 
   /* ------------------------------------------------------------------ *
@@ -971,7 +975,7 @@
       appendXml(tbl, notePhotoRowXml(note.photos.slice(pi, pi + 2), photoRels.slice(pi, pi + 2)));
     }
 
-    var blanks = Math.max(0, (TOTAL_ROWS - ROWS_BEFORE_VISITS) - wk.visits.length - noteRowCount(wk));
+    var blanks = blankRowCount(wk);
     for (var b = 0; b < blanks; b++) { tbl.appendChild(blankTpl.cloneNode(true)); }
 
     // 5) zip 다시 만들기
