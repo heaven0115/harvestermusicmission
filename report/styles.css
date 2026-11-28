@@ -265,7 +265,7 @@ tr.day td{height:34pt}
 tr.visit td{height:27.2pt}
 tr.blank td{height:27.2pt}
 /* 오른쪽 4열 비고·사진 칸 (11/24 행부터 표 끝까지 세로 병합) */
-td.note-cell{vertical-align:top; padding:3pt 3.5pt; line-height:1.32}
+table.report td.note-cell{vertical-align:top; padding:3pt 3.5pt; line-height:1.32}
 td.note-cell .note-memo{min-height:2.8em; outline:none; white-space:pre-wrap}
 td.note-cell .note-memo:empty::before{
   content:attr(data-placeholder); color:#9aa4ad; font-weight:400; font-size:9pt;
