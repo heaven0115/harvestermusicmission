@@ -4,6 +4,18 @@
 (function () {
   'use strict';
 
+  /* 화면에서 생기는 자바스크립트 오류를 모아 두어 점검할 수 있게 합니다. */
+  try {
+    window.__reportErrors = [];
+    window.addEventListener('error', function (e) {
+      window.__reportErrors.push(String((e && e.message) || e));
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e && e.reason;
+      window.__reportErrors.push('rejection: ' + String((r && r.message) || r));
+    });
+  } catch (e) { /* 무시 */ }
+
   var LS_KEY = 'ministry-report-v1';
   var DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   var W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -74,7 +86,8 @@
     for (var i = 0; i < 6; i++) { days.push({ date: addDays(start, i), text: '' }); }
     var sun = days[5].date;
     var today = todayISO();
-    var submit = (today >= sun) ? today : sun;
+    var submit = sun;
+    if (today > sun && today <= addDays(sun, 2)) { submit = today; }
     var visits = DEFAULT_VISITS.map(function (n) { return { name: n, text: '' }; });
     return { start: start, submit: submit, days: days, visits: visits };
   }
@@ -585,6 +598,7 @@
       if (!cells.length) { continue; }
       fillCell(cells[0], [dateLabel(wk, i)]);
       if (cells[2]) { fillCell(cells[2], textLines(wk.days[i].text)); }
+      if (cells[3]) { fillCell(cells[3], ['']); }
     }
 
     // 3) 심방 항목 행 + 빈 행
